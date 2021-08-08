@@ -1,0 +1,158 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{1706b4b4-17e3-4cac-aab4-5c10b10797f8}</ProjectGuid>
+    <RootNamespace>engine</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)binary\$(ProjectName)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)binary\$(ProjectName)\$(Configuration)\obj\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)binary\$(ProjectName)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)binary\$(ProjectName)\$(Configuration)\obj\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)external/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+    <Lib>
+      <AdditionalLibraryDirectories>$(SolutionDir)external\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib</AdditionalDependencies>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)external/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+    <Lib>
+      <AdditionalLibraryDirectories>$(SolutionDir)external\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib</AdditionalDependencies>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="asset_system\asset_system.cpp" />
+    <ClCompile Include="core\input.cpp" />
+    <ClCompile Include="core\job_sytem.cpp" />
+    <ClCompile Include="core\windowData.cpp" />
+    <ClCompile Include="engine.cpp" />
+    <ClCompile Include="core\log.cpp" />
+    <ClCompile Include="core\runtime_module.cpp" />
+    <ClCompile Include="core\timer.cpp" />
+    <ClCompile Include="launch\glfw_window.cpp" />
+    <ClCompile Include="renderer\imguiPass.cpp" />
+    <ClCompile Include="renderer\renderer.cpp" />
+    <ClCompile Include="vk\impl\vk_buffer.cpp" />
+    <ClCompile Include="vk\impl\vk_cmdbuffer.cpp" />
+    <ClCompile Include="vk\impl\vk_descriptor.cpp" />
+    <ClCompile Include="vk\impl\vk_device.cpp" />
+    <ClCompile Include="vk\impl\vk_image.cpp" />
+    <ClCompile Include="vk\impl\vk_instance.cpp" />
+    <ClCompile Include="vk\impl\vk_swapchain.cpp" />
+    <ClCompile Include="vk\vk_rhi.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="asset_system\asset_system.h" />
+    <ClInclude Include="async\book_cpp_concurrency_action.h" />
+    <ClInclude Include="core\deletion_queue.h" />
+    <ClInclude Include="core\event_system.h" />
+    <ClInclude Include="core\file_system.h" />
+    <ClInclude Include="core\input.h" />
+    <ClInclude Include="core\input_code.h" />
+    <ClInclude Include="core\job_system.h" />
+    <ClInclude Include="core\cvar.h" />
+    <ClInclude Include="core\core.h" />
+    <ClInclude Include="core\windowData.h" />
+    <ClInclude Include="engine.h" />
+    <ClInclude Include="core\noncopyable.h" />
+    <ClInclude Include="core\log.h" />
+    <ClInclude Include="core\runtime_module.h" />
+    <ClInclude Include="core\timer.h" />
+    <ClInclude Include="launch\launch_engine_loop.h" />
+    <ClInclude Include="renderer\imguiPass.h" />
+    <ClInclude Include="renderer\renderer.h" />
+    <ClInclude Include="vk\impl\vk_buffer.h" />
+    <ClInclude Include="vk\impl\vk_cmdbuffer.h" />
+    <ClInclude Include="vk\impl\vk_common.h" />
+    <ClInclude Include="vk\impl\vk_descriptor.h" />
+    <ClInclude Include="vk\impl\vk_device.h" />
+    <ClInclude Include="vk\impl\vk_factory.h" />
+    <ClInclude Include="vk\impl\vk_image.h" />
+    <ClInclude Include="vk\impl\vk_instance.h" />
+    <ClInclude Include="vk\impl\vk_sampler.h" />
+    <ClInclude Include="vk\impl\vk_shader.h" />
+    <ClInclude Include="vk\impl\vk_swapchain.h" />
+    <ClInclude Include="vk\vk_rhi.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\imgui\imgui.vcxproj">
+      <Project>{f7e3a07f-13be-4815-b10c-3cda05aaedb4}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

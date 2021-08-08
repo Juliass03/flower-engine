@@ -1,0 +1,400 @@
+#include "vk_rhi.h"
+
+namespace engine{
+
+VulkanRHI* VulkanRHI::s_RHI = new VulkanRHI();
+
+void VulkanRHI::init(GLFWwindow* window,
+    std::vector<const char*> instanceLayerNames,
+    std::vector<const char*> instanceExtensionNames,
+    std::vector<const char*> deviceExtensionNames)
+{
+    if(ok) return;
+
+    m_instanceExtensionNames = instanceExtensionNames;
+    m_instanceLayerNames = instanceLayerNames;
+    m_deviceExtensionNames = deviceExtensionNames;
+
+    // Enable gpu features here.
+    m_enableGpuFeatures.samplerAnisotropy = true; // Enable sampler anisotropy.
+    m_enableGpuFeatures.depthClamp = true;        // Depth clamp to avoid near plane clipping.
+
+    m_window = window;
+    m_instance.init(m_instanceExtensionNames,m_instanceLayerNames);
+    m_deletionQueue.push([&]()
+    {
+        m_instance.destroy();
+    });
+
+    if (glfwCreateWindowSurface(m_instance, window, nullptr, &m_surface) != VK_SUCCESS) 
+    {
+        LOG_GRAPHICS_FATAL("Window surface create error.");
+    }
+    m_deletionQueue.push([&]()
+    {
+        if(m_surface!=VK_NULL_HANDLE)
+        {
+            vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+        }
+    });
+
+    m_deviceExtensionNames.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    m_device.init(m_instance,m_surface,m_enableGpuFeatures,m_deviceExtensionNames);
+    vkGetPhysicalDeviceProperties(m_device.physicalDevice, &m_physicalDeviceProperties);
+    LOG_GRAPHICS_INFO("Gpu min align memory size£º{0}.",m_physicalDeviceProperties.limits.minUniformBufferOffsetAlignment);
+
+    m_swapchain.init(&m_device,&m_surface,window);
+    createCommandPool();
+    createSyncObjects();
+    m_deletionQueue.push([&]()
+    {
+        releaseSyncObjects();
+        releaseCommandPool();
+        m_swapchain.destroy();
+        m_device.destroy();
+    });
+
+    // Custom vulkan object cache and allocator.
+    m_shaderCache.init(m_device.device);
+    m_descriptorLayoutCache.init(&m_device);
+    m_descriptorAllocator.init(&m_device);
+    createVmaAllocator();
+    m_deletionQueue.push([&]()
+    {
+        releaseVmaAllocator();
+        m_descriptorAllocator.cleanup();
+        m_descriptorLayoutCache.cleanup();
+        m_shaderCache.release(); 
+    });
+
+    ok = true;
+}
+
+void VulkanRHI::release()
+{
+    if(!ok) return;
+    m_deletionQueue.flush();
+    ok = false;
+}
+
+uint32 VulkanRHI::acquireNextPresentImage()
+{
+    m_swapchainChange = swapchainRebuild();
+
+    vkWaitForFences(m_device,1,&m_inFlightFences[m_currentFrame],VK_TRUE,UINT64_MAX);
+    VkResult result = vkAcquireNextImageKHR(
+        m_device,m_swapchain,UINT64_MAX,
+        m_semaphoresImageAvailable[m_currentFrame],
+        VK_NULL_HANDLE,&m_imageIndex
+    );
+
+    if(result == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        recreateSwapChain();
+    }
+    else if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+    {
+        LOG_GRAPHICS_FATAL("Fail to requeset present image.");
+    }
+
+    if(m_imagesInFlight[m_imageIndex] != VK_NULL_HANDLE)
+    {
+        vkWaitForFences(m_device,1,&m_imagesInFlight[m_imageIndex],VK_TRUE,UINT64_MAX);
+    }
+
+    m_imagesInFlight[m_imageIndex] = m_inFlightFences[m_currentFrame];
+
+    return m_imageIndex;
+}
+
+void VulkanRHI::present()
+{
+    VkPresentInfoKHR present_info{};
+    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+    VkSemaphore signalSemaphores[] = { m_semaphoresRenderFinished[m_currentFrame] };
+    present_info.waitSemaphoreCount = 1;
+    present_info.pWaitSemaphores = signalSemaphores;
+
+    VkSwapchainKHR swapchains[] = { m_swapchain };
+    present_info.swapchainCount = 1;
+    present_info.pSwapchains = swapchains;
+    present_info.pImageIndices = &m_imageIndex;
+
+    auto result = vkQueuePresentKHR(m_device.presentQueue,&present_info);
+    if(result==VK_ERROR_OUT_OF_DATE_KHR || result==VK_SUBOPTIMAL_KHR || m_swapchainChange)
+    {
+        m_swapchainChange = false;
+        recreateSwapChain();
+    }
+    else if(result!=VK_SUCCESS)
+    {
+        LOG_GRAPHICS_FATAL("Fail to present image.");
+    }
+
+    m_currentFrame = (m_currentFrame +1) % m_maxFramesInFlight;
+}
+
+void VulkanRHI::submit(VkSubmitInfo& info)
+{
+    vkCheck(vkQueueSubmit(getGraphicsQueue(),1,&info,m_inFlightFences[m_currentFrame]));
+}
+
+void VulkanRHI::submit(VulkanSubmitInfo& info)
+{
+    vkCheck(vkQueueSubmit(getGraphicsQueue(),1,&info.get(),m_inFlightFences[m_currentFrame]));
+}
+
+void VulkanRHI::submit(uint32 count,VkSubmitInfo* infos)
+{
+    vkCheck(vkQueueSubmit(getGraphicsQueue(),count,infos,m_inFlightFences[m_currentFrame]));
+}
+
+void VulkanRHI::resetFence()
+{
+    vkCheck(vkResetFences(m_device,1,&m_inFlightFences[m_currentFrame]));
+}
+
+void VulkanRHI::submitAndResetFence(VkSubmitInfo& info)
+{
+    vkCheck(vkResetFences(m_device,1,&m_inFlightFences[m_currentFrame]));
+    vkCheck(vkQueueSubmit(getGraphicsQueue(),1,&info,m_inFlightFences[m_currentFrame]));
+}
+
+void VulkanRHI::submitAndResetFence(VulkanSubmitInfo& info)
+{
+    vkCheck(vkResetFences(m_device,1,&m_inFlightFences[m_currentFrame]));
+    vkCheck(vkQueueSubmit(getGraphicsQueue(),1,&info.get(),m_inFlightFences[m_currentFrame]));
+}
+
+void VulkanRHI::submitAndResetFence(uint32 count,VkSubmitInfo* infos)
+{
+    vkCheck(vkResetFences(m_device,1,&m_inFlightFences[m_currentFrame]));
+    vkCheck(vkQueueSubmit(getGraphicsQueue(),count,infos,m_inFlightFences[m_currentFrame]));
+}
+
+VulkanShaderModule* VulkanRHI::getShader(const std::string& path)
+{
+    return m_shaderCache.getShader(path);
+}
+
+VkShaderModule VulkanRHI::getVkShader(const std::string& path)
+{
+    return m_shaderCache.getShader(path)->GetModule();
+}
+
+void VulkanRHI::addShaderModule(const std::string& path)
+{
+    m_shaderCache.getShader(path);
+}
+
+VkRenderPass VulkanRHI::createRenderpass(const VkRenderPassCreateInfo& info)
+{
+    VkRenderPass pass;
+    vkCheck(vkCreateRenderPass(m_device, &info, nullptr, &pass));
+    return pass;
+}
+
+VkPipelineLayout VulkanRHI::createPipelineLayout(const VkPipelineLayoutCreateInfo& info)
+{
+    VkPipelineLayout layout;
+    vkCheck(vkCreatePipelineLayout(m_device,&info,nullptr,&layout));
+    return layout;
+}
+
+void VulkanRHI::destroyRenderpass(VkRenderPass pass)
+{
+    vkDestroyRenderPass(m_device,pass,nullptr);
+}
+
+void VulkanRHI::destroyFramebuffer(VkFramebuffer fb)
+{
+    vkDestroyFramebuffer(m_device,fb,nullptr);
+}
+
+void VulkanRHI::destroyPipeline(VkPipeline pipe)
+{
+    vkDestroyPipeline(m_device,pipe,nullptr);
+}
+
+void VulkanRHI::destroyPipelineLayout(VkPipelineLayout layout)
+{
+    vkDestroyPipelineLayout(m_device,layout,nullptr);
+}
+
+size_t VulkanRHI::packUniformBufferOffsetAlignment(size_t originalSize) const
+{
+    size_t minUboAlignment = m_physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+    size_t alignedSize = originalSize;
+    if(minUboAlignment > 0)
+    {
+        alignedSize = (alignedSize+minUboAlignment-1) &~ (minUboAlignment-1);
+    }
+
+    return alignedSize;
+}
+
+bool VulkanRHI::swapchainRebuild()
+{
+    static int current_width;
+    static int current_height;
+    glfwGetWindowSize(m_window,&current_width,&current_height);
+
+    static int last_width = current_width;
+    static int last_height = current_height;
+
+    if(current_width != last_width || current_height != last_height)
+    {
+        last_width = current_width;
+        last_height = current_height;
+        return true;
+    }
+
+    return false;
+}
+
+void VulkanRHI::createCommandPool()
+{
+    auto queueFamilyIndices = m_device.findQueueFamilies();
+
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+    if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_graphicsCommandPool) != VK_SUCCESS) 
+    {
+        LOG_GRAPHICS_FATAL("Fail to create vulkan CommandPool.");
+    }
+
+    poolInfo.queueFamilyIndex =  queueFamilyIndices.computeFaimly;
+    if(vkCreateCommandPool(m_device,&poolInfo,nullptr,&m_computeCommandPool)!=VK_SUCCESS)
+    {
+        LOG_GRAPHICS_FATAL("Fail to create compute CommandPool.");
+    }
+}
+
+void VulkanRHI::createSyncObjects()
+{
+    const auto imageNums = m_swapchain.getImageViews().size();
+    m_semaphoresImageAvailable.resize(m_maxFramesInFlight);
+    m_semaphoresRenderFinished.resize(m_maxFramesInFlight);
+    m_inFlightFences.resize(m_maxFramesInFlight);
+    m_imagesInFlight.resize(imageNums);
+    for(auto& fence : m_imagesInFlight)
+    {
+        fence = VK_NULL_HANDLE;
+    }
+
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    for(size_t i = 0; i < m_maxFramesInFlight; i++)
+    {
+        if(
+            vkCreateSemaphore(m_device,&semaphoreInfo,nullptr,&m_semaphoresImageAvailable[i])!=VK_SUCCESS||
+            vkCreateSemaphore(m_device,&semaphoreInfo,nullptr,&m_semaphoresRenderFinished[i])!=VK_SUCCESS||
+            vkCreateFence(m_device,&fenceInfo,nullptr,&m_inFlightFences[i])!=VK_SUCCESS)
+        {
+            LOG_GRAPHICS_FATAL("Fail to create semaphore.");
+        }
+    }
+}
+
+void VulkanRHI::createVmaAllocator()
+{
+    if(CVarSystem::get()->getInt32CVar("r.RHI.EnableVma"))
+    {
+        VmaAllocatorCreateInfo allocatorInfo = {};
+        allocatorInfo.physicalDevice = m_device.physicalDevice;
+        allocatorInfo.device = m_device;
+        allocatorInfo.instance = m_instance;
+        vmaCreateAllocator(&allocatorInfo, &m_vmaAllocator);
+    }
+}
+
+void VulkanRHI::releaseVmaAllocator()
+{
+    if(CVarSystem::get()->getInt32CVar("r.RHI.EnableVma"))
+    {
+        vmaDestroyAllocator(m_vmaAllocator);
+    }
+}
+
+VulkanCommandBuffer* VulkanRHI::createGraphicsCommandBuffer(VkCommandBufferLevel level)
+{
+    return VulkanCommandBuffer::create(
+        &m_device,
+        m_graphicsCommandPool,
+        level,
+        m_device.graphicsQueue
+    );
+}
+
+VulkanCommandBuffer* VulkanRHI::createComputeCommandBuffer(VkCommandBufferLevel level)
+{
+    return VulkanCommandBuffer::create(
+        &m_device,
+        m_computeCommandPool,
+        level,
+        m_device.computeQueue
+    );
+}
+
+void VulkanRHI::releaseCommandPool()
+{
+    if(m_graphicsCommandPool!=VK_NULL_HANDLE)
+    {
+        vkDestroyCommandPool(m_device, m_graphicsCommandPool, nullptr);
+    }
+    if(m_computeCommandPool!=VK_NULL_HANDLE)
+    {
+        vkDestroyCommandPool(m_device, m_computeCommandPool, nullptr);
+    }
+}
+
+void VulkanRHI::releaseSyncObjects()
+{
+    for(size_t i = 0; i < m_maxFramesInFlight; i++)
+    {
+        vkDestroySemaphore(m_device,m_semaphoresImageAvailable[i],nullptr);
+        vkDestroySemaphore(m_device,m_semaphoresRenderFinished[i],nullptr);
+        vkDestroyFence(m_device,m_inFlightFences[i],nullptr);
+    }
+}
+
+void VulkanRHI::recreateSwapChain()
+{
+    static int width = 0, height = 0;
+    glfwGetFramebufferSize(m_window, &width, &height);
+    while (width == 0 || height == 0) 
+    {
+        glfwGetFramebufferSize(m_window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    vkDeviceWaitIdle(m_device);
+
+    // Clean special
+    for(auto& callBackPair : m_callbackBeforeSwapchainRebuild)
+    {
+        callBackPair.second();
+    }
+
+    releaseSyncObjects();
+    m_swapchain.destroy();
+    m_swapchain.init(&m_device,&m_surface,m_window);
+    createSyncObjects();
+    m_imagesInFlight.resize(m_swapchain.getImageViews().size(), VK_NULL_HANDLE);
+
+    // Recreate special
+    for(auto& callBackPair : m_callbackAfterSwapchainRebuild)
+    {
+        callBackPair.second();
+    }
+}
+}
