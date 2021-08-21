@@ -76,6 +76,10 @@ private:
 
     VmaAllocator m_vmaAllocator = {};
 
+private: // rhi vulkan commandbuffer
+    std::vector<VulkanCommandBuffer*> m_staticGraphicCommandBuffer;  // NOTE: 静态的CommandBuffer仅在帧前或静态物体发生变化时记录
+    std::vector<VulkanCommandBuffer*> m_dynamicGraphicsCommandBuffer; // NOTE: 动态的CommandBuffer在每帧更新时都重新记录一遍
+
 private: // cache
     VulkanShaderCache m_shaderCache = {};
     VulkanDescriptorAllocator m_descriptorAllocator = {};
@@ -104,6 +108,8 @@ public:
         std::vector<const char*> instanceExtensionNames = {},
         std::vector<const char*> deviceExtensionNames = {}
     );
+
+    float getVramUsage();
 
     VkFormat findDepthStencilFormat() { return m_device.findDepthStencilFormat(); }
     void release();
@@ -161,6 +167,7 @@ public:
     size_t packUniformBufferOffsetAlignment(size_t originalSize) const;
     template <typename T> size_t getUniformBufferPadSize() const{ return PackUniformBufferOffsetAlignment(sizeof(T)); }
     VkExtent2D getSwapchainExtent() const { return m_swapchain.getSwapchainExtent();  }
+    Ref<VulkanCommandBuffer> getDynamicGraphicsCmdBuf(uint32 index) { return m_dynamicGraphicsCommandBuffer[index]; }
 
 public:
     void addBeforeSwapchainRebuildCallback(std::string name,const std::function<RegisterFuncAfterSwapchainRecreate>& func)
@@ -186,7 +193,9 @@ private:
     void createCommandPool();
     void createSyncObjects();
     void createVmaAllocator();
+    void createCommandBuffers();
 
+    void releaseCommandBuffers();
     void releaseCommandPool();
     void releaseSyncObjects();
     void recreateSwapChain();

@@ -6,11 +6,17 @@
     <ClCompile Include="widget\widget.cpp" />
     <ClCompile Include="widget\widget_imgui_demo.cpp" />
     <ClCompile Include="widget\widget_console.cpp" />
+    <ClCompile Include="widget\widget_downbar.cpp" />
+    <ClCompile Include="widget\widget_viewport.cpp" />
+    <ClCompile Include="widget\widget_asset.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="editor.h" />
     <ClInclude Include="widget\widget.h" />
     <ClInclude Include="widget\widget_imgui_demo.h" />
     <ClInclude Include="widget\widget_console.h" />
+    <ClInclude Include="widget\widget_downbar.h" />
+    <ClInclude Include="widget\widget_viewport.h" />
+    <ClInclude Include="widget\widget_asset.h" />
   </ItemGroup>
 </Project>

@@ -44,9 +44,9 @@ void ModuleManager::tick(ETickType type,float dt)
 void ModuleManager::release()
 {
 	// 从后往前释放
-	for (size_t i = m_runtimeModules.size() - 1; i > 0; i--)
+	for (size_t i = m_runtimeModules.size(); i > 0; i--)
 	{
-		m_runtimeModules[i].ptr->release();
+		m_runtimeModules[i - 1].ptr->release();
 	}
 }
 

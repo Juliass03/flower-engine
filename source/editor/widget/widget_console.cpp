@@ -36,6 +36,8 @@ struct WidgetConsoleApp
     ImGuiTextFilter       Filter;
     bool                  AutoScroll = true;
     bool                  ScrollToBottom;
+    int CurPos;
+   
 
     std::vector<const char*> activeCommands;
 
@@ -192,8 +194,6 @@ struct WidgetConsoleApp
             ImGui::EndPopup();
         }
 
-        ImGui::TextWrapped("Using 'TAB' as completion key and 'Up/Down' as history keys. Enter 'r.' to change console vars.");
-        // ImGui::Separator();
         const auto button_log_type_visibility_toggle = [this](const uint32 icon, LogType index,std::string Name)
         {
             bool& visibility = logVisible[(size_t)index];
@@ -211,15 +211,15 @@ struct WidgetConsoleApp
         };
 
         // Log category visibility buttons
-        button_log_type_visibility_toggle(0,LogType::Trace,"trace");
+        button_log_type_visibility_toggle(0,LogType::Trace,u8"讯息");
         ImGui::SameLine();
-        button_log_type_visibility_toggle(0,LogType::Info,"info");
+        button_log_type_visibility_toggle(0,LogType::Info,u8"通知");
         ImGui::SameLine();
-        button_log_type_visibility_toggle(0,LogType::Warn,"warn");
+        button_log_type_visibility_toggle(0,LogType::Warn,u8"警告");
         ImGui::SameLine();
-        button_log_type_visibility_toggle(0,LogType::Error,"error");
+        button_log_type_visibility_toggle(0,LogType::Error,u8"错误");
         ImGui::SameLine();
-        button_log_type_visibility_toggle(0,LogType::Other,"other");
+        button_log_type_visibility_toggle(0,LogType::Other,u8"其他");
         
         // Options menu
         //if (ImGui::BeginPopup("Options"))
@@ -232,15 +232,15 @@ struct WidgetConsoleApp
         //if (ImGui::Button("Options"))
         //    ImGui::OpenPopup("Options");
         ImGui::Separator();
-        Filter.Draw("keyword filter", 180);
+        Filter.Draw(u8"关键词过滤",180);
         ImGui::SameLine();
-        if (ImGui::SmallButton("clear"))           
+        if (ImGui::SmallButton(u8"清除"))           
         { 
             ClearLog(); 
         }
 
         ImGui::SameLine();
-        bool copy_to_clipboard = ImGui::SmallButton("copy");
+        bool copy_to_clipboard = ImGui::SmallButton(u8"复制");
         ImGui::Separator();
 
         // Reserve enough left-over height for 1 separator + 1 input text
@@ -248,7 +248,7 @@ struct WidgetConsoleApp
         ImGui::BeginChild("ScrollingRegion", ImVec2(0, -footer_height_to_reserve), false, ImGuiWindowFlags_HorizontalScrollbar);
         if (ImGui::BeginPopupContextWindow())
         {
-            if (ImGui::Selectable("Clear")) ClearLog();
+            if (ImGui::Selectable(u8"清除")) ClearLog();
             ImGui::EndPopup();
         }
 
@@ -333,7 +333,7 @@ struct WidgetConsoleApp
                 color = ImVec4(1.0f, 0.8f, 0.6f, 1.0f); 
                 has_color = true; 
             }
-            else if (strncmp(item, "NOTE:", 5) == 0) 
+            else if (strncmp(item, u8"命令帮助：", 5) == 0) 
             { 
                 if(!logVisible[size_t(LogType::Other)])
                     continue;
@@ -368,7 +368,7 @@ struct WidgetConsoleApp
         bool reclaim_focus = false;
         ImGuiInputTextFlags input_text_flags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory;
         
-        if (ImGui::InputText("cvar input", InputBuf, IM_ARRAYSIZE(InputBuf), input_text_flags, &TextEditCallbackStub, (void*)this))
+        if (ImGui::InputText(u8" 输入命令", InputBuf, IM_ARRAYSIZE(InputBuf), input_text_flags, &TextEditCallbackStub, (void*)this))
         {
             char* s = InputBuf;
             Strtrim(s);
@@ -385,15 +385,18 @@ struct WidgetConsoleApp
         if (ImGui::IsItemHovered() && activeCommands.size() > 0)
         {
             ImGui::BeginTooltip();
+
             ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
             for(auto& info : activeCommands)
             {
+                
                 ImGui::TextUnformatted(info);
                 ImGui::Separator();
             }
             ImGui::PopTextWrapPos();
-            ImGui::EndTooltip();
+            ImGui::EndTooltipWithPos();
         }
+        
 
         // Auto-focus on window apparition
         ImGui::SetItemDefaultFocus();
@@ -451,10 +454,10 @@ struct WidgetConsoleApp
                 {
                     val = CVarSystem::get()->getStringArray().getCurrent(arrayIndex);
                 }
-                std::string outHelp = "NOTE: " + std::string(cVar->description);
+                std::string outHelp = u8"命令帮助：" + std::string(cVar->description);
 
                 AddLog(outHelp.c_str());
-                AddLog(("Current value: " + tokens[0] + " " +val).c_str());
+                AddLog((u8"当前值：" + tokens[0] + " " +val).c_str());
 
             }
             else if(tokens.size()==2)
@@ -464,7 +467,7 @@ struct WidgetConsoleApp
 
                 if((flag&InitOnce)||(flag&ReadOnly))
                 {
-                    AddLog("Command '%s' is a read only setting, can't change in console.\n", tokens[0].c_str());
+                    AddLog(u8"'%s'是一个只读的命令，不能在命令控制台修改它！\n", tokens[0].c_str());
                 }
                 else if(cVar->type==CVarType::Int32)
                 {
@@ -485,12 +488,12 @@ struct WidgetConsoleApp
             }
             else
             {
-                AddLog("Error command, command parameter num should only be 1, but now is: '%d'.\n", tokens.size() - 1);
+                AddLog(u8"错误的命令参数，所有CVar的参数都只有1个，但是这次输入了'%d'个。\n", tokens.size() - 1);
             }
         }
         else
         {
-            AddLog("Unknown command: '%s'\n", command_line);
+            AddLog(u8"未知的命令：'%s'！\n", command_line);
         }
 
         // On command input, we scroll to bottom even if AutoScroll==false
@@ -590,7 +593,7 @@ struct WidgetConsoleApp
 
         case ImGuiInputTextFlags_CallbackEdit:
         {
-            
+            CurPos = data->CursorPos;
             activeCommands.clear();
             // Locate beginning of current word
             const char* word_end = data->Buf + data->CursorPos;
@@ -668,7 +671,7 @@ WidgetConsole::WidgetConsole(engine::Ref<engine::Engine> engine)
     : Widget(engine)
 {
     app = new WidgetConsoleApp();
-    m_title = "Console";
+    m_title = u8"命令控制台";
 
     // 在初始化后立即注册
     engine::Logger::getInstance()->getLogCache()->pushCallback([&](std::string info,engine::ELogType type){

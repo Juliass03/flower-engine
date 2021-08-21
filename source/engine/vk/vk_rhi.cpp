@@ -1,4 +1,5 @@
 #include "vk_rhi.h"
+#include "../core/timer.h"
 
 namespace engine{
 
@@ -12,9 +13,10 @@ void VulkanRHI::init(GLFWwindow* window,
     if(ok) return;
 
     m_instanceExtensionNames = instanceExtensionNames;
+    m_instanceExtensionNames.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME); // 用于VRAM监控
     m_instanceLayerNames = instanceLayerNames;
     m_deviceExtensionNames = deviceExtensionNames;
-
+    m_deviceExtensionNames.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
     // Enable gpu features here.
     m_enableGpuFeatures.samplerAnisotropy = true; // Enable sampler anisotropy.
     m_enableGpuFeatures.depthClamp = true;        // Depth clamp to avoid near plane clipping.
@@ -67,7 +69,53 @@ void VulkanRHI::init(GLFWwindow* window,
         m_shaderCache.release(); 
     });
 
+    // 创建静态和动态的CommandBuffer
+    createCommandBuffers();
+    m_deletionQueue.push([&]()
+    {
+        releaseCommandBuffers();
+    });
+
     ok = true;
+}
+
+static float vram_usage = 0.0f;
+static float last_time = -1.0f;
+
+float VulkanRHI::getVramUsage()
+{
+    if(last_time<0.0f)
+    {
+        last_time = g_timer.globalPassTime();
+    }
+
+    if(g_timer.globalPassTime()-last_time>1.0f)
+    {
+        last_time = g_timer.globalPassTime();
+
+        VkPhysicalDeviceMemoryBudgetPropertiesEXT memBudget{};
+        memBudget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+        memBudget.pNext = nullptr;
+
+        VkPhysicalDeviceMemoryProperties2 memProps { };
+        memProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+        memProps.pNext = &memBudget;
+
+        vkGetPhysicalDeviceMemoryProperties2(m_device.physicalDevice, &memProps);
+
+        int32 heapCount = memProps.memoryProperties.memoryHeapCount;
+        int32 budgetSize=0;
+        int32 usage=0;
+        for(int32 i = 0; i < heapCount; i++)
+        {
+            budgetSize += (int32)memBudget.heapBudget[i];
+            usage += (int32)memBudget.heapUsage[i];
+        }
+
+        vram_usage = float(usage) / float(budgetSize);
+    }
+
+    return vram_usage;
 }
 
 void VulkanRHI::release()
@@ -317,6 +365,35 @@ void VulkanRHI::createVmaAllocator()
     }
 }
 
+void VulkanRHI::createCommandBuffers()
+{
+    CHECK(m_staticGraphicCommandBuffer.size() == 0);
+    CHECK(m_dynamicGraphicsCommandBuffer.size() == 0);
+
+    auto size = m_swapchain.getImageViews().size();
+    m_staticGraphicCommandBuffer.resize(size);
+    m_dynamicGraphicsCommandBuffer.resize(size);
+
+    for(size_t i = 0; i < size; i++)
+    {
+        m_staticGraphicCommandBuffer[i] = createGraphicsCommandBuffer();
+        m_dynamicGraphicsCommandBuffer[i] = createGraphicsCommandBuffer();
+    }
+}
+
+void VulkanRHI::releaseCommandBuffers()
+{
+    CHECK(m_staticGraphicCommandBuffer.size() >= 0);
+
+    for(size_t i = 0; i < m_staticGraphicCommandBuffer.size(); i++)
+    {
+        delete m_staticGraphicCommandBuffer[i];
+        delete m_dynamicGraphicsCommandBuffer[i];
+    }
+    m_staticGraphicCommandBuffer.resize(0);
+    m_dynamicGraphicsCommandBuffer.resize(0);
+}
+
 void VulkanRHI::releaseVmaAllocator()
 {
     if(CVarSystem::get()->getInt32CVar("r.RHI.EnableVma"))
@@ -385,10 +462,12 @@ void VulkanRHI::recreateSwapChain()
         callBackPair.second();
     }
 
+    releaseCommandBuffers();
     releaseSyncObjects();
     m_swapchain.destroy();
     m_swapchain.init(&m_device,&m_surface,m_window);
     createSyncObjects();
+    createCommandBuffers();
     m_imagesInFlight.resize(m_swapchain.getImageViews().size(), VK_NULL_HANDLE);
 
     // Recreate special
@@ -397,4 +476,5 @@ void VulkanRHI::recreateSwapChain()
         callBackPair.second();
     }
 }
+
 }

@@ -4,10 +4,10 @@
 #include "widget/widget.h"
 #include "widget/widget_imgui_demo.h"
 #include "widget/widget_console.h"
+#include "widget/widget_downbar.h"
 
 using namespace engine;
 
-static bool bShowDockspace = true;
 void showDockSpace(bool* p_open)
 {
     // See imguidemo.cpp
@@ -55,7 +55,7 @@ void showDockSpace(bool* p_open)
 
     if (ImGui::BeginMenuBar())
     {
-        if (ImGui::BeginMenu("Options"))
+        if (ImGui::BeginMenu(u8"¿ªÊ¼"))
         {
             // Disabling fullscreen would allow the window to be moved to the front of other windows,
             // which we can't undo at the moment without finer window depth/z control.
@@ -70,13 +70,12 @@ void showDockSpace(bool* p_open)
             if (ImGui::MenuItem("Flag: PassthruCentralNode",    "", (dockspace_flags & ImGuiDockNodeFlags_PassthruCentralNode) != 0, opt_fullscreen)) { dockspace_flags ^= ImGuiDockNodeFlags_PassthruCentralNode; }
             ImGui::Separator();
 
-            if (ImGui::MenuItem("Close", NULL, false, p_open != NULL))
+            if (ImGui::MenuItem(u8"¹Ø±Õ", NULL, false, p_open != NULL))
                 *p_open = false;
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
     }
-
     ImGui::End();
 }
 
@@ -84,11 +83,13 @@ void Editor::init()
 {
 	g_engineLoop.init();
 	auto engine = g_engineLoop.getEngine();
-	m_widgets.push_back(new WidgetImguiDemo(engine));
+	
 	m_widgets.push_back(new WidgetConsole(engine));
+    m_widgets.push_back(new WidgetDownbar(engine));
+    m_widgets.push_back(new WidgetImguiDemo(engine));
 
     engine->getRuntimeModule<Renderer>()->addImguiFunction("dockSpace",[&](){
-        showDockSpace(&bShowDockspace);
+        showDockSpace(g_engineLoop.getRun());
     });
 }
 

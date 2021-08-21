@@ -6,6 +6,7 @@ namespace engine{
 
 class Timer
 {
+    friend class EngineLoop;
 private:
     // 初始化的TimePoint,用于计算真实世界的时间流逝。
     std::chrono::system_clock::time_point mInitTimePoint{ };
@@ -20,8 +21,13 @@ private:
     std::chrono::duration<float> mFrameDeltaTime { 0.0f };
 
     bool bGamePause = true;
+    float m_currentFps {0.0f};
+    float m_currentSmoothFps {0.0f};
 
 public:
+    float getCurrentFps() const { return m_currentFps;}
+    float getCurrentSmoothFps() const { return m_currentSmoothFps;}
+
     Timer(){ }
     ~Timer() { }
 

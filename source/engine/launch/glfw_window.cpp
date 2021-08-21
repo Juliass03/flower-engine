@@ -3,6 +3,8 @@
 #include <glm/glm.hpp>
 #include <sstream>
 #include "../engine.h"
+#include "../vk/vk_rhi.h"
+#include "../asset_system/asset_system.h"
 
 namespace engine{
 
@@ -36,13 +38,13 @@ static AutoCVarString cVarTileName(
     "r.Window.TileName",
     "Window tile name.",
     "Window",
-    "flower engine",
+    "",
     CVarFlags::ReadAndWrite
 );
 
 static AutoCVarInt32 cVarFpsMode(
     "r.Window.FpsMode",
-    "Window fps mode,0 is free,1 is 30,2 is 60,3 is 120,4 is 240",
+    "Window fps mode,0 is free,1 is 30,2 is 60,3 is 120,4 is 240.",
     "Window",
     0,
     CVarFlags::ReadAndWrite
@@ -139,7 +141,15 @@ void GLFWInit()
 
         width  = mode->width;
         height = mode->height;
+
+        glfwWindowHint(GLFW_RED_BITS, mode->redBits);
+        glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
+        glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
+        glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+
         windowData.window = glfwCreateWindow(width, height,cVarTileName.get().c_str(),glfwGetPrimaryMonitor(),nullptr);
+
+
         glfwSetWindowPos(windowData.window,(mode->width - width)/2, (mode->height - height)/2);
     }
     else if(showMode == EWindowShowMode::FullScreenWithTile)
@@ -182,6 +192,8 @@ void GLFWRelease()
 bool EngineLoop::init()
 {
     GLFWInit();
+    VulkanRHI::get()->init(g_windowData.window);
+    asset_system::EngineAsset::get()->init();
 
     // ÒýÇæ³õÊ¼»¯
     m_engine.init();
@@ -211,7 +223,7 @@ void EngineLoop::guardedMain()
     
     float dt = 0.0166f;
     ETickResult result = ETickResult::Continue;
-    while(ETickResult::Continue == result && !glfwWindowShouldClose(g_windowData.window))
+    while(ETickResult::Continue == result && !glfwWindowShouldClose(g_windowData.window) && m_run)
     {
         glfwPollEvents();
 
@@ -227,9 +239,9 @@ void EngineLoop::guardedMain()
             result = m_engine.tick(dt,m_smooth_dt);
 
             m_frameCount ++;
-            std::stringstream ss;
-            ss << cVarTileName.get() << " [" << requestFps << " FPS]";
-            glfwSetWindowTitle(g_windowData.window, ss.str().c_str());
+
+            g_timer.m_currentFps = requestFps;
+            g_timer.m_currentSmoothFps = requestFps;
         }
         else if((EFpsMode)cVarFpsMode.get() == EFpsMode::Free)
         {
@@ -249,17 +261,23 @@ void EngineLoop::guardedMain()
                 requestFps = passFrame / passTime;
                 passTime = 0;
                 passFrame = 0;
-                std::stringstream ss;
-                ss << cVarTileName.get() << " [" << requestFps << " FPS]";
-                glfwSetWindowTitle(g_windowData.window, ss.str().c_str());
+                g_timer.m_currentSmoothFps = requestFps;
             }
+
+            g_timer.m_currentFps = 1.0f / dt;
+            
         }
     }
+
+    VulkanRHI::get()->waitIdle();
 }
 
 void EngineLoop::release()
 {
     m_engine.release();
+
+    asset_system::EngineAsset::get()->release();
+    VulkanRHI::get()->release();
     GLFWRelease();
 }
 

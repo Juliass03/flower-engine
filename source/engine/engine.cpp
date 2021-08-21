@@ -2,6 +2,7 @@
 #include "core/timer.h"
 #include "core/runtime_module.h"
 #include "renderer/renderer.h"
+#include "asset_system/asset_system.h"
 
 namespace engine{
 
@@ -13,6 +14,7 @@ bool Engine::init()
 	// 注册模块
 	// NOTE: 注册顺序决定Tick调用次序和析构释放次序
 	m_moduleManager->registerRuntimeModule<Renderer>(ETickType::True);
+	m_moduleManager->registerRuntimeModule<asset_system::AssetSystem>(ETickType::True);
 
 	// 初始化所有的模块
 	m_moduleManager->init();

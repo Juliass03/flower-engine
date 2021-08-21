@@ -1,6 +1,6 @@
 /** 
  * NOTE: 引擎的Auto Console Variable System
- *       大部分灵感来源于UE4的IConsoleVariable System
+ *       大部分来源于UE4的IConsoleVariable System
  *       多线程下读写时使用了share_lock可能会稍微拖慢速度
 **/
 #pragma once

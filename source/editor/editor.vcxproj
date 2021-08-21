@@ -94,14 +94,20 @@
     <ClCompile Include="editor.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="widget\widget.cpp" />
+    <ClCompile Include="widget\widget_asset.cpp" />
     <ClCompile Include="widget\widget_console.cpp" />
+    <ClCompile Include="widget\widget_downbar.cpp" />
     <ClCompile Include="widget\widget_imgui_demo.cpp" />
+    <ClCompile Include="widget\widget_viewport.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="editor.h" />
     <ClInclude Include="widget\widget.h" />
+    <ClInclude Include="widget\widget_asset.h" />
     <ClInclude Include="widget\widget_console.h" />
+    <ClInclude Include="widget\widget_downbar.h" />
     <ClInclude Include="widget\widget_imgui_demo.h" />
+    <ClInclude Include="widget\widget_viewport.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

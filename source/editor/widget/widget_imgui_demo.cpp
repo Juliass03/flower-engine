@@ -4,7 +4,7 @@
 WidgetImguiDemo::WidgetImguiDemo(engine::Ref<engine::Engine> engine)
 : Widget(engine)
 {
-
+	m_title = "ImguiDemo";
 }
 
 void WidgetImguiDemo::onVisibleTick()

@@ -9,13 +9,17 @@ Renderer::Renderer(Ref<ModuleManager> in): IRuntimeModule(in) {  }
 
 bool Renderer::init()
 {
-	VulkanRHI::get()->init(g_windowData.window);
 	m_uiPass.initImgui();
 	return true;
 }
 
 void Renderer::tick(float dt)
 {
+	// TODO: 获取场景的渲染大小尺寸
+	const uint32 renderSceneWidth = VulkanRHI::get()->getSwapchainExtent().width;
+	const uint32 renderSceneHeight = VulkanRHI::get()->getSwapchainExtent().height;
+	m_renderScene.initFrame(renderSceneWidth, renderSceneHeight);
+
 	uint32 backBufferIndex = VulkanRHI::get()->acquireNextPresentImage();
 	uiRecord();
 	m_uiPass.renderFrame(backBufferIndex);
@@ -41,8 +45,8 @@ void Renderer::tick(float dt)
 
 void Renderer::release()
 {
-	m_uiPass.releaseImgui();
-	VulkanRHI::get()->release();
+	m_renderScene.release();
+	m_uiPass.release();
 }
 
 void Renderer::uiRecord()
