@@ -80,4 +80,36 @@ public:
     }
 };
 
+class VulkanShaderCache
+{
+public:
+    VulkanShaderModule* getShader(const std::string& path)
+    {
+        auto it = m_moduleCache.find(path);
+        if(it == m_moduleCache.end())
+        {
+            VulkanShaderModule* newShader = VulkanShaderModule::create(m_device,path);
+            m_moduleCache[path] = newShader;
+        }
+        return m_moduleCache[path];
+    }
+
+    void release()
+    {
+        for (auto shaders : m_moduleCache)
+        {
+            delete shaders.second;
+        }
+    }
+
+    void init(VkDevice device)
+    {
+        m_device = device;
+    };
+
+private:
+    VkDevice m_device{ VK_NULL_HANDLE };
+    std::unordered_map<std::string,VulkanShaderModule*> m_moduleCache;
+};
+
 }

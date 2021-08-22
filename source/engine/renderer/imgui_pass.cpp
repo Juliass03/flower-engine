@@ -84,10 +84,10 @@ void setupStyle()
 	colors[ImGuiCol_ResizeGrip]             = ImVec4(0.26f, 0.59f, 0.98f, 0.20f);
 	colors[ImGuiCol_ResizeGripHovered]      = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
 	colors[ImGuiCol_ResizeGripActive]       = ImVec4(0.26f, 0.59f, 0.98f, 0.95f);
-	colors[ImGuiCol_Tab]                    = ImVec4(0.16f, 0.18f, 0.24f, 0.86f);
+	colors[ImGuiCol_Tab]                    = ImVec4(0.01f, 0.01f, 0.01f, 1.00f);
 	colors[ImGuiCol_TabHovered]             = ImVec4(0.05f, 0.05f, 0.05f, 0.80f);
 	colors[ImGuiCol_TabActive]              = ImVec4(0.05f, 0.05f, 0.05f, 1.00f);
-	colors[ImGuiCol_TabUnfocused]           = ImVec4(0.07f, 0.10f, 0.15f, 0.97f);
+	colors[ImGuiCol_TabUnfocused]           = ImVec4(0.01f, 0.01f, 0.01f, 1.00f);
 	colors[ImGuiCol_TabUnfocusedActive]     = ImVec4(0.09f, 0.09f, 0.09f, 1.00f);
 	colors[ImGuiCol_DockingPreview]         = ImVec4(0.26f, 0.59f, 0.98f, 0.70f);
 	colors[ImGuiCol_DockingEmptyBg]         = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);

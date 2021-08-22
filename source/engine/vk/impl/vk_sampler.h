@@ -138,6 +138,39 @@ public:
     {
         return new VulkanSampler(device,s.info);
     }
+
+    VkSamplerCreateInfo getCreateInfo()
+    {
+        return s.info;
+    }
+};
+
+class VulkanSamplerCache
+{
+public:
+    struct SamplerCreateInfo
+    {
+        VkSamplerCreateInfo info;
+        bool operator==(const SamplerCreateInfo& other) const;
+        size_t hash() const;
+    };
+private:
+    VulkanDevice* m_device;
+    struct SamplerCreateInfoHash
+    {
+        std::size_t operator()(const SamplerCreateInfo& k) const
+        {
+            return k.hash();
+        }
+    };
+
+    typedef std::unordered_map<SamplerCreateInfo,VkSampler,SamplerCreateInfoHash> SamplerCache;
+    SamplerCache m_samplerCache;
+
+public:
+    void init(VulkanDevice* newDevice);
+    void cleanup();
+    VkSampler createSampler(VkSamplerCreateInfo* info);
 };
 
 }

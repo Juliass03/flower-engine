@@ -14,11 +14,21 @@ private:
     static EngineAsset* s_asset;
 
 public:
-    Texture2DImage* iconError;
-    Texture2DImage* iconInfo;
-    Texture2DImage* iconNotify;
-    Texture2DImage* iconOther;
-    Texture2DImage* iconWarn;
+    struct IconInfo
+    {
+        Texture2DImage* icon;
+        VkSampler sampler;
+
+        void init(const std::string& path);
+        void release();
+        void* getId();
+
+    private:
+        void* cacheId = nullptr;
+    };
+
+    IconInfo iconFolder;
+    IconInfo iconFile;
 
     static EngineAsset* get(){ return s_asset; }
 

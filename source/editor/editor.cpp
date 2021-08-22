@@ -5,6 +5,7 @@
 #include "widget/widget_imgui_demo.h"
 #include "widget/widget_console.h"
 #include "widget/widget_downbar.h"
+#include "widget/widget_asset.h"
 
 using namespace engine;
 
@@ -87,6 +88,7 @@ void Editor::init()
 	m_widgets.push_back(new WidgetConsole(engine));
     m_widgets.push_back(new WidgetDownbar(engine));
     m_widgets.push_back(new WidgetImguiDemo(engine));
+    m_widgets.push_back(new WidgetAsset(engine));
 
     engine->getRuntimeModule<Renderer>()->addImguiFunction("dockSpace",[&](){
         showDockSpace(g_engineLoop.getRun());

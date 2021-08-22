@@ -183,6 +183,7 @@ void VulkanDescriptorLayoutCache::cleanup()
     {
         vkDestroyDescriptorSetLayout(*m_device,pair.second,nullptr);
     }
+    m_layoutCache.clear();
 }
 
 VulkanDescriptorFactory VulkanDescriptorFactory::begin(VulkanDescriptorLayoutCache* layoutCache,VulkanDescriptorAllocator* allocator)

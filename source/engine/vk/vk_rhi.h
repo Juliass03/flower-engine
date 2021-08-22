@@ -16,39 +16,6 @@ namespace engine{
 
 class VulkanRHI
 {
-private:
-    class VulkanShaderCache
-    {
-    public:
-        VulkanShaderModule* getShader(const std::string& path)
-        {
-            auto it = m_moduleCache.find(path);
-            if(it == m_moduleCache.end())
-            {
-                VulkanShaderModule* newShader = VulkanShaderModule::create(m_device,path);
-                m_moduleCache[path] = newShader;
-            }
-            return m_moduleCache[path];
-        }
-
-        void release()
-        {
-            for (auto shaders : m_moduleCache)
-            {
-                delete shaders.second;
-            }
-        }
-
-        void init(VkDevice device)
-        {
-            m_device = device;
-        };
-
-    private:
-        VkDevice m_device{ VK_NULL_HANDLE };
-        std::unordered_map<std::string,VulkanShaderModule*> m_moduleCache;
-    };
-
 public:
     typedef void (RegisterFuncBeforeSwapchainRecreate)();
     typedef void (RegisterFuncAfterSwapchainRecreate)();
@@ -81,6 +48,7 @@ private: // rhi vulkan commandbuffer
     std::vector<VulkanCommandBuffer*> m_dynamicGraphicsCommandBuffer; // NOTE: 动态的CommandBuffer在每帧更新时都重新记录一遍
 
 private: // cache
+    VulkanSamplerCache m_samplerCache = {};
     VulkanShaderCache m_shaderCache = {};
     VulkanDescriptorAllocator m_descriptorAllocator = {};
     VulkanDescriptorLayoutCache m_descriptorLayoutCache = {};
@@ -168,6 +136,7 @@ public:
     template <typename T> size_t getUniformBufferPadSize() const{ return PackUniformBufferOffsetAlignment(sizeof(T)); }
     VkExtent2D getSwapchainExtent() const { return m_swapchain.getSwapchainExtent();  }
     Ref<VulkanCommandBuffer> getDynamicGraphicsCmdBuf(uint32 index) { return m_dynamicGraphicsCommandBuffer[index]; }
+    VkSampler createSampler(VkSamplerCreateInfo info);
 
 public:
     void addBeforeSwapchainRebuildCallback(std::string name,const std::function<RegisterFuncAfterSwapchainRecreate>& func)

@@ -28,6 +28,8 @@
     <ClCompile Include="renderer\render_passes\lighting_pass.cpp" />
     <ClCompile Include="asset_system\asset_texture.cpp" />
     <ClCompile Include="asset_system\asset_system.cpp" />
+    <ClCompile Include="vk\impl\vk_sampler.cpp" />
+    <ClCompile Include="core\crc.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\cvar.h" />
@@ -73,5 +75,6 @@
     <ClInclude Include="shader_system\material.h" />
     <ClInclude Include="asset_system\asset_texture.h" />
     <ClInclude Include="asset_system\asset_system.h" />
+    <ClInclude Include="core\crc.h" />
   </ItemGroup>
 </Project>

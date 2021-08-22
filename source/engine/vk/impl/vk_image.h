@@ -45,7 +45,7 @@ namespace engine{
         VkFormat getFormat() const { return m_createInfo.format; }
         VkExtent3D getExtent() const { return m_createInfo.extent; }
         const VkImageCreateInfo& getInfo() const { return m_createInfo; }
-
+        VkImageLayout getCurentLayout() const { return m_currentLayout; }
         void clear(VkCommandBuffer cb, glm::vec4 colour = {0, 0, 0, 0});
         void upload(std::vector<uint8>& bytes,VkCommandPool pool,VkQueue queue,VkImageAspectFlagBits flag = VK_IMAGE_ASPECT_COLOR_BIT);
         void release();

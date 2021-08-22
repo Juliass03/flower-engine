@@ -57,6 +57,7 @@ void VulkanRHI::init(GLFWwindow* window,
     });
 
     // Custom vulkan object cache and allocator.
+    m_samplerCache.init(&m_device);
     m_shaderCache.init(m_device.device);
     m_descriptorLayoutCache.init(&m_device);
     m_descriptorAllocator.init(&m_device);
@@ -67,6 +68,7 @@ void VulkanRHI::init(GLFWwindow* window,
         m_descriptorAllocator.cleanup();
         m_descriptorLayoutCache.cleanup();
         m_shaderCache.release(); 
+        m_samplerCache.cleanup();
     });
 
     // 创建静态和动态的CommandBuffer
@@ -280,6 +282,11 @@ size_t VulkanRHI::packUniformBufferOffsetAlignment(size_t originalSize) const
     }
 
     return alignedSize;
+}
+
+VkSampler VulkanRHI::createSampler(VkSamplerCreateInfo info)
+{
+    return m_samplerCache.createSampler(&info);
 }
 
 bool VulkanRHI::swapchainRebuild()
