@@ -30,6 +30,11 @@
     <ClCompile Include="asset_system\asset_system.cpp" />
     <ClCompile Include="vk\impl\vk_sampler.cpp" />
     <ClCompile Include="core\crc.cpp" />
+    <ClCompile Include="renderer\render_passes\tonemapper_pass.cpp" />
+    <ClCompile Include="renderer\render_passes\pass_interface.cpp" />
+    <ClCompile Include="vk\impl\vk_factory.cpp" />
+    <ClCompile Include="scene\components\staticMesh_filter.cpp" />
+    <ClCompile Include="scene\components\staticMesh_renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\cvar.h" />
@@ -66,7 +71,6 @@
     <ClInclude Include="renderer\scene_textures.h" />
     <ClInclude Include="render_graph\render_graph.h" />
     <ClInclude Include="scene\scene.h" />
-    <ClInclude Include="renderer\render_pass.h" />
     <ClInclude Include="scene\component.h" />
     <ClInclude Include="scene\components\transform.h" />
     <ClInclude Include="scene\scene_node.h" />
@@ -76,5 +80,9 @@
     <ClInclude Include="asset_system\asset_texture.h" />
     <ClInclude Include="asset_system\asset_system.h" />
     <ClInclude Include="core\crc.h" />
+    <ClInclude Include="renderer\render_passes\tonemapper_pass.h" />
+    <ClInclude Include="renderer\render_passes\pass_interface.h" />
+    <ClInclude Include="scene\components\staticMesh_filter.h" />
+    <ClInclude Include="scene\components\staticMesh_renderer.h" />
   </ItemGroup>
 </Project>

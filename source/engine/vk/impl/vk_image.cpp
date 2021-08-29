@@ -167,6 +167,14 @@ void VulkanImage::clear(VkCommandBuffer cb,glm::vec4 colour)
     );
 }
 
+void VulkanImage::transitionLayoutImmediately(VkCommandPool pool,VkQueue queue,VkImageLayout newLayout,VkImageAspectFlags aspectFlags)
+{
+    executeImmediately(*m_device,pool,queue,[&](VkCommandBuffer cb)
+    {
+        transitionLayout(cb,newLayout,aspectFlags);
+    });
+}
+
 void VulkanImage::upload(std::vector<uint8>& bytes,VkCommandPool pool,VkQueue queue,VkImageAspectFlagBits flag)
 {
     VulkanBuffer* stageBuffer = VulkanBuffer::create(

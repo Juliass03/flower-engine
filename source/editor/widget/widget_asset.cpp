@@ -35,8 +35,9 @@ WidgetAsset::WidgetAsset(engine::Ref<engine::Engine> engine)
 	bNeedScan = true;
 }
 
-void WidgetAsset::onVisibleTick()
+void WidgetAsset::onVisibleTick(size_t)
 {
+	ImGui::SetNextWindowSize(ImVec2(520, 600), ImGuiCond_FirstUseEver);
 	if (!ImGui::Begin(m_title.c_str(), &m_visible))
 	{
 		ImGui::End();
@@ -46,10 +47,12 @@ void WidgetAsset::onVisibleTick()
 	const bool bAtProjectDir = 
 			(m_projectDirectory != std::filesystem::path(s_projectDir)) 
 		&&  (m_projectDirectory != std::filesystem::path(s_projectDirRaw));
-
 	if ( bAtProjectDir)
 	{
-		if (ImGui::Button("<"))
+		
+		if (ImGui::ImageButton(EngineAsset::get()->iconBack.getId(),
+			ImVec2(ImGuiStyleEx::imageButtonSize,ImGuiStyleEx::imageButtonSize)
+		))
 		{
 			m_projectDirectory = m_projectDirectory.parent_path();
 			bNeedScan = true;
@@ -57,7 +60,14 @@ void WidgetAsset::onVisibleTick()
 	}
 	else
 	{
-		ImGui::ButtonStyle("<");
+		ImGui::ImageButton(EngineAsset::get()->iconHome.getId(),
+			ImVec2(ImGuiStyleEx::imageButtonSize,ImGuiStyleEx::imageButtonSize),ImVec2(0,1),ImVec2(1,0));
+	}
+	ImGui::SameLine();
+	if(ImGui::ImageButton(EngineAsset::get()->iconFlash.getId(),
+		ImVec2(ImGuiStyleEx::imageButtonSize,ImGuiStyleEx::imageButtonSize),ImVec2(0,1),ImVec2(1,0)))
+	{
+		bNeedScan = true;
 	}
 
 	std::stack<std::pair<std::filesystem::path,std::string>> cacheFolderPath;
@@ -96,7 +106,7 @@ void WidgetAsset::onVisibleTick()
 	}
 	
 	static float padding = 16.0f;
-	static int thumbnailSize = 50;
+	static int thumbnailSize = 60;
 	float cellSize = thumbnailSize + padding;
 
 	ImGui::SameLine();
@@ -164,9 +174,9 @@ void WidgetAsset::onVisibleTick()
 				bNeedScan = true;
 			}
 		}
-
+		
 		auto RawName = FileSystem::getFileRawName(cacheInfo.filenameString);
-		float tipStartPositionX = ImGui::GetCursorPosX() + ImGui::GetColumnWidth() * 0.5f - ImGui::CalcTextSize((RawName + " ").c_str()).x*0.5f;
+		float tipStartPositionX = ImGui::GetCursorPosX() + cellSize * 0.5f - ImGui::CalcTextSize((RawName).c_str()).x * 0.5f;
 		ImGui::SetCursorPosX(tipStartPositionX);
 		ImGui::Text(RawName.c_str());
 

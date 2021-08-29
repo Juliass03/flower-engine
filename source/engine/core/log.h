@@ -50,7 +50,10 @@ protected:
 		spdlog::sinks::base_sink<Mutex>::formatter_->format(msg, formatted);
 		for(auto& fn : m_callbacks)
 		{
-			fn(fmt::to_string(formatted), toLogType(msg.level));
+			if(fn)
+			{
+				fn(fmt::to_string(formatted), toLogType(msg.level));
+			}
 		}
 	}
 
@@ -60,9 +63,15 @@ protected:
 	}
 
 public:
-	void pushCallback(std::function<void(std::string,ELogType)> callback)
+	int pushCallback(std::function<void(std::string,ELogType)> callback)
 	{
 		m_callbacks.push_back(callback);
+		return int(m_callbacks.size()) - 1;
+	}
+
+	void popCallback(int id)
+	{
+		m_callbacks[id] = nullptr;
 	}
 };
 

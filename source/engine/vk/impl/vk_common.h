@@ -130,6 +130,15 @@ inline void executeImmediately(
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
+// 每个StaticMesh都有如下顶点属性：
+// pos
+// uv0,
+// uv1,
+// normal,
+// tangent,
+// color,
+// alpha,
+
 enum class EVertexAttribute : uint32
 {
 	none = 0,
@@ -140,18 +149,6 @@ enum class EVertexAttribute : uint32
 	tangent,        // vec4
 	color,          // vec3
 	alpha,          // float
-	skin_weight,    // vec4
-	skin_index,     // vec4
-	skin_pack,      // vec3
-	instance_float, // float
-	instance_vec2,  // vec2
-	instance_vec3,  // vec3
-	instance_vec4,  // vec4
-	uv2,	        // vec4
-	uv3,	        // vec4
-	uv4,	        // vec4
-	uv5,	        // vec4
-	uv6,	        // vec4
 	count,
 };
 
@@ -159,34 +156,22 @@ inline int32 getVertexAttributeSize(EVertexAttribute va)
 {
 	switch(va)
 	{
-	case EVertexAttribute::instance_float:
 	case EVertexAttribute::alpha:
 		return sizeof(float);
 		break;
 
 	case EVertexAttribute::uv0:
 	case EVertexAttribute::uv1:
-	case EVertexAttribute::instance_vec2:
 		return 2 * sizeof(float);
 		break;
 
 	case EVertexAttribute::pos:
 	case EVertexAttribute::color:
 	case EVertexAttribute::normal:
-	case EVertexAttribute::skin_pack:
-	case EVertexAttribute::instance_vec3:
 		return 3 * sizeof(float);
 		break;
 
 	case EVertexAttribute::tangent:
-	case EVertexAttribute::skin_weight:
-	case EVertexAttribute::skin_index:
-	case EVertexAttribute::instance_vec4:
-	case EVertexAttribute::uv2:
-	case EVertexAttribute::uv3:
-	case EVertexAttribute::uv4:
-	case EVertexAttribute::uv5:
-	case EVertexAttribute::uv6:
 		return 4 * sizeof(float);
 		break;
 
@@ -211,33 +196,21 @@ inline VkFormat toVkFormat(EVertexAttribute va)
 	switch(va)
 	{
 	case EVertexAttribute::alpha:
-	case EVertexAttribute::instance_float:
 		format = VK_FORMAT_R32_SFLOAT;
 		break;
 
 	case EVertexAttribute::uv0:
 	case EVertexAttribute::uv1:
-	case EVertexAttribute::instance_vec2:
 		format = VK_FORMAT_R32G32_SFLOAT;
 		break;
 
 	case EVertexAttribute::pos:
 	case EVertexAttribute::normal:
 	case EVertexAttribute::color:
-	case EVertexAttribute::skin_pack:
-	case EVertexAttribute::instance_vec3:
 		format = VK_FORMAT_R32G32B32_SFLOAT;
 		break;
 
 	case EVertexAttribute::tangent:
-	case EVertexAttribute::skin_weight:
-	case EVertexAttribute::skin_index:
-	case EVertexAttribute::uv2:
-	case EVertexAttribute::uv3:
-	case EVertexAttribute::uv4:
-	case EVertexAttribute::uv5:
-	case EVertexAttribute::uv6:
-	case EVertexAttribute::instance_vec4:
 		format = VK_FORMAT_R32G32B32A32_SFLOAT;
 		break;
 

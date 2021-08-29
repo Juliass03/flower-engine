@@ -63,8 +63,9 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -96,7 +97,9 @@
     <ClCompile Include="widget\widget.cpp" />
     <ClCompile Include="widget\widget_asset.cpp" />
     <ClCompile Include="widget\widget_console.cpp" />
+    <ClCompile Include="widget\widget_detail.cpp" />
     <ClCompile Include="widget\widget_downbar.cpp" />
+    <ClCompile Include="widget\widget_hierarchy.cpp" />
     <ClCompile Include="widget\widget_imgui_demo.cpp" />
     <ClCompile Include="widget\widget_viewport.cpp" />
   </ItemGroup>
@@ -105,7 +108,9 @@
     <ClInclude Include="widget\widget.h" />
     <ClInclude Include="widget\widget_asset.h" />
     <ClInclude Include="widget\widget_console.h" />
+    <ClInclude Include="widget\widget_detail.h" />
     <ClInclude Include="widget\widget_downbar.h" />
+    <ClInclude Include="widget\widget_hierarchy.h" />
     <ClInclude Include="widget\widget_imgui_demo.h" />
     <ClInclude Include="widget\widget_viewport.h" />
   </ItemGroup>

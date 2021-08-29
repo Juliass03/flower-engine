@@ -9,6 +9,8 @@
     <ClCompile Include="widget\widget_downbar.cpp" />
     <ClCompile Include="widget\widget_viewport.cpp" />
     <ClCompile Include="widget\widget_asset.cpp" />
+    <ClCompile Include="widget\widget_hierarchy.cpp" />
+    <ClCompile Include="widget\widget_detail.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="editor.h" />
@@ -18,5 +20,7 @@
     <ClInclude Include="widget\widget_downbar.h" />
     <ClInclude Include="widget\widget_viewport.h" />
     <ClInclude Include="widget\widget_asset.h" />
+    <ClInclude Include="widget\widget_hierarchy.h" />
+    <ClInclude Include="widget\widget_detail.h" />
   </ItemGroup>
 </Project>

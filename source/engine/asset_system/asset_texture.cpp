@@ -10,11 +10,11 @@ namespace engine{ namespace asset_system{
 
 std::string toString(EAssetFormat format)
 {
-	switch(format)
+	switch(format)// NOTE: Vulkan不支持R8G8B8格式
 	{
 	case EAssetFormat::T_R8G8B8A8:
 		return "T_R8G8B8A8";
-    case EAssetFormat::T_R8G8:
+    case EAssetFormat::T_R8G8: 
         return "T_R8G8";
     case EAssetFormat::T_R8:
         return "T_R8";

@@ -1,6 +1,19 @@
 #pragma once
 #include <glm/gtx/matrix_decompose.hpp>
 #include "../component.h"
+#include "../../core/core.h"
+#include <cereal/types/base_class.hpp>
+#include <cereal/types/memory.hpp>
+#include <cereal/access.hpp>
+#include <cereal/types/memory.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/cereal.hpp> 
+#include <cereal/types/unordered_map.hpp>
+#include <cereal/types/polymorphic.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/archives/xml.hpp>
+#include <cereal/archives/json.hpp>
 
 namespace engine{
 
@@ -8,21 +21,41 @@ class SceneNode;
 class Transform : public Component
 {
 private:
-	SceneNode& m_node;
+	std::weak_ptr<SceneNode> m_node;
 
     glm::vec3 m_translation { .0f,.0f,.0f };
     glm::quat m_rotation { 1.f, .0f, .0f, .0f };
     glm::vec3 m_scale { 1.f, 1.f, 1.f };
     glm::mat4 m_worldMatrix { 1.f };
-
 	bool m_updateWorldMatrix { false };
 
+private:
+	friend class cereal::access;
+
+	template <class Archive>
+	void serialize(Archive& ar)
+	{
+		ar( cereal::base_class<Component>(this),
+			cereal::defer(m_node),
+			cereal::make_nvp("Translation",m_translation),
+			cereal::make_nvp("Rotation",m_rotation),
+			cereal::make_nvp("Scale",m_scale),
+			cereal::make_nvp("WorldMatrix",m_worldMatrix),
+			cereal::make_nvp("bUpdateWorldMatrix",m_updateWorldMatrix)
+		);
+	}
+
+private:
 	void updateWorldTransform();
+
 public:
-    Transform(SceneNode& node): Component("Transform"), m_node(node) { }
+	Transform() {
+
+	}
+    Transform(std::shared_ptr<SceneNode> node): Component("Transform"), m_node(node) { }
     virtual ~Transform() = default;
-    SceneNode& getNode() { return m_node; }
-    virtual rttr::type getType() override { return rttr::type::get<Transform>(); }
+	std::shared_ptr<SceneNode> getNode() { return m_node.lock(); }
+    virtual size_t getType() override { return EComponentType::Transform; }
 	void invalidateWorldMatrix(){ m_updateWorldMatrix = true; }
 
     void setTranslation(const glm::vec3& translation)
@@ -82,4 +115,9 @@ public:
 	}
 };
 
+
+
 }
+
+CEREAL_REGISTER_TYPE_WITH_NAME(engine::Transform, "Transform");
+CEREAL_REGISTER_POLYMORPHIC_RELATION(engine::Component, engine::Transform)

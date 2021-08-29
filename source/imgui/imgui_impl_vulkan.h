@@ -54,6 +54,7 @@ struct ImGui_ImplVulkan_InitInfo
     VkQueue                         Queue;
     VkPipelineCache                 PipelineCache;
     VkDescriptorPool                DescriptorPool;
+    VkDescriptorPool                DescriptorPollDynamic;
     uint32_t                        Subpass;
     uint32_t                        MinImageCount;          // >= 2
     uint32_t                        ImageCount;             // >= MinImageCount
@@ -74,6 +75,7 @@ IMGUI_IMPL_API void     ImGui_ImplVulkan_SetMinImageCount(uint32_t min_image_cou
 // This is only useful with IMGUI_IMPL_VULKAN_NO_PROTOTYPES / VK_NO_PROTOTYPES
 IMGUI_IMPL_API bool     ImGui_ImplVulkan_LoadFunctions(PFN_vkVoidFunction(*loader_func)(const char* function_name, void* user_data), void* user_data = NULL);
 IMGUI_IMPL_API ImTextureID ImGui_ImplVulkan_AddTexture(VkSampler sampler, VkImageView image_view, VkImageLayout image_layout);
+IMGUI_IMPL_API void ImGui_ImlVulkan_FreeSet(ImTextureID);
 
 //-------------------------------------------------------------------------
 // Internal / Miscellaneous Vulkan Helpers

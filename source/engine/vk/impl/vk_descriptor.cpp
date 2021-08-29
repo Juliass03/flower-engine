@@ -23,7 +23,7 @@ VkDescriptorPool createPool(VkDevice m_device,const VulkanDescriptorAllocator::P
     pool_info.pPoolSizes = sizes.data();
 
     VkDescriptorPool descriptorPool;
-    vkCreateDescriptorPool(m_device,&pool_info,nullptr,&descriptorPool);
+    vkCheck(vkCreateDescriptorPool(m_device,&pool_info,nullptr,&descriptorPool));
     return descriptorPool;
 }
 
@@ -79,6 +79,7 @@ bool VulkanDescriptorAllocator::allocate(VkDescriptorSet* set,VkDescriptorSetLay
         // ÷ÿ–¬…Í«Î√Ë ˆ∑˚≥ÿ
         m_currentPool = requestPool();
         m_usedPools.push_back(m_currentPool);
+        allocInfo.descriptorPool = m_currentPool;
         allocResult = vkAllocateDescriptorSets(*m_device,&allocInfo,set);
         if(allocResult == VK_SUCCESS)
         {

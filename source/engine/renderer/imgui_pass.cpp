@@ -9,6 +9,8 @@
 
 namespace engine{
 
+
+
 static void check_vk_result(VkResult err)
 {
 	if (err == 0)
@@ -40,6 +42,7 @@ void setupStyle()
 	ImGui::StyleColorsDark();
 	ImGui::GetStyle().FrameRounding = 4;
 	ImGui::GetStyle().WindowRounding = 6;
+	ImGui::GetStyle().WindowPadding = ImVec2(8.0f,8.0f);
 	ImGui::GetStyle().ChildRounding = 4;
 	ImGui::GetStyle().FrameRounding = 4;
 	ImGui::GetStyle().PopupRounding = 2;

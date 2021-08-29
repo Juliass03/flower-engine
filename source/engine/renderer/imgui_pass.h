@@ -5,6 +5,11 @@ namespace engine{
 
 // NOTE: ImguiPass比较简单，因此单独写一个RenderPass反而逻辑更加清晰
 //       不需要使用RenderGraph来组织
+namespace ImGuiStyleEx
+{
+	constexpr float imageButtonSize = 14.0f;
+};
+
 class ImguiPass
 {
 	struct ImguiPassGpuResource
@@ -39,7 +44,7 @@ public:
 	void initImgui();
 	void release();
 
-	static void newFrame();
+	void newFrame();
 	void renderFrame(uint32 backBufferIndex);
 	void updateAfterSubmit();
 

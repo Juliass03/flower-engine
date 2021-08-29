@@ -362,12 +362,19 @@ struct WidgetConsoleApp
 
         ImGui::PopStyleVar();
         ImGui::EndChild();
+        
         ImGui::Separator();
-
+        
         // Command-line
         bool reclaim_focus = false;
         ImGuiInputTextFlags input_text_flags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory;
         
+        auto TipPos =ImGui::GetWindowPos();
+        
+        TipPos.x += ImGui::GetStyle().WindowPadding.x;
+        const float WindowHeight = ImGui::GetWindowHeight();
+        const auto ItemSize = ImGui::GetTextLineHeightWithSpacing();
+        TipPos.y = TipPos.y + WindowHeight - (activeCommands.size() + 2.5f) * ItemSize;
         if (ImGui::InputText(u8" 输入命令", InputBuf, IM_ARRAYSIZE(InputBuf), input_text_flags, &TextEditCallbackStub, (void*)this))
         {
             char* s = InputBuf;
@@ -382,18 +389,13 @@ struct WidgetConsoleApp
             reclaim_focus = true;  
         }
 
-        if (ImGui::IsItemHovered() && activeCommands.size() > 0)
+        if (activeCommands.size() > 0)
         {
-            ImGui::BeginTooltip();
-
-            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+            ImGui::BeginTooltipWithPos(TipPos);
             for(auto& info : activeCommands)
             {
-                
                 ImGui::TextUnformatted(info);
-                ImGui::Separator();
             }
-            ImGui::PopTextWrapPos();
             ImGui::EndTooltipWithPos();
         }
         
@@ -674,17 +676,19 @@ WidgetConsole::WidgetConsole(engine::Ref<engine::Engine> engine)
     m_title = u8"命令控制台";
 
     // 在初始化后立即注册
-    engine::Logger::getInstance()->getLogCache()->pushCallback([&](std::string info,engine::ELogType type){
+    id = engine::Logger::getInstance()->getLogCache()->pushCallback([&](std::string info,engine::ELogType type){
         app->AddLog(info,type);
     });
 }
 
-void WidgetConsole::onVisibleTick()
+void WidgetConsole::onVisibleTick(size_t)
 {
     app->Draw(m_title.c_str(),&m_visible);
 }
 
 WidgetConsole::~WidgetConsole()
 {
+    engine::Logger::getInstance()->getLogCache()->popCallback(id);
+
     delete app;
 }

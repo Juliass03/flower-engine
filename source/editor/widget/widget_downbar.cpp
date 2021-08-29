@@ -23,9 +23,10 @@ inline std::string serializeTimePoint( const TimePoint& time, const std::string&
 	return ss.str();
 }
 
-void WidgetDownbar::onVisibleTick()
+void WidgetDownbar::onVisibleTick(size_t)
 {
 	bool hide = true;
+
 	static ImGuiWindowFlags flag =
 		ImGuiWindowFlags_NoCollapse         |
 		ImGuiWindowFlags_NoResize           |
@@ -41,6 +42,11 @@ void WidgetDownbar::onVisibleTick()
 		ImGuiWindowFlags_UnsavedDocument|
 		ImGuiWindowFlags_NoTitleBar;
 
+	if (!ImGui::Begin(m_title.c_str(), &hide,flag))
+	{
+		ImGui::End();
+		return;
+	}
 	float fps = glm::clamp(g_timer.getCurrentSmoothFps(),0.0f,9999.0f);
 	std::stringstream ss;
 	ss <<std::setw(4) << std::left
@@ -55,7 +61,6 @@ void WidgetDownbar::onVisibleTick()
 	ssv << "%";
 	std::string v_text = ssv.str().c_str();
 
-	ImGui::Begin(m_title.c_str(), &hide,flag);
 	if(ImGui::BeginDownBar())
 	{
 		TimePoint input = std::chrono::system_clock::now();
@@ -110,6 +115,7 @@ void WidgetDownbar::onVisibleTick()
 		ImGui::Text("%s", text.c_str());
 		ImGui::EndDownBar();
 	}
+
 	ImGui::End();
 }
 

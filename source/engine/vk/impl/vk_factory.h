@@ -191,6 +191,8 @@ struct VulkanGraphicsPipelineFactory
     VkPipelineMultisampleStateCreateInfo multisampling;
     VkPipelineLayout pipelineLayout;
     VkPipelineDepthStencilStateCreateInfo depthStencil;
+
+    VkPipeline buildMeshDrawPipeline(VkDevice device,VkRenderPass pass);
 };
 
 class VulkanFrameBufferFactory

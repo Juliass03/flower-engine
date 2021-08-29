@@ -7,7 +7,7 @@ WidgetImguiDemo::WidgetImguiDemo(engine::Ref<engine::Engine> engine)
 	m_title = "ImguiDemo";
 }
 
-void WidgetImguiDemo::onVisibleTick()
+void WidgetImguiDemo::onVisibleTick(size_t)
 {
 	ImGui::ShowDemoWindow(&m_visible);
 }

@@ -60,12 +60,13 @@ void VulkanRHI::init(GLFWwindow* window,
     m_samplerCache.init(&m_device);
     m_shaderCache.init(m_device.device);
     m_descriptorLayoutCache.init(&m_device);
-    m_descriptorAllocator.init(&m_device);
+    m_staticDescriptorAllocator.init(&m_device);
+
     createVmaAllocator();
     m_deletionQueue.push([&]()
     {
         releaseVmaAllocator();
-        m_descriptorAllocator.cleanup();
+        m_staticDescriptorAllocator.cleanup();
         m_descriptorLayoutCache.cleanup();
         m_shaderCache.release(); 
         m_samplerCache.cleanup();
@@ -289,6 +290,29 @@ VkSampler VulkanRHI::createSampler(VkSamplerCreateInfo info)
     return m_samplerCache.createSampler(&info);
 }
 
+VkSampler VulkanRHI::getPointSampler()
+{
+    SamplerFactory sfa{};
+    sfa
+        .MagFilter(VK_FILTER_NEAREST)
+        .MinFilter(VK_FILTER_NEAREST)
+        .MipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR)
+        .AddressModeU(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
+        .AddressModeV(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
+        .AddressModeW(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
+        .CompareOp(VK_COMPARE_OP_LESS)
+        .CompareEnable(VK_FALSE)
+        .BorderColor(VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK)
+        .UnnormalizedCoordinates(VK_FALSE)
+        .MaxAnisotropy(1.0f)
+        .AnisotropyEnable(VK_FALSE)
+        .MinLod(0.0f)
+        .MaxLod(0.0f)
+        .MipLodBias(0.0f);
+
+    return VulkanRHI::get()->createSampler(sfa.getCreateInfo());
+}
+
 bool VulkanRHI::swapchainRebuild()
 {
     static int current_width;
@@ -334,6 +358,8 @@ void VulkanRHI::createSyncObjects()
     const auto imageNums = m_swapchain.getImageViews().size();
     m_semaphoresImageAvailable.resize(m_maxFramesInFlight);
     m_semaphoresRenderFinished.resize(m_maxFramesInFlight);
+    m_staticGraphicsCommandExecuteSemaphores.resize(imageNums);
+    m_dynamicGraphicsCommandExecuteSemaphores.resize(imageNums);
     m_inFlightFences.resize(m_maxFramesInFlight);
     m_imagesInFlight.resize(imageNums);
     for(auto& fence : m_imagesInFlight)
@@ -353,6 +379,8 @@ void VulkanRHI::createSyncObjects()
         if(
             vkCreateSemaphore(m_device,&semaphoreInfo,nullptr,&m_semaphoresImageAvailable[i])!=VK_SUCCESS||
             vkCreateSemaphore(m_device,&semaphoreInfo,nullptr,&m_semaphoresRenderFinished[i])!=VK_SUCCESS||
+            vkCreateSemaphore(m_device,&semaphoreInfo,nullptr,&m_staticGraphicsCommandExecuteSemaphores[i])!=VK_SUCCESS||
+            vkCreateSemaphore(m_device,&semaphoreInfo,nullptr,&m_dynamicGraphicsCommandExecuteSemaphores[i])!=VK_SUCCESS||
             vkCreateFence(m_device,&fenceInfo,nullptr,&m_inFlightFences[i])!=VK_SUCCESS)
         {
             LOG_GRAPHICS_FATAL("Fail to create semaphore.");
@@ -447,6 +475,8 @@ void VulkanRHI::releaseSyncObjects()
     {
         vkDestroySemaphore(m_device,m_semaphoresImageAvailable[i],nullptr);
         vkDestroySemaphore(m_device,m_semaphoresRenderFinished[i],nullptr);
+        vkDestroySemaphore(m_device,m_staticGraphicsCommandExecuteSemaphores[i],nullptr);
+        vkDestroySemaphore(m_device,m_dynamicGraphicsCommandExecuteSemaphores[i],nullptr);
         vkDestroyFence(m_device,m_inFlightFences[i],nullptr);
     }
 }

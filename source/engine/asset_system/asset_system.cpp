@@ -10,10 +10,10 @@ namespace engine{ namespace asset_system{
 
 EngineAsset* EngineAsset::s_asset = new EngineAsset();
 
-Texture2DImage* loadFromFile(const std::string& path,VkFormat format,uint32 req)
+Texture2DImage* loadFromFile(const std::string& path,VkFormat format,uint32 req,bool flip)
 {
 	int32 texWidth, texHeight, texChannels;
-	stbi_set_flip_vertically_on_load(true);  
+	stbi_set_flip_vertically_on_load(flip);  
 	stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels,req);
 
 	if (!pixels) 
@@ -49,6 +49,9 @@ void asset_system::EngineAsset::init()
 
 	iconFolder.init(mediaDir + "icon/folder.png");
 	iconFile.init(mediaDir + "icon/file.png");
+	iconBack.init(mediaDir + "icon/back.png");
+	iconHome.init(mediaDir + "icon/home.png");
+	iconFlash.init(mediaDir + "icon/flash.png");
 
 	bInit = true;
 }
@@ -59,7 +62,9 @@ void asset_system::EngineAsset::release()
 	
 	iconFolder.release();
 	iconFile.release();
-
+	iconBack.release();
+	iconHome.release();
+	iconFlash.release();
 	bInit = false;
 }
 
@@ -88,9 +93,9 @@ void AssetSystem::scanProject()
 }
 
 }
-void asset_system::EngineAsset::IconInfo::init(const std::string& path)
+void asset_system::EngineAsset::IconInfo::init(const std::string& path,bool flip)
 {
-	icon = loadFromFile(path, VK_FORMAT_R8G8B8A8_SRGB, 4);
+	icon = loadFromFile(path, VK_FORMAT_R8G8B8A8_SRGB, 4,flip);
 
 	SamplerFactory sfa{};
 	sfa
@@ -127,6 +132,7 @@ void* asset_system::EngineAsset::IconInfo::getId()
 	else
 	{
 		cacheId = (void*)ImGui_ImplVulkan_AddTexture(sampler,icon->getImageView(),icon->getCurentLayout());
+		return cacheId;
 	}
 }
 

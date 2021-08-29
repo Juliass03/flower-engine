@@ -570,7 +570,6 @@ void ImGui_ImplVulkan_RenderDrawData(ImDrawData* draw_data, VkCommandBuffer comm
                     // NOTE: 绘制前绑定描述符集
                     VkDescriptorSet desc_set[1] = { (VkDescriptorSet)pcmd->TextureId };
                     vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bd->PipelineLayout, 0, 1, desc_set, 0, NULL);
-
                     // Draw
                     vkCmdDrawIndexed(command_buffer, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
                 }
@@ -1728,6 +1727,14 @@ void ImGui_ImplVulkan_InitPlatformInterface()
 void ImGui_ImplVulkan_ShutdownPlatformInterface()
 {
     ImGui::DestroyPlatformWindows();
+}
+
+void ImGui_ImlVulkan_FreeSet(ImTextureID id)
+{
+    ImGui_ImplVulkan_Data* bd = ImGui_ImplVulkan_GetBackendData();
+    ImGui_ImplVulkan_InitInfo* v = &(bd->VulkanInitInfo);
+    VkDescriptorSet set = (VkDescriptorSet)id;
+    vkFreeDescriptorSets(v->Device,v->DescriptorPool,1,&set);
 }
 
 ImTextureID ImGui_ImplVulkan_AddTexture(VkSampler sampler, VkImageView image_view, VkImageLayout image_layout)

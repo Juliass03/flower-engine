@@ -6116,6 +6116,24 @@ void ImGui::SetNextItemOpen(bool is_open, ImGuiCond cond)
     g.NextItemData.OpenCond = cond ? cond : ImGuiCond_Always;
 }
 
+void ImGui::DrawRowsBackground(int row_count,float line_height,float x1,float x2,float y_offset,ImU32 col_even,ImU32 col_odd)
+{
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    float y0 = ImGui::GetCursorScreenPos().y + (float)(int)y_offset;
+    int row_display_start;
+    int row_display_end;
+    ImGui::CalcListClipping(row_count, line_height, &row_display_start, &row_display_end);
+    for (int row_n = row_display_start; row_n < row_display_end; row_n++)
+    {
+        ImU32 col = (row_n & 1) ? col_odd : col_even;
+        if ((col & IM_COL32_A_MASK) == 0)
+            continue;
+        float y1 = y0 + (line_height * row_n);
+        float y2 = y1 + line_height;
+        draw_list->AddRectFilled(ImVec2(x1, y1), ImVec2(x2, y2), col);
+    }
+}
+
 // CollapsingHeader returns true when opened but do not indent nor push into the ID stack (because of the ImGuiTreeNodeFlags_NoTreePushOnOpen flag).
 // This is basically the same as calling TreeNodeEx(label, ImGuiTreeNodeFlags_CollapsingHeader). You can remove the _NoTreePushOnOpen flag if you want behavior closer to normal TreeNode().
 bool ImGui::CollapsingHeader(const char* label, ImGuiTreeNodeFlags flags)
@@ -6878,7 +6896,7 @@ bool ImGui::BeginDownBar()
     g.NextWindowData.MenuBarOffsetMinVal = ImVec2(g.Style.DisplaySafeAreaPadding.x, ImMax(g.Style.DisplaySafeAreaPadding.y - g.Style.FramePadding.y, 0.0f));
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar;
     float height = GetFrameHeight();
-    bool is_open = BeginViewportSideBar("##MainMenuBar", viewport, ImGuiDir_Down, height, window_flags);
+    bool is_open = BeginViewportSideBar("##MainDownMenuBar", viewport, ImGuiDir_Down, height, window_flags);
     g.NextWindowData.MenuBarOffsetMinVal = ImVec2(0.0f, 0.0f);
 
     if (is_open)

@@ -1,0 +1,84 @@
+{
+    "value0": {
+        "Scene": "untitled",
+        "Root": {
+            "polymorphic_id": 1073741824,
+            "ptr_wrapper": {
+                "id": 2147483649,
+                "data": {
+                    "SceneNode": "Root",
+                    "NodeId": 1,
+                    "NodeId": 0,
+                    "Children": [],
+                    "Components": [
+                        {
+                            "key": 0,
+                            "value": {
+                                "polymorphic_id": 2147483649,
+                                "polymorphic_name": "Transform",
+                                "ptr_wrapper": {
+                                    "id": 2147483650,
+                                    "data": {
+                                        "value0": {
+                                            "Component": "Transform"
+                                        },
+                                        "Translation": {
+                                            "value0": 0.0,
+                                            "value1": 0.0,
+                                            "value2": 0.0
+                                        },
+                                        "Rotation": {
+                                            "value0": 0.0,
+                                            "value1": 0.0,
+                                            "value2": 0.0,
+                                            "value3": 1.0
+                                        },
+                                        "Scale": {
+                                            "value0": 1.0,
+                                            "value1": 1.0,
+                                            "value2": 1.0
+                                        },
+                                        "WorldMatrix": {
+                                            "value0": {
+                                                "value0": 1.0,
+                                                "value1": 0.0,
+                                                "value2": 0.0,
+                                                "value3": 0.0
+                                            },
+                                            "value1": {
+                                                "value0": 0.0,
+                                                "value1": 1.0,
+                                                "value2": 0.0,
+                                                "value3": 0.0
+                                            },
+                                            "value2": {
+                                                "value0": 0.0,
+                                                "value1": 0.0,
+                                                "value2": 1.0,
+                                                "value3": 0.0
+                                            },
+                                            "value3": {
+                                                "value0": 0.0,
+                                                "value1": 0.0,
+                                                "value2": 0.0,
+                                                "value3": 1.0
+                                            }
+                                        },
+                                        "bUpdateWorldMatrix": false
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "value0": {
+                        "polymorphic_id": 1073741824,
+                        "ptr_wrapper": {
+                            "id": 2
+                        }
+                    }
+                }
+            }
+        },
+        "value0": 100
+    }
+}

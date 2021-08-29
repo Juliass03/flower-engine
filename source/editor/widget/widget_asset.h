@@ -19,7 +19,7 @@ class WidgetAsset : public Widget
 public:
 	WidgetAsset(engine::Ref<engine::Engine> engine);
 
-	virtual void onVisibleTick() override;
+	virtual void onVisibleTick(size_t) override;
 	~WidgetAsset();
 
 private:

@@ -8,6 +8,7 @@ namespace engine{
 struct GLFWWindowData
 {
 	GLFWwindow* window;
+	bool bFoucus = true;
 
 	void CallbackOnResize(int width, int height) 
 	{

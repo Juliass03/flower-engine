@@ -6,6 +6,9 @@
 #include "widget/widget_console.h"
 #include "widget/widget_downbar.h"
 #include "widget/widget_asset.h"
+#include "widget/widget_viewport.h"
+#include "widget/widget_hierarchy.h"
+#include "widget/widget_detail.h"
 
 using namespace engine;
 
@@ -39,7 +42,7 @@ void showDockSpace(bool* p_open)
 
     if (!opt_padding)
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    ImGui::Begin("DockSpace Demo", p_open, window_flags);
+    ImGui::Begin("MyDockSpaceDemo", p_open, window_flags);
     if (!opt_padding)
         ImGui::PopStyleVar();
 
@@ -84,15 +87,20 @@ void Editor::init()
 {
 	g_engineLoop.init();
 	auto engine = g_engineLoop.getEngine();
-	
-	m_widgets.push_back(new WidgetConsole(engine));
-    m_widgets.push_back(new WidgetDownbar(engine));
-    m_widgets.push_back(new WidgetImguiDemo(engine));
-    m_widgets.push_back(new WidgetAsset(engine));
-
-    engine->getRuntimeModule<Renderer>()->addImguiFunction("dockSpace",[&](){
+    
+    
+    engine->getRuntimeModule<Renderer>()->addImguiFunction("dockSpace",[&](size_t){
         showDockSpace(g_engineLoop.getRun());
     });
+
+    //
+    m_widgets.push_back(new WidgetConsole(engine));
+    m_widgets.push_back(new WidgetViewport(engine));
+    m_widgets.push_back(new WidgetAsset(engine));
+    m_widgets.push_back(new WidgetDownbar(engine));
+    m_widgets.push_back(new WidgetHierarchy(engine));
+    m_widgets.push_back(new WidgetImguiDemo(engine));
+    m_widgets.push_back(new WidgetDetail(engine)); // Detail应该放在Hierarchy后
 }
 
 void Editor::loop()
@@ -101,9 +109,9 @@ void Editor::loop()
 	for(auto& widget : m_widgets)
 	{
 		std::string name = widget->getTile();
-		widget->getRenderer()->addImguiFunction(name,[&]()
+		widget->getRenderer()->addImguiFunction(name,[&](size_t i)
 		{
-			widget->tick();
+			widget->tick(i);
 		});
 	}
 	g_engineLoop.guardedMain();

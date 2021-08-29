@@ -5,8 +5,6 @@
 
 namespace engine{ namespace asset_system{
 
-class TextureManager;
-
 class EngineAsset
 {
 private:
@@ -19,7 +17,7 @@ public:
         Texture2DImage* icon;
         VkSampler sampler;
 
-        void init(const std::string& path);
+        void init(const std::string& path,bool flip = true);
         void release();
         void* getId();
 
@@ -29,11 +27,20 @@ public:
 
     IconInfo iconFolder;
     IconInfo iconFile;
+    IconInfo iconBack;
+    IconInfo iconHome;
+    IconInfo iconFlash;
 
     static EngineAsset* get(){ return s_asset; }
 
     void init();
     void release();
+};
+
+// 缓存Gltf模型，当引用计数为0将会直接清理掉
+class GltfCache
+{
+
 };
 
 /**

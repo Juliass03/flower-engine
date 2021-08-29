@@ -11,12 +11,12 @@ void Transform::updateWorldTransform()
 	}
 
 	m_worldMatrix = getMatrix();
-	auto parent = m_node.getParent();
+	auto parent = getNode()->getParent();
 
 	if (parent)
 	{
-		auto &transform = parent->getComponent<Transform>();
-		m_worldMatrix = m_worldMatrix * transform.getWorldMatrix();
+		auto transform = parent->getComponent<Transform>();
+		m_worldMatrix = m_worldMatrix * transform->getWorldMatrix();
 	}
 
 	m_updateWorldMatrix = false;

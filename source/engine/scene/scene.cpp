@@ -1,73 +1,70 @@
 #include "scene.h"
 #include "scene_node.h"
 #include <queue>
+#include <cereal/archives/json.hpp>
+#include <ostream>
+#include <fstream>
 
 namespace engine{
 
 Scene::Scene()
 {
-	m_root = new SceneNode(0,"Root");
+	m_root = SceneNode::create(usageNode::root,"Root");
 }
 
 Scene::Scene(const std::string& name) : m_name(name)
 {
-	m_root = new SceneNode(0,"Root");
+	m_root = SceneNode::create(usageNode::root,"Root");
 }
 
 Scene::~Scene()
 {
-	delete m_root;
+	m_root.reset();
 }
 
-void Scene::setNodes(std::vector<std::unique_ptr<SceneNode>>&& n)
+std::shared_ptr<SceneNode> Scene::createNode(const std::string& name)
 {
-	ASSERT(m_nodes.empty(),"Scene nodes are no empty! so setNodes() will no work!");
-	m_nodes = std::move(n);
+	return SceneNode::create(requireId(),name);
 }
 
-void Scene::addNode(std::unique_ptr<SceneNode>&& n)
-{
-	m_nodes.emplace_back(std::move(n));
-}
-
-void Scene::addChild(SceneNode& child)
+void Scene::addChild(std::shared_ptr<SceneNode> child)
 {
 	m_root->addChild(child);
 }
 
-SceneNode& Scene::getRootNode()
+std::shared_ptr<SceneNode> Scene::getRootNode()
 {
-	return *m_root;
+	return m_root;
 }
 
-void Scene::addComponent(std::unique_ptr<Component>&& component, SceneNode& node)
+void Scene::addComponent(std::shared_ptr<Component> component, SceneNode& node)
 {
-	node.setComponent(*component);
+	node.setComponent(component);
 
 	if (component)
 	{
-		m_components[component->getType()].push_back(std::move(component));
+		m_components[component->getType()].push_back(component);
 	}
 }
 
-void Scene::addComponent(std::unique_ptr<Component> &&component)
+void Scene::addComponent(std::shared_ptr<Component> component)
 {
 	if (component)
 	{
-		m_components[component->getType()].push_back(std::move(component));
+		m_components[component->getType()].push_back(component);
 	}
 }
 
-SceneNode* Scene::findNode(const std::string &node_name)
+std::shared_ptr<SceneNode> Scene::findNode(const std::string &node_name)
 {
-	for (auto root_node : m_root->getChildren())
+	for (auto& root_node : m_root->getChildren())
 	{
-		std::queue<SceneNode*> traverse_nodes{};
+		std::queue<std::shared_ptr<SceneNode>> traverse_nodes{};
 		traverse_nodes.push(root_node);
 
 		while (!traverse_nodes.empty())
 		{
-			auto node = traverse_nodes.front();
+			auto& node = traverse_nodes.front();
 			traverse_nodes.pop();
 
 			if (node->getName() == node_name)
@@ -75,14 +72,59 @@ SceneNode* Scene::findNode(const std::string &node_name)
 				return node;
 			}
 
-			for (auto child_node : node->getChildren())
+			for (auto& child_node : node->getChildren())
 			{
 				traverse_nodes.push(child_node);
 			}
 		}
 	}
-	return nullptr;
+	return m_root;
 }
 
+
+SceneManager::SceneManager(Ref<ModuleManager> in)
+: IRuntimeModule(in)
+{
+}
+
+bool SceneManager::init()
+{
+	m_activeScene = createEmptyScene();
+
+	return true;
+}
+
+void SceneManager::tick(float dt)
+{
+}
+
+void SceneManager::release()
+{
+	if(m_activeScene) m_activeScene.reset();
+}
+
+bool SceneManager::loadScene()
+{
+	return true;
+}
+
+bool SceneManager::unloadScene()
+{
+	return true;
+}
+
+std::unique_ptr<Scene> SceneManager::createEmptyScene()
+{
+	CHECK(m_activeScene == nullptr);
+
+	auto res = std::make_unique<Scene>("untitled");
+
+	// Test. 
+	std::ofstream os("my.json");
+	cereal::JSONOutputArchive archive(os);
+	archive(*res);
+
+	return std::move(res);
+}
 
 }

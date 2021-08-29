@@ -13,6 +13,7 @@ static const char* s_fontsDir    = "./media/font/";
 static const char* s_projectDir  = "./project/"; 
 static const char* s_projectDirRaw = "./project";
 static const char* s_mediaDir    = "./media/";
+static const char* s_iconPath    = "./media/icon/flower.png";
 
 class FileSystem
 {

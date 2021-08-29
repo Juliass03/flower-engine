@@ -5,7 +5,9 @@
 #include "../engine.h"
 #include "../vk/vk_rhi.h"
 #include "../asset_system/asset_system.h"
-
+#include <glfw/glfw3.h>
+#include <stb/stb_image.h>
+#include "../core/file_system.h"
 namespace engine{
 
 EngineLoop g_engineLoop;
@@ -38,8 +40,8 @@ static AutoCVarString cVarTileName(
     "r.Window.TileName",
     "Window tile name.",
     "Window",
-    "",
-    CVarFlags::ReadAndWrite
+    "flower engine - ver 0.0.1 - vulkan 1.2",
+    CVarFlags::ReadOnly | CVarFlags::InitOnce
 );
 
 static AutoCVarInt32 cVarFpsMode(
@@ -125,6 +127,12 @@ static void ScrollCallback(GLFWwindow* window,double xoffset,double yoffset)
     app->CallbackOnScroll(xoffset,yoffset);
 }
 
+static void WindowFocusCallBack(GLFWwindow* window, int focused)
+{
+    auto app = reinterpret_cast<GLFWWindowData*>(glfwGetWindowUserPointer(window));
+    app->bFoucus = (bool)focused;
+}
+
 void GLFWInit()
 {
     GLFWWindowData& windowData = g_windowData;
@@ -181,6 +189,12 @@ void GLFWInit()
     glfwSetMouseButtonCallback(windowData.window, MouseButtonCallback);
     glfwSetCursorPosCallback(windowData.window, MouseMoveCallback);
     glfwSetScrollCallback(windowData.window, ScrollCallback);
+    glfwSetWindowFocusCallback(windowData.window, WindowFocusCallBack);
+
+    GLFWimage images[1]; 
+    images[0].pixels = stbi_load(s_iconPath, &images[0].width, &images[0].height, 0, 4);
+    glfwSetWindowIcon(windowData.window, 1, images); 
+    stbi_image_free(images[0].pixels);
 }
 
 void GLFWRelease()
@@ -229,6 +243,15 @@ void EngineLoop::guardedMain()
 
         float requestFps = getFps();
         g_timer.frameTick();
+
+        if(!g_windowData.bFoucus)
+        {
+            // NOTE: 间隔10s刷新一次防止Vulkan设备丢失
+            if(g_timer.frameDeltaTime() < 10.0f)
+            {
+                continue;
+            }
+        }
 
         if(requestFps > 0.0f && g_timer.frameDeltaTime() > 1.0f / requestFps)
         {
