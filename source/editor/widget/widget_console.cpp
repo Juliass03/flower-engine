@@ -389,7 +389,7 @@ struct WidgetConsoleApp
             reclaim_focus = true;  
         }
 
-        if (activeCommands.size() > 0)
+        if (activeCommands.size() > 0 && ImGui::IsWindowFocused())
         {
             ImGui::BeginTooltipWithPos(TipPos);
             for(auto& info : activeCommands)
@@ -404,6 +404,8 @@ struct WidgetConsoleApp
         ImGui::SetItemDefaultFocus();
         if (reclaim_focus)
             ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
+
+        
 
         ImGui::End();
     }
@@ -612,7 +614,9 @@ struct WidgetConsoleApp
             ImVector<const char*> candidates;
             for(int i = 0; i<Commands.Size; i++)
             {
-                if(Strnicmp(Commands[i],word_start,(int)(word_end-word_start))==0)
+                int size = (int)(word_end-word_start);
+
+                if(size > 0 && Strnicmp(Commands[i],word_start,size)==0)
                 {
                     candidates.push_back(Commands[i]);
                 }
@@ -621,7 +625,7 @@ struct WidgetConsoleApp
                     std::string lowerCommand = Commands[i];
                     std::transform(lowerCommand.begin(), lowerCommand.end(), lowerCommand.begin(), ::tolower);
 
-                    if(Strnicmp(lowerCommand.c_str(),word_start,(int)(word_end-word_start))==0)
+                    if(size > 0 && Strnicmp(lowerCommand.c_str(),word_start,size)==0)
                     {
                         candidates.push_back(Commands[i]);
                     }

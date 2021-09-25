@@ -3,6 +3,12 @@
 #include "asset_common.h"
 #include "../vk/vk_rhi.h"
 
+namespace engine
+{
+    struct CombineTexture;
+    struct Mesh;
+}
+
 namespace engine{ namespace asset_system{
 
 class EngineAsset
@@ -19,17 +25,31 @@ public:
 
         void init(const std::string& path,bool flip = true);
         void release();
+
+        // NOTE: EngineIcon的ID将永久驻留在引擎运行阶段
         void* getId();
+
+        IconInfo(const std::string& path,bool flip = true)
+        {
+            init(path,flip);
+        }
+
+        ~IconInfo()
+        {
+            release();
+        }
 
     private:
         void* cacheId = nullptr;
     };
 
-    IconInfo iconFolder;
-    IconInfo iconFile;
-    IconInfo iconBack;
-    IconInfo iconHome;
-    IconInfo iconFlash;
+    
+    IconInfo* iconFolder = nullptr;
+    IconInfo* iconFile = nullptr;
+    IconInfo* iconBack = nullptr;
+    IconInfo* iconHome = nullptr;
+    IconInfo* iconFlash = nullptr;
+    IconInfo* iconProject = nullptr;
 
     static EngineAsset* get(){ return s_asset; }
 
@@ -37,17 +57,9 @@ public:
     void release();
 };
 
-// 缓存Gltf模型，当引用计数为0将会直接清理掉
-class GltfCache
-{
-
-};
-
-/**
-* NOTE: AssetSystem负责维护工程目录，扫描工程目录下的所有文件，将支持的格式打包成引擎专用格式。
-*       并且维护一个全局寻址表，以相对路径作为ID，同时检测运行过程中文件是否发生变化，若发生变化则重新加载并刷新引用。
-*       维护资源引用。
-**/
+// NOTE: AssetSystem为异步加载系统
+//       各种AssetLibrary如MeshLibrary、TextureLibrary产生加载命令
+//       调用一次std::asyc，并传入一个lambda作为加载完毕的命令
 class AssetSystem : public IRuntimeModule
 {
 public:
@@ -58,8 +70,12 @@ public:
     virtual void tick(float dt) override;
     virtual void release() override;
 
+    bool loadTexture2DImage(CombineTexture& inout,const std::string& gameName,std::function<void(CombineTexture)>&& loadedCallback);
+    bool loadMesh(Mesh& inout,const std::string& gameName,std::function<void(Mesh*)>&& loadedCallback);
 private:
     void scanProject();
+
+    void loadEngineTextures();
 };
 
 }}

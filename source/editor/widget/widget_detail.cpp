@@ -8,6 +8,10 @@
 #include "../../engine/scene/scene.h"
 #include "../../engine/scene/scene_node.h"
 #include "../../engine/scene/components/transform.h"
+#include "../../engine/renderer/material.h"
+#include "../../engine/core/core.h"
+#include "../../engine/renderer/mesh.h"
+#include "../../engine/scene/components/staticmesh_renderer.h"
 
 using namespace engine;
 using namespace engine::asset_system;
@@ -45,6 +49,8 @@ WidgetDetail::WidgetDetail(engine::Ref<engine::Engine> engine)
 
 void WidgetDetail::onVisibleTick(size_t)
 {
+	auto& activeScene = m_sceneManager->getActiveScene();
+
 	ImGui::SetNextWindowSize(ImVec2(520, 600), ImGuiCond_FirstUseEver);
 	if (!ImGui::Begin(m_title.c_str(), &m_visible))
 	{
@@ -55,9 +61,16 @@ void WidgetDetail::onVisibleTick(size_t)
 	if(const auto selectNode = EditorScene::get().getSelectNode().lock())
 	{
 		size_t id = selectNode->getId();
-		if( id >= usageNode::start)
+		if( id >= usageNodeIndex::start)
 		{
-			DrawTransform(selectNode);
+			drawTransform(selectNode);
+			
+			drawStaticMesh(selectNode);
+
+			ImGui::Spacing();
+			ImGui::Separator();
+
+			drawAddCommand(selectNode);
 		}
 	}
 
@@ -70,7 +83,7 @@ WidgetDetail::~WidgetDetail()
 }
 
 template<typename T, typename UIFunction>
-static void drawComponent(const std::string& name, std::shared_ptr<engine::SceneNode> entity, UIFunction uiFunction,bool removable)
+static void drawComponent(const std::string& name, std::shared_ptr<engine::SceneNode> entity, Scene& scene, UIFunction uiFunction,bool removable)
 {
 	const ImGuiTreeNodeFlags treeNodeFlags = 
 		ImGuiTreeNodeFlags_DefaultOpen | 
@@ -111,20 +124,24 @@ static void drawComponent(const std::string& name, std::shared_ptr<engine::Scene
 			ImGui::TreePop();
 		}
 
-		// TODO: 移除Component
+		if(removeComponent)
+		{
+			scene.removeComponent<T>(entity);
+		}
 	}
 }
 
-void WidgetDetail::DrawTransform(std::shared_ptr<SceneNode> n)
+void WidgetDetail::drawTransform(std::shared_ptr<SceneNode> n)
 {
 	if(std::shared_ptr<Transform> transform = n->getComponent<Transform>())
 	{
+		auto& activeScene = m_sceneManager->getActiveScene();
 		glm::vec3 translation = transform->getTranslation();
 		glm::quat rotation = transform->getRotation();
 		glm::vec3 scale = transform->getScale();
 		glm::vec3 rotate_degree = glm::degrees(glm::eulerAngles(rotation));
 
-		drawComponent<Transform>(u8"空间变换", n, [&](auto& component)
+		drawComponent<Transform>(u8"空间变换", n,activeScene, [&](auto& component)
 		{
 			ImGui::Separator();
 			Drawer::vector3(u8"坐标", translation,0.0f);
@@ -151,5 +168,106 @@ void WidgetDetail::DrawTransform(std::shared_ptr<SceneNode> n)
 			transform->setRotation(rotation);
 		}
 	}
+
+}
+
+template<typename Function>
+void DrawButtonString(std::string idName,std::string& inout,Function callBack)
+{
+	ImGuiIO& io = ImGui::GetIO();
+	auto boldFont = io.Fonts->Fonts[0];
+	ImGui::PushID(idName.c_str());
+	float size = ImGui::CalcTextSize(idName.c_str()).x;
+	ImGui::Columns(2);
+	ImGui::SetColumnWidth(0, size + ImGui::GetColumnOffset());
+	ImGui::Text(idName.c_str());
+	ImGui::NextColumn();
+
+	if(ImGui::Button(inout.c_str()))
+	{
+		callBack();
+	}
+	ImGui::Columns(1);
+	ImGui::PopID();
+}
+
+void WidgetDetail::drawStaticMesh(std::shared_ptr<engine::SceneNode> node)
+{
+	auto& activeScene = m_sceneManager->getActiveScene();
+	if(!node->hasComponent<StaticMeshComponent>())
+		return;
+
+	if(const auto component = node->getComponent<StaticMeshComponent>())
+	{
+		drawComponent<StaticMeshComponent>(u8"静态网格", node,activeScene, [&](auto& in_component)
+		{
+			ImGui::Separator();
+
+			// Mesh Select
+			{
+				std::string idName = u8"网格";
+				ImGuiIO& io = ImGui::GetIO();
+				auto boldFont = io.Fonts->Fonts[0];
+				ImGui::PushID(idName.c_str());
+				float size = ImGui::CalcTextSize(idName.c_str()).x;
+				ImGui::Columns(2);
+				ImGui::SetColumnWidth(0, size + ImGui::GetColumnOffset());
+				ImGui::Text(idName.c_str());
+				ImGui::NextColumn();
+
+				if(ImGui::Button(component->m_meshName.c_str()))
+				{
+					ImGui::OpenPopup("##StaticMeshComponentSelect");
+				}
+
+				if(ImGui::BeginPopup("##StaticMeshComponentSelect"))
+				{
+					const auto selectedNode = EditorScene::get().getSelectNode().lock();
+					const auto onNode  = selectedNode->getId() != usageNodeIndex::empty;
+
+					if (onNode)
+					{
+						loopPrimitiveType([&](std::string name){
+							if (ImGui::MenuItem(name.c_str()))
+							{
+								component->m_meshName = name;
+							}
+						}); 
+					}
+					ImGui::EndPopup();
+				}
+				
+
+				ImGui::Columns(1);
+				ImGui::PopID();
+			}
+			
+			ImGui::Separator();
+		},true);
+	}
+}
+
+void WidgetDetail::drawAddCommand(std::shared_ptr<engine::SceneNode> node)
+{
+	auto& activeScene = m_sceneManager->getActiveScene();
+
+	ImGui::SetCursorPosX(ImGui::GetWindowWidth() * 0.5f);
+	if (ImGui::Button(u8"添加组件"))
+	{
+		ImGui::OpenPopup("##ComponentContextMenu_Add");
+	}
+
+    if (ImGui::BeginPopup("##ComponentContextMenu_Add"))
+    {
+		// Static Mesh
+		if (ImGui::MenuItem(u8"静态网格") && !node->hasComponent(EComponentType::StaticMeshComponent))
+		{
+			activeScene.addComponent(std::make_shared<StaticMeshComponent>(),node);
+			activeScene.setDirty(true);
+			LOG_INFO("Node {0} has add static mesh component.",node->getName());
+		}
+
+        ImGui::EndPopup();
+    }
 
 }

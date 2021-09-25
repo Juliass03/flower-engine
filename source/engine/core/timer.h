@@ -24,6 +24,8 @@ private:
     float m_currentFps {0.0f};
     float m_currentSmoothFps {0.0f};
 
+    uint64 m_frameCount = 0;
+
 public:
     float getCurrentFps() const { return m_currentFps;}
     float getCurrentSmoothFps() const { return m_currentSmoothFps;}
@@ -52,6 +54,16 @@ public:
         mGameTimePoint = std::chrono::system_clock::now();
         mGameDeltaTime = std::chrono::duration<float>(0.0f);
         bGamePause = false;
+    }
+
+    auto getFrameCount() const
+    {
+        return m_frameCount;
+    }
+
+    void frameCountAdd()
+    {
+        m_frameCount++;
     }
 
     float gameTime()

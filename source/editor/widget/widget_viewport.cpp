@@ -23,7 +23,7 @@ void WidgetViewport::onVisibleTick(size_t i)
 	ImGui::SetNextWindowSize(ImVec2(520, 600), ImGuiCond_FirstUseEver);
 	if(!mini_window) ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0,0));
 
-	if (!ImGui::Begin(m_title.c_str(), &m_visible))
+	if (!ImGui::Begin(m_title.c_str(), &m_visible, ImGuiWindowFlags_NoTitleBar))
 	{
 		ImGui::End();
 		return;
@@ -36,7 +36,7 @@ void WidgetViewport::onVisibleTick(size_t i)
 
 	m_renderer->UpdateScreenSize((uint32)width,(uint32)height);
 	m_cacheImageInfo.setIcon(m_renderer->getRenderScene().getSceneTextures().getLDRSceneColor());
-	m_cacheImageInfo.setSampler(VulkanRHI::get()->getPointSampler());
+	m_cacheImageInfo.setSampler(VulkanRHI::get()->getPointClampSampler());
 	
 	ImGui::Image(m_cacheImageInfo.getId(uint32_t(i)),ImVec2(width,height));
 	

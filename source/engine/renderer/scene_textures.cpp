@@ -1,20 +1,21 @@
 #include "scene_textures.h"
 #include "../vk/vk_rhi.h"
+#include "../shader_compiler/shader_compiler.h"
 
 namespace engine{
 
-void SceneTextures::allocate(uint32 width,uint32 height)
+void SceneTextures::allocate(uint32 width,uint32 height,bool forceAllocate)
 {
-    if( m_init && width == m_cacheSceneWidth && height == m_cacheSceneHeight)
+    if(!forceAllocate && m_init && width == m_cacheSceneWidth && height == m_cacheSceneHeight)
     {
         return;
     }
-
+    
     VulkanRHI::get()->waitIdle();
+    
     if(m_init)
     {
-        // 释放，然后重新申请全局纹理
-        release();
+        release(); // 释放，然后重新申请全局纹理
         for(auto& callBackPair : m_callbackBeforeSceneTextureRecreate)
         {
             callBackPair.second();
@@ -41,6 +42,24 @@ void SceneTextures::allocate(uint32 width,uint32 height)
         VK_FORMAT_R8G8B8A8_UNORM
     );
 
+    m_gbufferBaseColorRoughness = RenderTexture::create(
+        VulkanRHI::get()->getVulkanDevice(),
+        width,height,
+        VK_FORMAT_R8G8B8A8_UNORM
+    );
+
+    m_gbufferEmissiveAo = RenderTexture::create(
+        VulkanRHI::get()->getVulkanDevice(),
+        width,height,
+        VK_FORMAT_R8G8B8A8_UNORM
+    );
+
+    m_gbufferNormalMetal = RenderTexture::create(
+        VulkanRHI::get()->getVulkanDevice(),
+        width,height,
+        VK_FORMAT_R8G8B8A8_UNORM
+    );
+
     for(auto& callBackPair : m_callbackAfterSceneTextureRecreate)
     {
         callBackPair.second();
@@ -61,6 +80,9 @@ void SceneTextures::release()
     delete m_depthStencilTexture;
     delete m_sceneColorTexture;
     delete m_finalColorTexture;
+    delete m_gbufferBaseColorRoughness;
+    delete m_gbufferEmissiveAo;
+    delete m_gbufferNormalMetal;
 
     m_init = false;
 }

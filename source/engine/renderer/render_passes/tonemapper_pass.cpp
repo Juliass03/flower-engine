@@ -19,14 +19,12 @@ void engine::TonemapperPass::initInner()
 
 void engine::TonemapperPass::beforeSceneTextureRecreate()
 {
-    destroyRenderpass();
     destroyFramebuffers();
     destroyPipeline();
 }
 
 void engine::TonemapperPass::afterSceneTextureRecreate()
 {
-    createRenderpass();
     createFramebuffers();
     createPipeline();
 }
@@ -76,7 +74,23 @@ void engine::TonemapperPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBuffe
     vkCmdBindDescriptorSets(
         cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
         m_pipelineLayouts[backBufferIndex],
-        0,
+        0, // PassSet #0
+        1,
+        &m_renderer->getFrameData().m_frameDataDescriptorSets[backBufferIndex].set,0,nullptr
+    );
+
+    vkCmdBindDescriptorSets(
+        cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_pipelineLayouts[backBufferIndex],
+        1, // PassSet #1
+        1,
+        &m_renderer->getFrameData().m_viewDataDescriptorSets[backBufferIndex].set,0,nullptr
+    );
+
+    vkCmdBindDescriptorSets(
+        cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_pipelineLayouts[backBufferIndex],
+        2, // PassSet #2
         1,
         &m_tonemapperPassDescriptorSets[backBufferIndex].set,0,nullptr
     );
@@ -89,7 +103,7 @@ void engine::TonemapperPass::createRenderpass()
 {
     VkAttachmentDescription color_attachment = {};
 
-    // Tonemapper渲染到LDR图上
+    // NOTE: Tonemapper渲染到LDR图上
     color_attachment.format =  m_renderScene->getSceneTextures().getLDRSceneColor()->getFormat();
 
     color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -189,19 +203,18 @@ void engine::TonemapperPass::createPipeline()
         VkDescriptorImageInfo sceneColorImage = {};
         sceneColorImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        // TODO: 换成HDR SceneColor
-        sceneColorImage.imageView = asset_system::EngineAsset::get()->iconFolder.icon->getImageView();
-        sceneColorImage.sampler = VulkanRHI::get()->getPointSampler();
+        sceneColorImage.imageView = m_renderScene->getSceneTextures().getHDRSceneColor()->getImageView();
+        sceneColorImage.sampler = VulkanRHI::get()->getPointClampSampler();
 
         m_renderer->vkDynamicDescriptorFactoryBegin(index)
-            .bindImage(0,&sceneColorImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,VK_SHADER_STAGE_FRAGMENT_BIT)
+            .bindImage(0,&sceneColorImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
             .build(m_tonemapperPassDescriptorSets[index],m_tonemapperPassDescriptorSetLayouts[index]);
     }
 
     // Then we can create pipeline and pipelinelayout.
     m_pipelines.resize(backBufferCount);
     m_pipelineLayouts.resize(backBufferCount);
-    for(uint32 index = 0; index<backBufferCount; index++)
+    for(uint32 index = 0; index < backBufferCount; index++)
     {
         VkPipelineLayoutCreateInfo plci = vkPipelineLayoutCreateInfo();
 
@@ -209,18 +222,22 @@ void engine::TonemapperPass::createPipeline()
         plci.pushConstantRangeCount = 0;
         plci.pPushConstantRanges = nullptr;
 
-        VkDescriptorSetLayout setLayouts[] = { m_tonemapperPassDescriptorSetLayouts[index].layout };
-        plci.setLayoutCount = 1;
-        plci.pSetLayouts = setLayouts;
+        std::vector<VkDescriptorSetLayout> setLayouts = {
+            m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout,
+            m_renderer->getFrameData().m_viewDataDescriptorSetLayouts[index].layout,
+            m_tonemapperPassDescriptorSetLayouts[index].layout 
+        };
+
+        plci.setLayoutCount = (uint32)setLayouts.size();
+        plci.pSetLayouts = setLayouts.data();
 
         m_pipelineLayouts[index] = VulkanRHI::get()->createPipelineLayout(plci);
 
         VulkanGraphicsPipelineFactory gpf = {};
 
-        // TODO: 换成可配置的路径
-        auto vertShader = VulkanRHI::get()->getShader("media/shader/TonemapperPass.vert.spv");
-        auto fragShader = VulkanRHI::get()->getShader("media/shader/TonemapperPass.frag.spv");
-
+        auto packShader = m_shaderCompiler->getShader(s_shader_tonemapper,shaderCompiler::EShaderPass::Tonemapper);
+        auto vertShader = packShader.vertex;
+        auto fragShader = packShader.frag;
 
         gpf.shaderStages.clear();
         gpf.shaderStages.push_back(vkPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, *vertShader));

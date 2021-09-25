@@ -130,15 +130,6 @@ inline void executeImmediately(
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
-// 每个StaticMesh都有如下顶点属性：
-// pos
-// uv0,
-// uv1,
-// normal,
-// tangent,
-// color,
-// alpha,
-
 enum class EVertexAttribute : uint32
 {
 	none = 0,

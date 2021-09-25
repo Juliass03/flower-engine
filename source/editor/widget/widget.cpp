@@ -122,7 +122,7 @@ void Drawer::vector3(const std::string& label,glm::vec3& values,float resetValue
 	buttonSizeR.x *= 0.7f;
 	buttonSizeR.y *= 0.7f;
 	ImGui::SameLine();
-	if(ImGui::ImageButton(asset_system::EngineAsset::get()->iconFlash.getId(),buttonSizeR,
+	if(ImGui::ImageButton(asset_system::EngineAsset::get()->iconFlash->getId(),buttonSizeR,
 		ImVec2(0, 0),ImVec2(1,1),-1, ImVec4(0,0,0,0), ImVec4(1,1,0,1)))
 	{
 		values.x = resetValue;

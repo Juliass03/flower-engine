@@ -44,14 +44,15 @@ private:
     VmaAllocator m_vmaAllocator = {};
 
 private: // rhi vulkan commandbuffer
-    std::vector<VulkanCommandBuffer*> m_staticGraphicCommandBuffer;  // NOTE: 静态的CommandBuffer仅在帧前或静态物体发生变化时记录
-    std::vector<VulkanCommandBuffer*> m_dynamicGraphicsCommandBuffer; // NOTE: 动态的CommandBuffer在每帧更新时都重新记录一遍
+    std::vector<VulkanCommandBuffer*> m_staticGraphicCommandBuffer;    // NOTE: 静态的CommandBuffer仅在帧前或静态物体发生变化时记录
+    std::vector<VulkanCommandBuffer*> m_dynamicGraphicsCommandBuffer;  // NOTE: 动态的CommandBuffer在每帧更新时都重新记录一遍
     std::vector<VkSemaphore> m_dynamicGraphicsCommandExecuteSemaphores;
     std::vector<VkSemaphore> m_staticGraphicsCommandExecuteSemaphores;
 
 private: // cache
     VulkanSamplerCache m_samplerCache = {};
     VulkanShaderCache m_shaderCache = {};
+
     // 持久性的描述符申请
     VulkanDescriptorAllocator m_staticDescriptorAllocator = {};
     VulkanDescriptorLayoutCache m_descriptorLayoutCache = {};
@@ -68,7 +69,6 @@ private:
     std::unordered_map<std::string,std::function<RegisterFuncBeforeSwapchainRecreate>> m_callbackBeforeSwapchainRebuild = {};
     std::unordered_map<std::string,std::function<RegisterFuncBeforeSwapchainRecreate>> m_callbackAfterSwapchainRebuild = {};
     VulkanRHI() { }
-
 
 public:
     ~VulkanRHI(){ release(); }
@@ -141,7 +141,8 @@ public:
     Ref<VulkanCommandBuffer> getDynamicGraphicsCmdBuf(uint32 index) { return m_dynamicGraphicsCommandBuffer[index]; }
     VkSemaphore getDynamicGraphicsCmdBufSemaphore(uint32 index) { return m_dynamicGraphicsCommandExecuteSemaphores[index]; }
     VkSampler createSampler(VkSamplerCreateInfo info);
-    VkSampler getPointSampler();
+    VkSampler getPointClampSampler();
+    VkSampler getLinearClampSampler();
 
 public:
     void addBeforeSwapchainRebuildCallback(std::string name,const std::function<RegisterFuncAfterSwapchainRecreate>& func)
@@ -161,6 +162,8 @@ public:
     {
         this->m_callbackAfterSwapchainRebuild.erase(name);
     }
+
+    void forceRebuildSwapchain(){ m_swapchainChange = true; }
 
 private:
     bool swapchainRebuild();

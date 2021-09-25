@@ -154,9 +154,6 @@ uint32 Crc::CRCTablesSB8[8][256] =
 
 uint32 Crc::memCrc32(const void* InData,int32 Length,uint32 CRC)
 {
-	// Based on the Slicing-by-8 implementation found here:
-	// http://slicing-by-8.sourceforge.net/
-
 	CRC = ~CRC;
 
 	const uint8* __restrict Data = (uint8*)InData;

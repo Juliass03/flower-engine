@@ -6,6 +6,12 @@
 
 namespace engine{
 
+enum class EShaderStage
+{
+    Vert,
+    Frag,
+};
+
 class VulkanShaderModule
 {
 private:

@@ -9,6 +9,7 @@
 #include <stack>
 #include <thread>
 #include <algorithm>
+#include "../../imgui/imgui_internal.h"
 
 using namespace engine;
 using namespace engine::asset_system;
@@ -35,6 +36,23 @@ WidgetAsset::WidgetAsset(engine::Ref<engine::Engine> engine)
 	bNeedScan = true;
 }
 
+void WidgetAsset::scanFolder()
+{
+	m_currentFolderCacheEntry.clear();
+	for (auto& directoryEntry : std::filesystem::directory_iterator(m_projectDirectory))
+	{
+		CacheEntryInfo cacheInfo{};
+		cacheInfo.bFolder = directoryEntry.is_directory();
+		auto relativePath = std::filesystem::relative(directoryEntry.path(), s_projectDir);
+		cacheInfo.filenameString = relativePath.filename().string();
+		cacheInfo.itemPath = relativePath.c_str();
+		cacheInfo.path = directoryEntry.path().filename();
+		m_currentFolderCacheEntry.push_back(cacheInfo);
+	}
+
+	std::sort(m_currentFolderCacheEntry.begin(),m_currentFolderCacheEntry.end(),myCacheEntryInfoCompare);
+};
+
 void WidgetAsset::onVisibleTick(size_t)
 {
 	ImGui::SetNextWindowSize(ImVec2(520, 600), ImGuiCond_FirstUseEver);
@@ -49,8 +67,8 @@ void WidgetAsset::onVisibleTick(size_t)
 		&&  (m_projectDirectory != std::filesystem::path(s_projectDirRaw));
 	if ( bAtProjectDir)
 	{
-		
-		if (ImGui::ImageButton(EngineAsset::get()->iconBack.getId(),
+		// 返回主项目目录
+		if (ImGui::ImageButton(EngineAsset::get()->iconBack->getId(),
 			ImVec2(ImGuiStyleEx::imageButtonSize,ImGuiStyleEx::imageButtonSize)
 		))
 		{
@@ -60,11 +78,11 @@ void WidgetAsset::onVisibleTick(size_t)
 	}
 	else
 	{
-		ImGui::ImageButton(EngineAsset::get()->iconHome.getId(),
+		ImGui::ImageButton(EngineAsset::get()->iconHome->getId(),
 			ImVec2(ImGuiStyleEx::imageButtonSize,ImGuiStyleEx::imageButtonSize),ImVec2(0,1),ImVec2(1,0));
 	}
 	ImGui::SameLine();
-	if(ImGui::ImageButton(EngineAsset::get()->iconFlash.getId(),
+	if(ImGui::ImageButton(EngineAsset::get()->iconFlash->getId(),
 		ImVec2(ImGuiStyleEx::imageButtonSize,ImGuiStyleEx::imageButtonSize),ImVec2(0,1),ImVec2(1,0)))
 	{
 		bNeedScan = true;
@@ -105,9 +123,7 @@ void WidgetAsset::onVisibleTick(size_t)
 		cacheFolderPath.pop();
 	}
 	
-	static float padding = 16.0f;
-	static int thumbnailSize = 60;
-	float cellSize = thumbnailSize + padding;
+	static int thumbnailSize = 80;
 
 	ImGui::SameLine();
 	float LengthOfSlider = 120.0f;
@@ -117,77 +133,219 @@ void WidgetAsset::onVisibleTick(size_t)
 	ImGui::SliderInt("ThumbnailSize", &thumbnailSize, 30, 100);
 	ImGui::Separator();
 
-	float panelWidth = ImGui::GetContentRegionAvail().x;
-	int columnCount = (int)(panelWidth / cellSize);
-	if (columnCount < 1)
-		columnCount = 1;
-
-	ImGui::Columns(columnCount, 0, false);
-
-	// Lazy scan
-	// 通常不会每帧调用
-	auto ScanFolder = [&]()
-	{
-		m_currentFolderCacheEntry.clear();
-		for (auto& directoryEntry : std::filesystem::directory_iterator(m_projectDirectory))
-		{
-			CacheEntryInfo cacheInfo{};
-			cacheInfo.bFolder = directoryEntry.is_directory();
-			auto relativePath = std::filesystem::relative(directoryEntry.path(), s_projectDir);
-			cacheInfo.filenameString = relativePath.filename().string();
-			cacheInfo.itemPath = relativePath.c_str();
-			cacheInfo.path = directoryEntry.path().filename();
-			m_currentFolderCacheEntry.push_back(cacheInfo);
-		}
-
-		std::sort(m_currentFolderCacheEntry.begin(),m_currentFolderCacheEntry.end(),myCacheEntryInfoCompare);
-	};
+	std::string searchName = u8"关键词过滤";
+	const float label_width = ImGui::CalcTextSize(searchName.c_str(), nullptr, true).x;
+	m_searchFilter.Draw(searchName.c_str(),180.0f);
+	ImGui::Separator();
 
 	if(bNeedScan)
 	{
-		ScanFolder();
+		scanFolder();
 		bNeedScan = false;
 	}
 
-	for(auto& cacheInfo : m_currentFolderCacheEntry)
+	uint32 displayCount = 0;
+
+	// 开始绘制文件节点
 	{
-		ImGui::PushID(cacheInfo.filenameString.c_str());
-		auto& icon = cacheInfo.bFolder ? EngineAsset::get()->iconFolder : EngineAsset::get()->iconFile;
+		bool bNewline = true;
+		
+		ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
+		ImGui::PushStyleColor(ImGuiCol_ChildBg,IM_COL32(0,0,0,50));
 
-		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+		const float buttomOffset = ImGui::GetTextLineHeight() * 1.2f;
+		const auto contentWidth = ImGui::GetContentRegionAvail().x;
+		const auto contentHeight = ImGui::GetContentRegionAvail().y - buttomOffset;
+		float penXMin = 0.0f;
+		float penX  = 0.0f;
+		ImGuiStyle& style = ImGui::GetStyle();
+		ImRect rect_button;
+		ImRect rect_label;
+		const float labelHeight = GImGui->FontSize * 1.2f;
 
-		ImGui::ImageButton((ImTextureID)icon.getId(), { (float)thumbnailSize, (float)thumbnailSize }, { 0, 1 }, { 1, 0 });
-
-		if (ImGui::BeginDragDropSource())
+		if(ImGui::BeginChild("##ContentRegion",ImVec2(contentWidth,contentHeight),true))
 		{
-			const wchar_t* itemPath = cacheInfo.itemPath;
-			ImGui::SetDragDropPayload("CONTENT_BROWSER_ITEM", itemPath, (wcslen(itemPath) + 1) * sizeof(wchar_t));
-			ImGui::EndDragDropSource();
-		}
+			float offset = ImGui::GetStyle().ItemSpacing.x;
+			penXMin = ImGui::GetCursorPosX() + offset;
+			ImGui::SetCursorPosX(penXMin);
 
-		ImGui::PopStyleColor();
-		if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-		{
-			if(cacheInfo.bFolder)
+			for(auto& cacheInfo : m_currentFolderCacheEntry)
 			{
-				m_projectDirectory /= cacheInfo.path;
-				bNeedScan = true;
+				if(!m_searchFilter.PassFilter(cacheInfo.filenameString.c_str()))
+				{
+					continue;
+				}
+
+				auto* icon = EngineAsset::get()->iconFile;
+				if(cacheInfo.bFolder)
+				{
+					icon = EngineAsset::get()->iconFolder;			
+				}
+				else if(FileSystem::endWith(cacheInfo.filenameString,".flower"))
+				{
+					icon = EngineAsset::get()->iconProject;
+				}
+
+				displayCount++;
+
+				if(bNewline)
+				{
+					ImGui::BeginGroup();
+					bNewline = false;
+				}
+
+				ImGui::BeginGroup();
+				{
+					{
+						rect_button = ImRect(
+							ImGui::GetCursorScreenPos().x,
+							ImGui::GetCursorScreenPos().y,
+							ImGui::GetCursorScreenPos().x + thumbnailSize,
+							ImGui::GetCursorScreenPos().y + thumbnailSize
+						);
+
+						rect_label = ImRect(
+							rect_button.Min.x,
+							rect_button.Max.y - labelHeight - style.FramePadding.y,
+							rect_button.Max.x,
+							rect_button.Max.y
+						);
+					}
+
+					{
+						static const float shadow_thickness = 2.0f;
+						ImVec4 color = ImGui::GetStyle().Colors[ImGuiCol_BorderShadow];
+						ImGui::GetWindowDrawList()->AddRectFilled(rect_button.Min,ImVec2(rect_label.Max.x+shadow_thickness,rect_label.Max.y+shadow_thickness),IM_COL32(color.x*255,color.y*255,color.z*255,color.w*255));
+					}
+
+					{
+						ImGui::PushID(cacheInfo.filenameString.c_str());
+						ImGui::PushStyleColor(ImGuiCol_Border,ImVec4(0,0,0,0));
+						ImGui::PushStyleColor(ImGuiCol_Button,ImVec4(1.0f,1.0f,1.0f,0.05f));
+
+						if(ImGui::Button("##dummy",ImVec2((float)thumbnailSize,(float)thumbnailSize)))
+						{
+						const auto now = std::chrono::high_resolution_clock::now();
+						m_timeSinceLastClick = now-m_lastClickTime;
+						m_lastClickTime = now;
+						const bool is_single_click = m_timeSinceLastClick.count()>500;
+
+						// 双击
+						if(!is_single_click)
+						{
+							if(cacheInfo.bFolder)
+							{
+								m_projectDirectory /= cacheInfo.path;
+								bNeedScan = true;
+							}
+						}
+						// 单击
+						else if(ImGui::IsItemHovered()&&ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+						{
+							LOG_INFO("选择了{0}。",cacheInfo.filenameString.c_str());
+						}
+						}
+
+						// 图片
+						{
+							ImVec2 imageSizeMax = ImVec2(rect_button.Max.x-rect_button.Min.x-style.FramePadding.x*2.0f,rect_button.Max.y-rect_button.Min.y-style.FramePadding.y-labelHeight-5.0f);
+							ImVec2 imageSize = ImVec2(static_cast<float>(icon->icon->getInfo().extent.width),static_cast<float>(icon->icon->getInfo().extent.height));
+							ImVec2 imageSizeDelta = ImVec2(0.0f,0.0f);
+
+							{
+								if(imageSize.x!=imageSizeMax.x)
+								{
+									float scale = imageSizeMax.x/imageSize.x;
+									imageSize.x = imageSizeMax.x;
+									imageSize.y = imageSize.y*scale;
+								}
+								if(imageSize.y!=imageSizeMax.y)
+								{
+									float scale = imageSizeMax.y/imageSize.y;
+									imageSize.x = imageSize.x*scale;
+									imageSize.y = imageSizeMax.y;
+								}
+
+								imageSizeDelta.x = imageSizeMax.x-imageSize.x;
+								imageSizeDelta.y = imageSizeMax.y-imageSize.y;
+							}
+
+							ImGui::SetCursorScreenPos(ImVec2(rect_button.Min.x+style.FramePadding.x+imageSizeDelta.x*0.5f,rect_button.Min.y+style.FramePadding.y+imageSizeDelta.y*0.5f));
+							ImGui::Image((ImTextureID)icon->getId(),imageSize,ImVec2(1,1),ImVec2(0,0));
+						}
+
+						ImGui::PopStyleColor(2);
+						ImGui::PopID();
+					}
+
+					// 标签
+					{
+					const char* labelText = cacheInfo.filenameString.c_str();
+					const ImVec2 labelSize = ImGui::CalcTextSize(labelText,nullptr,true);
+					const float textOffset = 3.0f;
+
+					ImGui::GetWindowDrawList()->AddRectFilled(rect_label.Min,rect_label.Max,IM_COL32(51,51,51,190));
+
+					
+					if(labelSize.x<=thumbnailSize&&labelSize.y<=thumbnailSize)
+					{
+						ImGui::SetCursorScreenPos(ImVec2(
+							rect_label.Min.x + (thumbnailSize - ImGui::CalcTextSize((cacheInfo.filenameString).c_str()).x) * 0.5f,
+							rect_label.Min.y + textOffset
+						));
+
+						ImGui::TextUnformatted(labelText);
+					}
+					else
+					{
+						ImGui::SetCursorScreenPos(ImVec2(rect_label.Min.x+textOffset,rect_label.Min.y+textOffset));
+						ImGui::RenderTextClipped(rect_label.Min,rect_label.Max,labelText,nullptr,&labelSize,ImVec2(0,0),&rect_label);
+					}
+					}
+					ImGui::EndGroup();
+				}
+
+				// 判断换行
+				penX += thumbnailSize+ImGui::GetStyle().ItemSpacing.x;
+				if(penX>=contentWidth-thumbnailSize)
+				{
+					ImGui::EndGroup();
+					penX = penXMin;
+					ImGui::SetCursorPosX(penX);
+					bNewline = true;
+				}
+				else
+				{
+					ImGui::SameLine();
+				}
+			}
+
+			if(!bNewline)
+			{
+				ImGui::EndGroup();
 			}
 		}
-		
-		auto RawName = FileSystem::getFileRawName(cacheInfo.filenameString);
-		float tipStartPositionX = ImGui::GetCursorPosX() + cellSize * 0.5f - ImGui::CalcTextSize((RawName).c_str()).x * 0.5f;
-		ImGui::SetCursorPosX(tipStartPositionX);
-		ImGui::Text(RawName.c_str());
-
-		ImGui::NextColumn();
-		ImGui::PopID();
+		ImGui::EndChild();
+		ImGui::PopStyleColor();
+		ImGui::PopStyleVar();
 	}
 
+	{
+		const float offsetBottom = 30.0f;
+		ImGui::SetCursorPosY(ImGui::GetWindowSize().y - offsetBottom);
+		ImGui::Text(u8"%d 项", displayCount);
+	}
+	
+	
 	ImGui::End();
 }
 
 WidgetAsset::~WidgetAsset()
 {
 
+}
+
+void WidgetAsset::popupMenu()
+{
+	
 }

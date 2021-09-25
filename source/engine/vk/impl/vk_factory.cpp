@@ -48,19 +48,16 @@ VkPipeline engine::VulkanGraphicsPipelineFactory::buildMeshDrawPipeline(VkDevice
     VkPipelineDynamicStateCreateInfo dynamicState{};
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 
-
     std::vector<VkDynamicState> dynamicStates;
     dynamicStates.push_back(VK_DYNAMIC_STATE_VIEWPORT);
     dynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR);
     dynamicStates.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
     dynamicState.pDynamicStates = dynamicStates.data();
     dynamicState.dynamicStateCount = (uint32_t)dynamicStates.size();
-
     pipelineInfo.pDynamicState = &dynamicState;
 
     VkPipeline newPipeline;
-    if(vkCreateGraphicsPipelines(
-        device,VK_NULL_HANDLE,1,&pipelineInfo,nullptr,&newPipeline) != VK_SUCCESS)
+    if(vkCreateGraphicsPipelines(device,VK_NULL_HANDLE,1,&pipelineInfo,nullptr,&newPipeline) != VK_SUCCESS)
     {
         LOG_GRAPHICS_FATAL("Fail to create graphics pipeline!");
         return VK_NULL_HANDLE;

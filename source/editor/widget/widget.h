@@ -33,8 +33,39 @@ public:
 struct Drawer
 {
 	static void vector3(const std::string& label, glm::vec3& values, float resetValue = 0.0f, float columnWidth = 100.0f);
+};
 
-	
+namespace engine
+{
+	class SceneManager;
+	class SceneNode;
+	class Scene;
+}
+
+struct SceneNodeWrapper
+{
+	std::weak_ptr<engine::SceneNode> node;
+	size_t id;
+};
+
+class EditorScene
+{
+public:
+	std::weak_ptr<engine::SceneNode> hoverNode; // 上一次选择的节点
+	std::weak_ptr<engine::SceneNode> leftClickNode;
+	std::weak_ptr<engine::SceneNode> rightClickNode; // 右键按钮，也是选中按钮
+	SceneNodeWrapper dragNode; // 拖拽的节点
+
+	bool bRename = false;
+	std::weak_ptr<engine::SceneNode> copiedNode;
+
+	static EditorScene& get()
+	{
+		static EditorScene instance;
+		return instance;
+	}
+
+	std::weak_ptr<engine::SceneNode> getSelectNode() { return rightClickNode; }
 };
 
 class Widget

@@ -4,16 +4,32 @@
 #include <string>
 #include <sstream>
 #include <algorithm>
+#include "core.h"
 
 namespace engine
 {
 
-static const char* s_logFilePath = "./log/";
-static const char* s_fontsDir    = "./media/font/";
-static const char* s_projectDir  = "./project/"; 
-static const char* s_projectDirRaw = "./project";
-static const char* s_mediaDir    = "./media/";
-static const char* s_iconPath    = "./media/icon/flower.png";
+static const char* s_logFilePath         = "./log/";
+static const char* s_fontsDir            = "./media/font/";
+static const char* s_projectDir          = "./project/"; 
+static const char* s_projectDirRaw       = "./project";
+static const char* s_mediaDir            = "./media/";
+static const char* s_iconPath            = "./media/icon/flower.png";
+static const char* s_projectSuffix       = ".flower";
+static const char* s_engineTex           = "./media/engine_texture/";
+static const char* s_engineShader        = "./media/shader/";
+static const char* s_engineShaderCache   = "./media/cache/shader/";
+static const char* s_shaderCompile       = "glslc.exe";
+
+static const char* s_defaultWhiteTextureName      = "./media/engine_texture/T_Black.tga";
+static const char* s_defaultBlackTextureName      = "./media/engine_texture/T_White.tga";
+static const char* s_defaultNormalTextureName     = "./media/engine_texture/T_DefaultNormal.tga";
+static const char* s_defaultCheckboardTextureName = "./media/engine_texture/T_Checkerboard_SRGB.tga";
+static const char* s_defaultEmissiveTextureName   = "./media/engine_texture/T_DefaultEmissive_SRGB.tga";
+
+
+// engine shader path
+static const char* s_shader_tonemapper = "Engine/Tonemapper";
 
 class FileSystem
 {
@@ -248,4 +264,114 @@ public:
     }
 };
 
+#include <chrono>
+#include <thread>
+#include <unordered_map>
+#include <functional>
+
+class FileWatcher
+{
+public:
+    enum class FileStatus
+    {
+        Created,
+        Modified,
+        Erased,
+    };
+
+    using action = void(std::string,FileStatus,std::filesystem::file_time_type);
+
+private:
+    std::string m_name;
+    std::unordered_map<std::string, std::filesystem::file_time_type> m_paths;
+    std::string m_watchPath;
+    std::chrono::duration<int, std::milli> m_delay;
+    bool m_runing;
+
+    std::thread m_t;
+
+    bool contains(const std::string& key)
+    {
+        auto el = m_paths.find(key);
+        return el != m_paths.end();
+    }
+
+    std::function<action> m_action;
+    
+public:
+    ~FileWatcher()
+    {
+        m_runing = false;
+        if(m_t.joinable()) m_t.join();
+    }
+
+    void end()
+    {
+        m_runing = false;
+        if(m_t.joinable()) m_t.join();
+    }
+
+    const std::unordered_map<std::string,std::filesystem::file_time_type>& getCachePaths() const
+    {
+        return m_paths;
+    }
+
+    FileWatcher(const std::string& path,std::chrono::duration<int,std::milli> delay,const std::string& name,const std::function<void(std::string,FileStatus,std::filesystem::file_time_type)>& action)
+        : m_watchPath(path),m_delay(delay),m_name(name)
+    {
+        for(auto& file:std::filesystem::recursive_directory_iterator(m_watchPath))
+        {
+            m_paths[file.path().string()] = std::filesystem::last_write_time(file);
+        }
+
+        m_runing = true;
+        m_action = action;
+
+        m_t = std::thread([&](){
+
+            while(m_runing)
+            {
+                std::this_thread::sleep_for(m_delay);
+                auto it = m_paths.begin();
+
+                while(it != m_paths.end())
+                {
+                    if(!std::filesystem::exists(it->first))
+                    {
+                        m_action(it->first, FileStatus::Erased,it->second);
+                        it = m_paths.erase(it);
+                    }
+                    else
+                    {
+                        it++;
+                    }
+                }
+
+                for(auto& file:std::filesystem::recursive_directory_iterator(m_watchPath))
+                {
+                    auto current_file_last_write_time = std::filesystem::last_write_time(file);
+
+                    // 创建文件
+                    if(!contains(file.path().string()))
+                    {
+                        m_paths[file.path().string()] = current_file_last_write_time;
+                        m_action(file.path().string(),FileStatus::Created,current_file_last_write_time);
+                    }
+                    else
+                    {
+                        // 文件修改
+                        if(m_paths[file.path().string()]!=current_file_last_write_time)
+                        {
+                            m_paths[file.path().string()] = current_file_last_write_time;
+                            m_action(file.path().string(),FileStatus::Modified,current_file_last_write_time);
+                        }
+                    }
+                }
+            }
+            LOG_INFO("Thread {0} ending.",m_name);
+        });
+    }
+};
+
 }
+

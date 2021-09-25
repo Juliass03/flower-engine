@@ -149,7 +149,6 @@ class TEnableIf<false, Result>
 
 }
 
-
 namespace glm
 {
 	template<class Archive> void serialize(Archive& archive, glm::vec2& v)  { archive(v.x, v.y); }

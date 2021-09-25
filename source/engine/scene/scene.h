@@ -1,48 +1,34 @@
 #pragma once
 #include "../core/core.h"
-#include <rttr/type>
 #include "../core/runtime_module.h"
-#include <cereal/access.hpp>
-#include <cereal/types/memory.hpp>
-#include <cereal/types/string.hpp>
-#include <cereal/types/vector.hpp>
-#include <cereal/cereal.hpp> 
-#include <cereal/types/unordered_map.hpp>
-#include <cereal/types/list.hpp>
 #include "component.h"
 #include <list>
+#include "scene_node.h"
 
 namespace engine{
 
-// Scene 中直接存储各个SceneNode
-
-// Scene 中存储了各类Component的弱引用
-// 
-
-namespace usageNode
+namespace usageNodeIndex
 {
 	constexpr size_t empty = 0;
-	constexpr size_t root = 1;
-
-
+	constexpr size_t root  = 1;
 	constexpr size_t start = 100;
 }
 
-class SceneNode;
 class Scene final
 {
-	// TODO: 生命周期管理
 	using ComponentContainer = std::unordered_map<size_t,std::vector<std::weak_ptr<Component>>>; // TODO: 弱引用存储的容器
 
 private:
 	std::string m_name = "Untitled";
-	size_t m_CurrentId = usageNode::start;
+	size_t m_CurrentId = usageNodeIndex::start;
 
 	// 场景树根节点
 	std::shared_ptr<SceneNode> m_root;
 
 	// 除开Transform外的所有Component
 	ComponentContainer m_components = {};
+
+	bool m_dirty = false;
 
 private:
 	friend class cereal::access;
@@ -54,7 +40,7 @@ private:
 			cereal::make_nvp("Scene", m_name),
 			cereal::make_nvp("Root",m_root),
 			m_CurrentId,
-			cereal::defer(m_components)
+			m_components
 		);
 	}
 
@@ -69,18 +55,54 @@ public:
 	Scene(const std::string& name);
 	~Scene();
 
-	size_t getLastGUID() const { return m_CurrentId; }
+	void setDirty(bool bDirty = true) { m_dirty = bDirty; }
+	bool isDirty() const { return m_dirty; }
 
-	void setName(const std::string& name) { m_name = name; }
+	void flushSceneNodeTransform();
+
+	size_t getLastGUID() const { return m_CurrentId; }
+	void deleteNode(std::shared_ptr<SceneNode> node);
+
+	// NOTE: 自底向上更新
+	void loopNodeDownToTop(const std::function<void(std::shared_ptr<SceneNode>)>& func, std::shared_ptr<SceneNode> node);
+
+	// NOTE: 自顶向下更新
+	void loopNodeTopToDown(const std::function<void(std::shared_ptr<SceneNode>)>& func, std::shared_ptr<SceneNode> node);
+
+
+	void setName(const std::string& name) { m_name = name; setDirty(); }
 	const auto& getName() const { return m_name; }
 
 	std::shared_ptr<SceneNode> createNode(const std::string& name);
 
+	// NOTE: 给根节点添加子节点
 	void addChild(std::shared_ptr<SceneNode> child);
-	void addComponent(std::shared_ptr<Component> component);
-	void addComponent(std::shared_ptr<Component> component, SceneNode& node);
 
-	// 获取
+	template<typename T>
+	inline void addComponent(std::shared_ptr<T> component,std::shared_ptr<SceneNode> node)
+	{
+		if (component && !node->hasComponent(getTypeId<T>()))
+		{
+			node->setComponent(component);
+			m_components[getTypeId<T>()].push_back(component);
+		}
+	}
+
+	template<> inline void addComponent<class StaticMeshComponent>(std::shared_ptr<StaticMeshComponent>,std::shared_ptr<SceneNode>);
+
+	template<typename T>
+	void removeComponent(std::shared_ptr<SceneNode> node)
+	{
+		if(node->hasComponent<T>())
+		{
+			setDirty();
+			return node->removeComponent<T>();
+		}
+	}
+
+	// NOTE: 设立父子关系
+	bool setParent(std::shared_ptr<SceneNode> parent,std::shared_ptr<SceneNode> son);
+
 	const std::vector<std::weak_ptr<Component>>& getComponents(const size_t type_info) const
 	{
 		return m_components.at(type_info);
@@ -106,22 +128,26 @@ public:
 			});
 
 		setComponents(getTypeId<T>(), std::move(result));
+		setDirty();
 	}
 
 	void setComponents(const size_t type_info, std::vector<std::weak_ptr<Component>>&& components)
 	{
 		m_components[type_info] = std::move(components);
+		setDirty();
 	}
 
 	template <class T>
 	void clearComponents()
 	{
 		setComponents(getTypeId<T>(), {});
+		setDirty();
 	}
 
-	template <class T> const std::vector<std::shared_ptr<T>>& getComponents() const
+	template <class T> 
+	std::vector<std::weak_ptr<T>> getComponents() const
 	{
-		std::vector<std::shared_ptr<T>> result;
+		std::vector<std::weak_ptr<T>> result;
 		auto id = getTypeId<T>();
 		if (hasComponent(id))
 		{
@@ -129,9 +155,9 @@ public:
 
 			result.resize(scene_components.size());
 			std::transform(scene_components.begin(), scene_components.end(), result.begin(),
-				[](const std::shared_ptr<Component> &component) -> std::shared_ptr<T>
+				[](const std::weak_ptr<Component> &component) -> std::weak_ptr<T>
 				{
-					return std::dynamic_pointer_cast<T>(component.get());
+					return std::static_pointer_cast<T>(component.lock());
 				});
 		}
 		return result;
@@ -154,8 +180,9 @@ public:
 	virtual void release() override;
 
 public:
-	bool loadScene();
+	bool loadScene(const std::string& path);
 	bool unloadScene();
+	bool saveScene(const std::string& path);
 
 	Scene& getActiveScene()
 	{
@@ -163,8 +190,8 @@ public:
 	}
 
 private:
-	std::unique_ptr<Scene> createEmptyScene();
-
+	void createEmptyScene();
+	std::string originalTile;
 private:
 	std::unique_ptr<Scene> m_activeScene = nullptr;
 };

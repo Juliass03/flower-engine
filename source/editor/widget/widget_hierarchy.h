@@ -2,43 +2,8 @@
 #include "widget.h"
 #include "../../imgui/imgui.h"
 #include "../../imgui/imgui_internal.h"
-namespace engine
-{
-	class SceneManager;
-	class SceneNode;
-	class Scene;
-}
 
-struct SceneNodeWrapper
-{
-	std::weak_ptr<engine::SceneNode> node;
-	size_t id;
-};
-
-class EditorScene
-{
-public:
-	// 上一次选择的节点
-	std::weak_ptr<engine::SceneNode> hoverNode;
-	std::weak_ptr<engine::SceneNode> leftClickNode;
-
-	std::weak_ptr<engine::SceneNode> rightClickNode; // 右键按钮，也是选中按钮
-	SceneNodeWrapper dragNode; // 拖拽的节点
-
-	bool bRename = false;
-
-	std::weak_ptr<engine::SceneNode> copiedNode;
-
-	static EditorScene& get()
-	{
-		static EditorScene instance;
-		return instance;
-	}
-
-	std::weak_ptr<engine::SceneNode> getSelectNode() { return rightClickNode; }
-};
-
-class WidgetHierarchy: public Widget
+class WidgetHierarchy : public Widget
 {
 public:
 	WidgetHierarchy(engine::Ref<engine::Engine> engine);

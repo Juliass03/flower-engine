@@ -7,17 +7,19 @@
 #include <cereal/cereal.hpp> 
 #include <cereal/types/unordered_map.hpp>
 #include <cereal/types/list.hpp>
+
 namespace engine{
 
 class SceneNode :public std::enable_shared_from_this<SceneNode>
 {
+    friend class Scene;
 private:
     std::string m_name = "EmptyNode";
     size_t m_id;
     size_t m_depth = 0;
     
     // Ref
-    std::shared_ptr<SceneNode> m_parent;
+    std::shared_ptr<SceneNode> m_parent = nullptr;
     std::vector<std::shared_ptr<SceneNode>> m_children;
 
     // Owner
@@ -34,9 +36,9 @@ private:
         ar( 
             cereal::make_nvp("SceneNode", m_name),
             cereal::make_nvp("NodeId", m_id),
-            cereal::make_nvp("NodeId", m_depth),
-            cereal::defer(m_parent),
-            cereal::make_nvp("Children", m_children),
+            cereal::make_nvp("Depth", m_depth),
+            cereal::make_nvp("Parent",m_parent),
+            cereal::make_nvp("Children",m_children),
             cereal::make_nvp("Components", m_components),
             m_transform
         );
@@ -54,19 +56,13 @@ private:
 public:
     // deprecated. use SceneNode::create
     SceneNode() = default;
-    std::shared_ptr<Component> getComponent(const size_t index) { return m_components.at(index);}
+    
     // deprecated. use SceneNode::create
     SceneNode(const size_t id,const std::string& name)
         : m_id(id),m_name(name),m_transform(nullptr)
     {
         LOG_TRACE("SceneNode {0} with GUID {1} create.", m_name.c_str(),m_id);
     }
-
-    void setName(const std::string& in)
-    {
-        m_name = in;
-    }
-
 
     static std::shared_ptr<SceneNode> create(const size_t id,const std::string& name)
     {
@@ -84,21 +80,16 @@ public:
     const std::string& getName() const{ return m_name; }
     const auto& getChildren() const{ return m_children;}
 
+public:
+    std::shared_ptr<Component> getComponent(const size_t index) { return m_components.at(index);}
+    
     template <class T> std::shared_ptr<T> getComponent();
-
     std::shared_ptr<Transform> getTransform(){ return m_transform; }
     std::shared_ptr<SceneNode> getParent() const{ return m_parent; }
-    
-    void addChild(std::shared_ptr<SceneNode> child)
-    {  
-        m_children.push_back(child);
-    }
-
     auto getDepth()
     {
         return m_depth;
     }
-
     // 判断节点是否为该节点的某个子节点
     bool isSon(std::shared_ptr<SceneNode> p)
     {
@@ -114,6 +105,25 @@ public:
         return false;
     }
 
+    std::shared_ptr<SceneNode> getPtr()
+    {
+        return shared_from_this();
+    }
+
+    template <class T> bool hasComponent(){ return hasComponent(getTypeId<T>());}
+    bool hasComponent(const size_t index){ return m_components.count(index) > 0;}
+    void setName(const std::string& in)
+    {
+        m_name = in;
+    }
+private:
+    friend class Scene;
+
+    void addChild(std::shared_ptr<SceneNode> child)
+    {  
+        m_children.push_back(child);
+    }
+
     // 禁止循环设置父级
     void setParent(std::shared_ptr<SceneNode> p)
     {
@@ -122,14 +132,9 @@ public:
         m_transform->invalidateWorldMatrix(); 
     }
 
-    std::shared_ptr<SceneNode> getPtr()
-    {
-        return shared_from_this();
-    }
-
     void selfDelete()
     {
-        std::shared_ptr<SceneNode> tt = getPtr();
+        // std::shared_ptr<SceneNode> tt = getPtr();
         for(auto& child:m_children) 
         {
             child->selfDelete();
@@ -168,10 +173,12 @@ public:
             m_components.insert(std::make_pair(component->getType(), component));
         }
     }
-    
-    template <class T> bool hasComponent(){ return hasComponent(getTypeId<T>());}
-    bool hasComponent(const size_t index){ return m_components.count(index) > 0;}
-    
+
+    template<class T>
+    void removeComponent()
+    {
+        m_components.erase(getTypeId<T>());
+    }
     
 };
 

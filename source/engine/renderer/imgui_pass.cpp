@@ -9,8 +9,6 @@
 
 namespace engine{
 
-
-
 static void check_vk_result(VkResult err)
 {
 	if (err == 0)
@@ -41,7 +39,7 @@ void setupStyle()
 {
 	ImGui::StyleColorsDark();
 	ImGui::GetStyle().FrameRounding = 4;
-	ImGui::GetStyle().WindowRounding = 6;
+	ImGui::GetStyle().WindowRounding = 2;
 	ImGui::GetStyle().WindowPadding = ImVec2(8.0f,8.0f);
 	ImGui::GetStyle().ChildRounding = 4;
 	ImGui::GetStyle().FrameRounding = 4;
@@ -109,7 +107,7 @@ void setupStyle()
 	colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
 	colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
 	colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
-	colors[ImGuiCol_WindowBg]       = ImVec4(0.03f, 0.03f, 0.03f, 1.00f);
+	colors[ImGuiCol_WindowBg]               = ImVec4(0.03f, 0.03f, 0.03f, 1.00f);
 	
 
 }

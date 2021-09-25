@@ -8,6 +8,9 @@
 #include <glfw/glfw3.h>
 #include <stb/stb_image.h>
 #include "../core/file_system.h"
+#include "../renderer/mesh.h"
+#include "../renderer/texture.h"
+
 namespace engine{
 
 EngineLoop g_engineLoop;
@@ -41,14 +44,14 @@ static AutoCVarString cVarTileName(
     "Window tile name.",
     "Window",
     "flower engine - ver 0.0.1 - vulkan 1.2",
-    CVarFlags::ReadOnly | CVarFlags::InitOnce
+    CVarFlags::ReadAndWrite
 );
 
 static AutoCVarInt32 cVarFpsMode(
     "r.Window.FpsMode",
     "Window fps mode,0 is free,1 is 30,2 is 60,3 is 120,4 is 240.",
     "Window",
-    0,
+    1,
     CVarFlags::ReadAndWrite
 );
 
@@ -260,7 +263,7 @@ void EngineLoop::guardedMain()
 
             m_smooth_dt = computeSmoothDt(m_smooth_dt,dt);
             result = m_engine.tick(dt,m_smooth_dt);
-
+            g_timer.frameCountAdd();
             m_frameCount ++;
 
             g_timer.m_currentFps = requestFps;
@@ -275,6 +278,7 @@ void EngineLoop::guardedMain()
             dt = m_frameCount == 0 ? dt : g_timer.frameDeltaTime();
             m_smooth_dt = computeSmoothDt(m_smooth_dt,dt);
             result = m_engine.tick(dt,m_smooth_dt);
+            g_timer.frameCountAdd();
 
             m_frameCount ++;
             passFrame++;
@@ -299,6 +303,8 @@ void EngineLoop::release()
 {
     m_engine.release();
 
+    TextureLibrary::get()->release();
+    MeshLibrary::get()->release();
     asset_system::EngineAsset::get()->release();
     VulkanRHI::get()->release();
     GLFWRelease();

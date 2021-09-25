@@ -17,6 +17,7 @@ void VulkanRHI::init(GLFWwindow* window,
     m_instanceLayerNames = instanceLayerNames;
     m_deviceExtensionNames = deviceExtensionNames;
     m_deviceExtensionNames.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+
     // Enable gpu features here.
     m_enableGpuFeatures.samplerAnisotropy = true; // Enable sampler anisotropy.
     m_enableGpuFeatures.depthClamp = true;        // Depth clamp to avoid near plane clipping.
@@ -130,7 +131,7 @@ void VulkanRHI::release()
 
 uint32 VulkanRHI::acquireNextPresentImage()
 {
-    m_swapchainChange = swapchainRebuild();
+    m_swapchainChange |= swapchainRebuild();
 
     vkWaitForFences(m_device,1,&m_inFlightFences[m_currentFrame],VK_TRUE,UINT64_MAX);
     VkResult result = vkAcquireNextImageKHR(
@@ -290,12 +291,34 @@ VkSampler VulkanRHI::createSampler(VkSamplerCreateInfo info)
     return m_samplerCache.createSampler(&info);
 }
 
-VkSampler VulkanRHI::getPointSampler()
+VkSampler VulkanRHI::getPointClampSampler()
 {
     SamplerFactory sfa{};
     sfa
         .MagFilter(VK_FILTER_NEAREST)
         .MinFilter(VK_FILTER_NEAREST)
+        .MipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR)
+        .AddressModeU(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
+        .AddressModeV(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
+        .AddressModeW(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
+        .CompareOp(VK_COMPARE_OP_LESS)
+        .CompareEnable(VK_FALSE)
+        .BorderColor(VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK)
+        .UnnormalizedCoordinates(VK_FALSE)
+        .MaxAnisotropy(1.0f)
+        .AnisotropyEnable(VK_FALSE)
+        .MinLod(0.0f)
+        .MaxLod(0.0f)
+        .MipLodBias(0.0f);
+
+    return VulkanRHI::get()->createSampler(sfa.getCreateInfo());
+}
+
+VkSampler VulkanRHI::getLinearClampSampler()
+{
+    SamplerFactory sfa{};
+    sfa.MagFilter(VK_FILTER_LINEAR)
+        .MinFilter(VK_FILTER_LINEAR)
         .MipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR)
         .AddressModeU(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
         .AddressModeV(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)

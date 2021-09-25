@@ -16,7 +16,7 @@ WidgetHierarchy::WidgetHierarchy(engine::Ref<engine::Engine> engine)
 	m_title = u8"场景大纲";
 	m_sceneManager = engine->getRuntimeModule<SceneManager>();
 
-	m_emptyNode = std::make_shared<SceneNode>(usageNode::empty,"empty");
+	m_emptyNode = std::make_shared<SceneNode>(usageNodeIndex::empty,"empty");
 	EditorScene::get().rightClickNode = m_emptyNode;
 }
 
@@ -36,7 +36,7 @@ void WidgetHierarchy::onVisibleTick(size_t)
 
 	drawScene();
 
-	if (ImGui::IsMouseReleased(0) && EditorScene::get().leftClickNode.lock() && EditorScene::get().leftClickNode.lock()->getId() != usageNode::empty)
+	if (ImGui::IsMouseReleased(0) && EditorScene::get().leftClickNode.lock() && EditorScene::get().leftClickNode.lock()->getId() != usageNodeIndex::empty)
 	{
 		if (EditorScene::get().hoverNode.lock() && EditorScene::get().hoverNode.lock()->getId() == EditorScene::get().leftClickNode.lock()->getId())
 		{
@@ -78,6 +78,7 @@ std::string DragDropId = "Hierarchy_SceneNode";
 
 void WidgetHierarchy::drawTreeNode(std::shared_ptr<engine::SceneNode> node)
 {
+	auto& activeScene = m_sceneManager->getActiveScene();
 	const bool bTreeNode = node->getChildren().size() > 0;
 
 	if(bTreeNode)
@@ -152,7 +153,7 @@ void WidgetHierarchy::drawTreeNode(std::shared_ptr<engine::SceneNode> node)
 		ImGui::EndDragDropSource();
 	}
 
-	if(EditorScene::get().hoverNode.lock())
+	if(const auto hoverActiveNode = EditorScene::get().hoverNode.lock())
 	{
 		if (ImGui::BeginDragDropTarget())
 		{
@@ -160,18 +161,8 @@ void WidgetHierarchy::drawTreeNode(std::shared_ptr<engine::SceneNode> node)
 			{
 				if(const auto payloadNode = EditorScene::get().dragNode.node.lock())
 				{
-					auto oldP = payloadNode->getParent();
-					std::shared_ptr<SceneNode> node = m_sceneManager->getActiveScene().getRootNode();
-					node = EditorScene::get().hoverNode.lock();
-					if(node->getId() != oldP->getId())
+					if(activeScene.setParent(hoverActiveNode,payloadNode))
 					{
-						if(!payloadNode->isSon(node))
-						{
-							payloadNode->setParent(node);
-							node->addChild(payloadNode);
-							oldP->removeChild(payloadNode);
-						}
-
 						EditorScene::get().dragNode.node.reset();
 						EditorScene::get().dragNode.id = -2;
 					}
@@ -198,6 +189,7 @@ void WidgetHierarchy::drawTreeNode(std::shared_ptr<engine::SceneNode> node)
 
 void WidgetHierarchy::handleEvent()
 {
+	auto& activeScene = m_sceneManager->getActiveScene();
 	const auto bWindowHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
 	if(!bWindowHovered)
 	{
@@ -224,7 +216,7 @@ void WidgetHierarchy::handleEvent()
 		}
 	}
 
-	if(bDoubleClick && EditorScene::get().getSelectNode().lock() && EditorScene::get().getSelectNode().lock()->getId() != usageNode::empty)
+	if(bDoubleClick && EditorScene::get().getSelectNode().lock() && EditorScene::get().getSelectNode().lock()->getId() != usageNodeIndex::empty)
 	{
 		EditorScene::get().bRename = true;
 	}
@@ -241,25 +233,18 @@ void WidgetHierarchy::handleEvent()
 		setSelectNode(m_emptyNode);
 	}
 
+	// 处理拖拽
 	if(!EditorScene::get().hoverNode.lock())
 	{
 		if (ImGui::BeginDragDropTargetCustom(ImGui::GetCurrentWindow()->Rect(),ImGui::GetCurrentWindow()->ID))
 		{
+			// 处理父子关系
 			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(DragDropId.c_str()))
 			{
 				if(const auto payloadNode = EditorScene::get().dragNode.node.lock())
 				{
-					auto oldP = payloadNode->getParent();
-					std::shared_ptr<SceneNode> node = m_sceneManager->getActiveScene().getRootNode();
-					if(node->getId() != oldP->getId())
+					if(activeScene.setParent(m_sceneManager->getActiveScene().getRootNode(),payloadNode))
 					{
-						if(!payloadNode->isSon(node))
-						{
-							payloadNode->setParent(node);
-							node->addChild(payloadNode);
-							oldP->removeChild(payloadNode);
-						}
-
 						EditorScene::get().dragNode.node.reset();
 						EditorScene::get().dragNode.id = -2;
 					}
@@ -278,14 +263,14 @@ void WidgetHierarchy::popupMenu()
 			return;
 
 		const auto selectedNode = EditorScene::get().getSelectNode().lock();
-		const auto onNode  = selectedNode->getId() != usageNode::empty;
+		const auto onNode  = selectedNode->getId() != usageNodeIndex::empty;
 
 		if (onNode && ImGui::MenuItem(u8"复制"))
 		{
 			EditorScene::get().copiedNode = selectedNode;
 		}
 
-		if (EditorScene::get().copiedNode.lock() && EditorScene::get().copiedNode.lock()->getId() != usageNode::empty && ImGui::MenuItem(u8"黏贴"))
+		if (EditorScene::get().copiedNode.lock() && EditorScene::get().copiedNode.lock()->getId() != usageNodeIndex::empty && ImGui::MenuItem(u8"黏贴"))
 		{
 			// TODO: 克隆函数
 		}
@@ -316,27 +301,25 @@ void WidgetHierarchy::popupMenu()
 
 void WidgetHierarchy::actionNodeDelete(const std::shared_ptr<engine::SceneNode>& node)
 {
-	node->selfDelete();
+	m_sceneManager->getActiveScene().deleteNode(node->getPtr());
 }
 
 std::shared_ptr<engine::SceneNode> WidgetHierarchy::actionNodeCreateEmpty()
 {
-
-	// TODO: 不重复的名字
+	auto& activeScene = m_sceneManager->getActiveScene();
 	std::string name = "EmptyNode_GUID:" + std::to_string( m_sceneManager->getActiveScene().getLastGUID() + 1);
 	auto newNode = m_sceneManager->getActiveScene().createNode(name.c_str());
 
-	if(EditorScene::get().getSelectNode().lock() && EditorScene::get().getSelectNode().lock()->getId()!=usageNode::empty)
+	if(EditorScene::get().getSelectNode().lock() && EditorScene::get().getSelectNode().lock()->getId()!=usageNodeIndex::empty)
 	{
-		newNode->setParent(EditorScene::get().getSelectNode().lock());
-		EditorScene::get().getSelectNode().lock()->addChild(newNode);
+		activeScene.setParent(EditorScene::get().getSelectNode().lock(),newNode);
 	}
 	else
 	{
-		newNode->setParent(m_sceneManager->getActiveScene().getRootNode());
-
-		m_sceneManager->getActiveScene().getRootNode()->addChild(newNode);
+		activeScene.setParent(activeScene.getRootNode(),newNode);
 	}
+
+	m_sceneManager->getActiveScene().setDirty();
 
 	return newNode;
 }

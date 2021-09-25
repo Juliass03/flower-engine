@@ -13,13 +13,6 @@ enum class EComponent: uint32_t
 	Transform,
 };
 
-class EditorComponent
-{
-public:
-	std::weak_ptr<engine::SceneNode> inspectNode;
-
-};
-
 class WidgetDetail: public Widget
 {
 public:
@@ -27,11 +20,10 @@ public:
 	virtual void onVisibleTick(size_t) override;
 	~WidgetDetail();
 
-	
-
 private:
-	void DrawTransform(std::shared_ptr<engine::SceneNode>);
-
+	void drawTransform(std::shared_ptr<engine::SceneNode>);
+	void drawStaticMesh(std::shared_ptr<engine::SceneNode>);
+	void drawAddCommand(std::shared_ptr<engine::SceneNode>);
 
 
 private:

@@ -5,6 +5,7 @@
 #include "../vk/vk_rhi.h"
 #include <stb/stb_image.h>
 #include "../../imgui/imgui_impl_vulkan.h"
+#include "../renderer/texture.h"
 
 namespace engine{ namespace asset_system{
 
@@ -47,12 +48,13 @@ void asset_system::EngineAsset::init()
 	if(bInit) return;
 	std::string mediaDir = s_mediaDir; 
 
-	iconFolder.init(mediaDir + "icon/folder.png");
-	iconFile.init(mediaDir + "icon/file.png");
-	iconBack.init(mediaDir + "icon/back.png");
-	iconHome.init(mediaDir + "icon/home.png");
-	iconFlash.init(mediaDir + "icon/flash.png");
-
+	iconFolder = new IconInfo(mediaDir + "icon/folder.png");
+	iconFile = new IconInfo(mediaDir + "icon/file.png");
+	iconBack = new IconInfo(mediaDir + "icon/back.png");
+	iconHome = new IconInfo(mediaDir + "icon/home.png");
+	iconFlash = new IconInfo(mediaDir + "icon/flash.png");
+	iconProject = new IconInfo(mediaDir + "icon/project.png");
+	
 	bInit = true;
 }
 
@@ -60,11 +62,12 @@ void asset_system::EngineAsset::release()
 {
 	if(!bInit) return;
 	
-	iconFolder.release();
-	iconFile.release();
-	iconBack.release();
-	iconHome.release();
-	iconFlash.release();
+	delete iconFolder;
+	delete iconFile;
+	delete iconBack;
+	delete iconHome;
+	delete iconFlash;
+	delete iconProject;
 	bInit = false;
 }
 
@@ -72,7 +75,7 @@ AssetSystem::AssetSystem(Ref<ModuleManager> in): IRuntimeModule(in) {  }
 
 bool AssetSystem::init()
 {
-
+	loadEngineTextures();
 
 	return true;
 }
@@ -87,35 +90,65 @@ void AssetSystem::release()
 
 }
 
+bool AssetSystem::loadTexture2DImage(CombineTexture& inout,const std::string& gameName,std::function<void(CombineTexture loadResult)>&& loadedCallback)
+{
+	bool result = false;
+
+	if(!result)
+	{
+		inout = TextureLibrary::get()->m_textureContainer[s_defaultCheckboardTextureName];
+	}
+
+	return result;
+}
+
+bool AssetSystem::loadMesh(Mesh& inout,const std::string& gameName,std::function<void(Mesh* loadResult)>&& loadedCallback)
+{
+	
+
+	return false;
+}
+
 void AssetSystem::scanProject()
 {
 
 }
 
+void AssetSystem::loadEngineTextures()
+{
+	auto* textureLibrary = TextureLibrary::get();
+
+	textureLibrary->m_textureContainer[s_defaultWhiteTextureName] = {};
+	auto& whiteTexture = textureLibrary->m_textureContainer[s_defaultWhiteTextureName];
+	whiteTexture.sampler = VulkanRHI::get()->getLinearClampSampler();
+	whiteTexture.texture = loadFromFile(s_defaultWhiteTextureName,VK_FORMAT_B8G8R8A8_UNORM,4,false);
+
+	textureLibrary->m_textureContainer[s_defaultBlackTextureName] = {};
+	auto& blackTexture = textureLibrary->m_textureContainer[s_defaultBlackTextureName];
+	blackTexture.sampler = VulkanRHI::get()->getLinearClampSampler();
+	blackTexture.texture = loadFromFile(s_defaultBlackTextureName,VK_FORMAT_B8G8R8A8_UNORM,4,false);
+
+	textureLibrary->m_textureContainer[s_defaultNormalTextureName] = {};
+	auto& normalTexture = textureLibrary->m_textureContainer[s_defaultNormalTextureName];
+	normalTexture.sampler = VulkanRHI::get()->getLinearClampSampler();
+	normalTexture.texture = loadFromFile(s_defaultNormalTextureName,VK_FORMAT_B8G8R8A8_UNORM,4,false);
+
+	textureLibrary->m_textureContainer[s_defaultCheckboardTextureName] = {};
+	auto& checkboxTexture = textureLibrary->m_textureContainer[s_defaultCheckboardTextureName];
+	checkboxTexture.sampler = VulkanRHI::get()->getLinearClampSampler();
+	checkboxTexture.texture = loadFromFile(s_defaultCheckboardTextureName,VK_FORMAT_R8G8B8A8_SRGB,4,false);
+
+	textureLibrary->m_textureContainer[s_defaultEmissiveTextureName] = {};
+	auto& emissiveTexture = textureLibrary->m_textureContainer[s_defaultEmissiveTextureName];
+	emissiveTexture.sampler = VulkanRHI::get()->getLinearClampSampler();
+	emissiveTexture.texture = loadFromFile(s_defaultEmissiveTextureName,VK_FORMAT_R8G8B8A8_SRGB,4,false);
 }
+}
+
 void asset_system::EngineAsset::IconInfo::init(const std::string& path,bool flip)
 {
 	icon = loadFromFile(path, VK_FORMAT_R8G8B8A8_SRGB, 4,flip);
-
-	SamplerFactory sfa{};
-	sfa
-		.MagFilter(VK_FILTER_LINEAR)
-		.MinFilter(VK_FILTER_LINEAR)
-		.MipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR)
-		.AddressModeU(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
-		.AddressModeV(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
-		.AddressModeW(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
-		.CompareOp(VK_COMPARE_OP_LESS)
-		.CompareEnable(VK_FALSE)
-		.BorderColor(VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK)
-		.UnnormalizedCoordinates(VK_FALSE)
-		.MaxAnisotropy(1.0f)
-		.AnisotropyEnable(VK_FALSE)
-		.MinLod(0.0f)
-		.MaxLod(0.0f)
-		.MipLodBias(0.0f);
-
-	sampler = VulkanRHI::get()->createSampler(sfa.getCreateInfo());
+	sampler = VulkanRHI::get()->getLinearClampSampler();
 }
 
 void asset_system::EngineAsset::IconInfo::release()

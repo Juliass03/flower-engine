@@ -23,7 +23,7 @@ static AutoCVarInt32 cVarLogFileOutEnable(
 	"r.Log.FileOutEnable",
 	"Enable log file output.0 is off,1 is on.",
 	"Log",
-	0,
+	1,
 	CVarFlags::ReadOnly | CVarFlags::InitOnce
 );
 

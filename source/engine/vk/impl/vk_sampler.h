@@ -3,6 +3,11 @@
 
 namespace engine{
 
+enum class SamplerType
+{
+    Bilinear_Clamp,
+};
+
 class VulkanSampler
 {
     friend class SamplerFactory;

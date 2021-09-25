@@ -4,24 +4,28 @@
 #include "renderer/renderer.h"
 #include "asset_system/asset_system.h"
 #include "scene/scene.h"
+#include "core/job_system.h"
+#include "shader_compiler/shader_compiler.h"
 
 namespace engine{
 
 bool Engine::init()
 {
+	jobsystem::initialize();
+
 	m_moduleManager = std::make_unique<ModuleManager>();
 	m_moduleManager->m_engine = this;
 
 	// 注册模块
 	// NOTE: 注册顺序决定Tick调用次序和析构释放次序
+	//       不要轻易调整它们的顺序
 	m_moduleManager->registerRuntimeModule<asset_system::AssetSystem>(ETickType::True);
+	m_moduleManager->registerRuntimeModule<shaderCompiler::ShaderCompiler>(ETickType::True);
 	m_moduleManager->registerRuntimeModule<SceneManager>(ETickType::Smoothed);
 	m_moduleManager->registerRuntimeModule<Renderer>(ETickType::True);
-	
 
 	// 初始化所有的模块
 	m_moduleManager->init();
-
 
 	return true;
 }
@@ -29,6 +33,7 @@ bool Engine::init()
 Engine::~Engine()
 {
 	m_moduleManager.reset();
+	jobsystem::destroy();
 }
 
 ETickResult Engine::tick(float trueDt,float smoothDt)

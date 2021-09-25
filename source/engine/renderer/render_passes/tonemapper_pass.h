@@ -7,7 +7,12 @@ namespace engine{
 class TonemapperPass : public GraphicsPass
 {
 public:
-	TonemapperPass(Ref<Renderer> renderer,Ref<RenderScene> scene,const std::string& name) : GraphicsPass(renderer,scene,name) { }
+	TonemapperPass(Ref<Renderer> renderer,Ref<RenderScene> scene,Ref<shaderCompiler::ShaderCompiler> sc,const std::string& name)
+	: GraphicsPass(renderer,scene,sc,name,shaderCompiler::EShaderPass::Tonemapper)
+	{
+	
+	}
+
 	virtual void initInner() override;
 	virtual void beforeSceneTextureRecreate() override;
 	virtual void afterSceneTextureRecreate() override;
