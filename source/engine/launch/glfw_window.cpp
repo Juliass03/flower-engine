@@ -51,7 +51,7 @@ static AutoCVarInt32 cVarFpsMode(
     "r.Window.FpsMode",
     "Window fps mode,0 is free,1 is 30,2 is 60,3 is 120,4 is 240.",
     "Window",
-    1,
+    3,
     CVarFlags::ReadAndWrite
 );
 

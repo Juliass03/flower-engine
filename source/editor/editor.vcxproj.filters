@@ -13,6 +13,7 @@
     <ClCompile Include="widget\widget_detail.cpp" />
     <ClCompile Include="widget\dockspace.cpp" />
     <ClCompile Include="widget\widget_filebrower.cpp" />
+    <ClCompile Include="widget\widget_assetInspector.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="editor.h" />
@@ -26,5 +27,6 @@
     <ClInclude Include="widget\widget_detail.h" />
     <ClInclude Include="widget\dockspace.h" />
     <ClInclude Include="widget\widget_filebrower.h" />
+    <ClInclude Include="widget\widget_assetInspector.h" />
   </ItemGroup>
 </Project>

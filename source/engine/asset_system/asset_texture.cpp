@@ -8,16 +8,22 @@
 
 namespace engine{ namespace asset_system{
 
+uint32 toUint32(ESamplerType type)
+{
+    return static_cast<uint32>(type);
+}
+
+ESamplerType toSamplerType(uint32 in)
+{
+    return static_cast<ESamplerType>(in);
+}
+
 std::string toString(EAssetFormat format)
 {
 	switch(format)// NOTE: Vulkan不支持R8G8B8格式
 	{
 	case EAssetFormat::T_R8G8B8A8:
 		return "T_R8G8B8A8";
-    case EAssetFormat::T_R8G8: 
-        return "T_R8G8";
-    case EAssetFormat::T_R8:
-        return "T_R8";
     default:
         LOG_IO_FATAL("Unkown texture format!");
         return "Unknown";
@@ -43,6 +49,8 @@ AssetFile packTexture(TextureInfo* info,void* pixelData)
     textureMetadata["depth"] = info->pixelSize[2];
     textureMetadata["bufferSize"] = info->textureSize;
     textureMetadata["originalFile"] = info->originalFile;
+    textureMetadata["srgb"] = info->srgb;
+    textureMetadata["sampler"] = toUint32(info->samplerType);
 
     // LZ4 压缩
     if(info->compressMode == ECompressMode::LZ4)
@@ -84,6 +92,9 @@ TextureInfo readTextureInfo(AssetFile* file)
     info.pixelSize[1] = textureMetadata["height"];
     info.pixelSize[2] = textureMetadata["depth"];
 
+    info.srgb = textureMetadata["srgb"];
+    info.samplerType = toSamplerType(textureMetadata["sampler"]);
+
     return info;
 }
 
@@ -101,19 +112,17 @@ void unpackTexture(TextureInfo* info,const char* sourceBuffer,size_t sourceSize,
 
 EAssetFormat castToAssetFormat(int32 channels)
 {
-    CHECK(channels >= 1 && channels <= 4 && channels != 3);
+    CHECK(channels == 4);
     switch(channels)
     {
-    case 1: return EAssetFormat::T_R8;
-    case 2: return EAssetFormat::T_R8G8;
     case 4: return EAssetFormat::T_R8G8B8A8;
     }
     return EAssetFormat::Unknown;
 }
 
-bool bakeTexture(const char* pathIn,const char* pathOut,bool compress,uint32 req_comp)
+bool bakeTexture(const char* pathIn,const char* pathOut,bool srgb,bool compress,uint32 req_comp)
 {
-    CHECK(req_comp > 0 && req_comp <=4 && req_comp != 3);
+    CHECK(req_comp == 4);
     int32 texWidth, texHeight, texChannels;
     stbi_uc* pixels = stbi_load(pathIn, &texWidth, &texHeight, &texChannels, req_comp);
 
@@ -130,6 +139,8 @@ bool bakeTexture(const char* pathIn,const char* pathOut,bool compress,uint32 req
     info.textureSize = imageSize;
     info.pixelSize[0] = texWidth;
     info.pixelSize[1] = texHeight;
+    info.srgb = srgb;
+    info.samplerType = ESamplerType::LinearRepeat;
 
     // stb 库支持的图片均为1的深度
     info.pixelSize[2] = 1;

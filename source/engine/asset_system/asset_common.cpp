@@ -6,19 +6,26 @@
 
 namespace engine{ namespace asset_system{
 
+std::string rawPathToAssetPath(const std::string& pathIn,EAssetFormat format)
+{
+	switch(format)
+	{
+	case engine::asset_system::EAssetFormat::T_R8G8B8A8:
+		return FileSystem::getFileRawName(pathIn) + ".texture";
+	case engine::asset_system::EAssetFormat::M_StaticMesh_Obj:
+		return FileSystem::getFileRawName(pathIn) + ".mesh";
+	case engine::asset_system::EAssetFormat::Unknown:
+	default:
+		LOG_FATAL("Unkonw error!");
+		return "";
+	}
+}
+
 EAssetFormat toFormat(const char* f)
 {
     if(strcmp(f,"T_R8G8B8A8")==0)
     {
         return EAssetFormat::T_R8G8B8A8;
-    }
-    else if(strcmp(f,"T_R8G8")==0)
-    {
-        return EAssetFormat::T_R8G8;
-    }
-    else if(strcmp(f,"T_R8")==0)
-    {
-        return EAssetFormat::T_R8;
     }
 
     return EAssetFormat::Unknown;

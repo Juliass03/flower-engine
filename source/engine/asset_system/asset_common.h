@@ -24,13 +24,11 @@ extern ECompressMode toCompressMode(const char* type);
 enum class EAssetFormat
 {
     Unknown = 0,
-
     T_R8G8B8A8, 
-    T_R8G8, // NOTE: Vulkan不支持R8G8B8格式
-    T_R8,
-
     M_StaticMesh_Obj,
 };
+
+extern std::string rawPathToAssetPath(const std::string& pathIn,EAssetFormat format);
 
 extern EAssetFormat toFormat(const char* f);
 

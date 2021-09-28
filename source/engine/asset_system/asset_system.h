@@ -11,6 +11,8 @@ namespace engine
 
 namespace engine{ namespace asset_system{
 
+extern bool g_assetFolderDirty;
+
 class EngineAsset
 {
 private:
@@ -44,12 +46,15 @@ public:
     };
 
     
+    IconInfo* iconMaterial = nullptr;
+    IconInfo* iconMesh = nullptr;
     IconInfo* iconFolder = nullptr;
     IconInfo* iconFile = nullptr;
     IconInfo* iconBack = nullptr;
     IconInfo* iconHome = nullptr;
     IconInfo* iconFlash = nullptr;
     IconInfo* iconProject = nullptr;
+    IconInfo* iconTexture = nullptr;
 
     static EngineAsset* get(){ return s_asset; }
 
@@ -73,8 +78,9 @@ public:
     bool loadTexture2DImage(CombineTexture& inout,const std::string& gameName,std::function<void(CombineTexture)>&& loadedCallback);
     bool loadMesh(Mesh& inout,const std::string& gameName,std::function<void(Mesh*)>&& loadedCallback);
 private:
-    void scanProject();
+    void processProjectDirectory();
 
+    void addAsset(std::string path,EAssetFormat format);
     void loadEngineTextures();
 };
 

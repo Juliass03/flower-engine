@@ -8,11 +8,6 @@ namespace engine
 	class Scene;
 }
 
-enum class EComponent: uint32_t
-{
-	Transform,
-};
-
 class WidgetDetail: public Widget
 {
 public:
@@ -24,7 +19,6 @@ private:
 	void drawTransform(std::shared_ptr<engine::SceneNode>);
 	void drawStaticMesh(std::shared_ptr<engine::SceneNode>);
 	void drawAddCommand(std::shared_ptr<engine::SceneNode>);
-
 
 private:
 	engine::Ref<engine::SceneManager> m_sceneManager;

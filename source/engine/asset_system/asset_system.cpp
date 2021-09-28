@@ -6,6 +6,11 @@
 #include <stb/stb_image.h>
 #include "../../imgui/imgui_impl_vulkan.h"
 #include "../renderer/texture.h"
+#include "asset_texture.h"
+#include "asset_mesh.h"
+#include "../core/job_system.h"
+
+bool engine::asset_system::g_assetFolderDirty = false;
 
 namespace engine{ namespace asset_system{
 
@@ -54,7 +59,10 @@ void asset_system::EngineAsset::init()
 	iconHome = new IconInfo(mediaDir + "icon/home.png");
 	iconFlash = new IconInfo(mediaDir + "icon/flash.png");
 	iconProject = new IconInfo(mediaDir + "icon/project.png");
-	
+	iconMaterial = new IconInfo(mediaDir + "icon/material.png");
+	iconMesh = new IconInfo(mediaDir + "icon/mesh.png");
+	iconTexture = new IconInfo(mediaDir + "icon/image.png");
+
 	bInit = true;
 }
 
@@ -68,6 +76,9 @@ void asset_system::EngineAsset::release()
 	delete iconHome;
 	delete iconFlash;
 	delete iconProject;
+	delete iconMesh;
+	delete iconMaterial;
+	delete iconTexture;
 	bInit = false;
 }
 
@@ -76,7 +87,7 @@ AssetSystem::AssetSystem(Ref<ModuleManager> in): IRuntimeModule(in) {  }
 bool AssetSystem::init()
 {
 	loadEngineTextures();
-
+	processProjectDirectory();
 	return true;
 }
 
@@ -109,9 +120,71 @@ bool AssetSystem::loadMesh(Mesh& inout,const std::string& gameName,std::function
 	return false;
 }
 
-void AssetSystem::scanProject()
+// NOTE: 扫描项目文件夹里的资源
+//       建立meta资源索引
+void AssetSystem::processProjectDirectory()
 {
+	jobsystem::execute([this](){
+		namespace fs = std::filesystem;
+		const std::string projectPath = s_projectDir;
+		for(const auto& entry:fs::recursive_directory_iterator(projectPath))
+		{
+			if(!fs::is_directory(entry.path()))
+			{
+				std::string pathStr = FileSystem::toCommonPath(entry);
+				std::string suffixStr = FileSystem::getFileSuffixName(pathStr);
+				std::string rawName = FileSystem::getFileRawName(pathStr);
+				std::string fileName = FileSystem::getFileNameWithoutSuffix(pathStr);
 
+				if(suffixStr.find(".tga")!=std::string::npos)
+				{
+					jobsystem::execute([this,pathStr]()
+					{
+						addAsset(pathStr,EAssetFormat::T_R8G8B8A8);
+					});
+				}
+				else if(suffixStr.find(".obj")!=std::string::npos)
+				{
+					jobsystem::execute([this,pathStr]()
+					{
+						addAsset(pathStr,EAssetFormat::M_StaticMesh_Obj);
+					});
+				}
+			}
+		}
+	});
+}
+
+void AssetSystem::addAsset(std::string path,EAssetFormat format)
+{
+	switch(format)
+	{
+	case engine::asset_system::EAssetFormat::T_R8G8B8A8:
+	{
+		LOG_IO_INFO("Bakeing texture {0}....",path);
+		std::string bakeName = rawPathToAssetPath(path,format);
+		bakeTexture(path.c_str(),bakeName.c_str(),true,true,4);
+		LOG_IO_INFO("Baked texture {0}.",bakeName);
+		remove(path.c_str());
+		g_assetFolderDirty = true;
+		return;
+	}
+	case engine::asset_system::EAssetFormat::M_StaticMesh_Obj:
+	{
+		LOG_IO_INFO("Baking static mesh {0}...",path);
+		std::string bakeName = rawPathToAssetPath(path,format);
+		bakeObjMesh(path.c_str(),bakeName.c_str(),"",true);
+		LOG_IO_INFO("Baked static mesh {0}.",bakeName);
+		remove(path.c_str());
+		g_assetFolderDirty = true;
+
+		return;
+	}
+	case engine::asset_system::EAssetFormat::Unknown:
+	default:
+		LOG_FATAL("Unkonw asset type!");
+		return;
+	}
 }
 
 void AssetSystem::loadEngineTextures()

@@ -11,6 +11,7 @@
 #include "widget/widget_detail.h"
 #include "widget/dockspace.h"
 #include "widget/widget_filebrower.h"
+#include "widget/widget_assetInspector.h"
 
 using namespace engine;
 
@@ -24,10 +25,11 @@ void Editor::init()
     m_widgets.push_back(new WidgetConsole(engine));
     m_widgets.push_back(new WidgetViewport(engine));
     m_widgets.push_back(new WidgetAsset(engine));
-	m_widgets.push_back(new WidgetImguiDemo(engine));
+  //m_widgets.push_back(new WidgetImguiDemo(engine));
     m_widgets.push_back(new WidgetDownbar(engine));
     m_widgets.push_back(new WidgetHierarchy(engine));
     m_widgets.push_back(new WidgetDetail(engine)); // Detail应该放在Hierarchy后
+	m_widgets.push_back(new WidgetAssetInspector(engine));
 
     // NOTE: file brower 放到最后
     m_widgets.push_back(new WidgetFileBrowser(engine));

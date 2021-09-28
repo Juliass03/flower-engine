@@ -99,6 +99,7 @@
     <ClCompile Include="widget\dockspace.cpp" />
     <ClCompile Include="widget\widget.cpp" />
     <ClCompile Include="widget\widget_asset.cpp" />
+    <ClCompile Include="widget\widget_assetInspector.cpp" />
     <ClCompile Include="widget\widget_console.cpp" />
     <ClCompile Include="widget\widget_detail.cpp" />
     <ClCompile Include="widget\widget_downbar.cpp" />
@@ -112,6 +113,7 @@
     <ClInclude Include="widget\dockspace.h" />
     <ClInclude Include="widget\widget.h" />
     <ClInclude Include="widget\widget_asset.h" />
+    <ClInclude Include="widget\widget_assetInspector.h" />
     <ClInclude Include="widget\widget_console.h" />
     <ClInclude Include="widget\widget_detail.h" />
     <ClInclude Include="widget\widget_downbar.h" />

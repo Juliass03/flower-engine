@@ -30,5 +30,7 @@ private:
 	 
 	 bool m_expand_to_selection = false;
 	 bool m_expanded_to_selection = false;
+
+	 
 	 ImRect m_selected_entity_rect;
 };

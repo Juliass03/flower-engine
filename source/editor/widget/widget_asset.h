@@ -18,9 +18,11 @@ struct CacheEntryInfo
 class EditorAsset
 {
 public:
-	std::string hoverAssetPath;       // 上一次选择的节点
-	std::string leftClickAssetPath;   // 左键点击按钮
-	std::string rightClickAssetPath;  // 右键按钮，也是选中按钮
+	std::string hoverAssetPath;     
+	std::string leftClickAssetPath = "";
+	std::string rightClickAssetPath; 
+
+	std::string workingFoler;
 
 	static EditorAsset& get()
 	{
@@ -41,7 +43,7 @@ public:
 
 private:
 	void scanFolder();
-	void popupMenu();
+	void emptyAreaClickPopupMenu();
 
 	engine::Ref<engine::asset_system::AssetSystem> m_assetSystem;
 	std::filesystem::path m_projectDirectory;
@@ -52,4 +54,13 @@ private:
 	ImGuiTextFilter m_searchFilter;
 	std::chrono::duration<double,std::milli> m_timeSinceLastClick;
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_lastClickTime;
+
+	bool m_isHoveringItem;
+	std::string m_hoverItemName;
+	std::string buf; // 用于InputText
+
+	std::string m_renameingFile{};
+	bool bRenaming = false;
+
+	bool m_isHoveringWindow;
 };
