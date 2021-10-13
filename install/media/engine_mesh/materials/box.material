@@ -1,0 +1,43 @@
+{
+    "value0": {
+        "Name": "Engine/GBuffer",
+        "Textures": [
+            {
+                "key": "MaskTexture",
+                "value": {
+                    "first": 0,
+                    "second": "./media/engine_texture/T_White.tga"
+                }
+            },
+            {
+                "key": "BaseColorTexture",
+                "value": {
+                    "first": 1,
+                    "second": "./media/engine_texture/T_White.tga"
+                }
+            },
+            {
+                "key": "NormalTexture",
+                "value": {
+                    "first": 2,
+                    "second": "./media/engine_texture/T_DefaultNormal.tga"
+                }
+            },
+            {
+                "key": "MetalicTexture",
+                "value": {
+                    "first": 3,
+                    "second": "./media/engine_texture/T_Black.tga"
+                }
+            },
+            {
+                "key": "RoughnessTexture",
+                "value": {
+                    "first": 4,
+                    "second": "./media/engine_texture/T_White.tga"
+                }
+            }
+        ],
+        "PassType": 0
+    }
+}
