@@ -68,7 +68,7 @@
     </Link>
     <Lib>
       <AdditionalLibraryDirectories>$(SolutionDir)external\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;lz4d.lib;spirv_reflectd.lib</AdditionalDependencies>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;lz4.lib;spirv_reflectd.lib;assimp-vc142-mt.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -90,12 +90,13 @@
     </Link>
     <Lib>
       <AdditionalLibraryDirectories>$(SolutionDir)external\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;lz4.lib;spirv_reflect.lib</AdditionalDependencies>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;lz4.lib;spirv_reflect.lib;assimp-vc142-mt.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="asset_system\asset_common.cpp" />
     <ClCompile Include="asset_system\asset_mesh.cpp" />
+    <ClCompile Include="asset_system\asset_mmd.cpp" />
     <ClCompile Include="asset_system\asset_system.cpp" />
     <ClCompile Include="asset_system\asset_texture.cpp" />
     <ClCompile Include="core\crc.cpp" />
@@ -114,12 +115,16 @@
     <ClCompile Include="renderer\render_passes\gbuffer_pass.cpp" />
     <ClCompile Include="renderer\render_passes\lighting_pass.cpp" />
     <ClCompile Include="renderer\render_passes\pass_interface.cpp" />
+    <ClCompile Include="renderer\render_passes\shadowDepth_pass.cpp" />
     <ClCompile Include="renderer\render_passes\tonemapper_pass.cpp" />
     <ClCompile Include="renderer\imgui_pass.cpp" />
     <ClCompile Include="renderer\renderer.cpp" />
     <ClCompile Include="renderer\render_scene.cpp" />
     <ClCompile Include="renderer\scene_textures.cpp" />
     <ClCompile Include="renderer\texture.cpp" />
+    <ClCompile Include="scene\components\directionalLight.cpp" />
+    <ClCompile Include="scene\components\sceneview_camera.cpp" />
+    <ClCompile Include="scene\components\script_component.cpp" />
     <ClCompile Include="scene\components\staticmesh_renderer.cpp" />
     <ClCompile Include="scene\components\transform.cpp" />
     <ClCompile Include="scene\scene.cpp" />
@@ -139,8 +144,10 @@
   <ItemGroup>
     <ClInclude Include="asset_system\asset_common.h" />
     <ClInclude Include="asset_system\asset_mesh.h" />
+    <ClInclude Include="asset_system\asset_mmd.h" />
     <ClInclude Include="asset_system\asset_system.h" />
     <ClInclude Include="asset_system\asset_texture.h" />
+    <ClInclude Include="asset_system\mmd_filestring.h" />
     <ClInclude Include="async\book_cpp_concurrency_action.h" />
     <ClInclude Include="core\crc.h" />
     <ClInclude Include="core\deletion_queue.h" />
@@ -166,11 +173,16 @@
     <ClInclude Include="renderer\render_passes\gbuffer_pass.h" />
     <ClInclude Include="renderer\render_passes\lighting_pass.h" />
     <ClInclude Include="renderer\render_passes\pass_interface.h" />
+    <ClInclude Include="renderer\render_passes\shadowDepth_pass.h" />
     <ClInclude Include="renderer\render_passes\tonemapper_pass.h" />
     <ClInclude Include="renderer\render_scene.h" />
     <ClInclude Include="renderer\scene_textures.h" />
     <ClInclude Include="renderer\texture.h" />
     <ClInclude Include="scene\component.h" />
+    <ClInclude Include="scene\components\camera_component.h" />
+    <ClInclude Include="scene\components\directionalLight.h" />
+    <ClInclude Include="scene\components\sceneview_camera.h" />
+    <ClInclude Include="scene\components\script_component.h" />
     <ClInclude Include="scene\components\staticmesh_renderer.h" />
     <ClInclude Include="scene\components\transform.h" />
     <ClInclude Include="scene\scene.h" />

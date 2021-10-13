@@ -18,7 +18,9 @@ public:
 private:
 	void drawTransform(std::shared_ptr<engine::SceneNode>);
 	void drawStaticMesh(std::shared_ptr<engine::SceneNode>);
+	void drawDirectionalLight(std::shared_ptr<engine::SceneNode>);
 	void drawAddCommand(std::shared_ptr<engine::SceneNode>);
+
 
 private:
 	engine::Ref<engine::SceneManager> m_sceneManager;

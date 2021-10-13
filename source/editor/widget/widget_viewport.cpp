@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <sstream>
 #include "../../engine/asset_system/asset_system.h"
+#include "../../engine/core/input.h"
 
 using namespace engine;
 using namespace engine::asset_system;
@@ -35,11 +36,14 @@ void WidgetViewport::onVisibleTick(size_t i)
 	// 
 
 	m_renderer->UpdateScreenSize((uint32)width,(uint32)height);
+	
+	
+
 	m_cacheImageInfo.setIcon(m_renderer->getRenderScene().getSceneTextures().getLDRSceneColor());
 	m_cacheImageInfo.setSampler(VulkanRHI::get()->getPointClampSampler());
 	
 	ImGui::Image(m_cacheImageInfo.getId(uint32_t(i)),ImVec2(width,height));
-	
+	Input::setMouseInViewport(ImGui::IsItemHovered());
 	//ImGui::Image((ImTextureID)EngineAsset::get()->iconFile.getId(),ImVec2(width,height));
 	ImGui::End();
 	if(!mini_window)ImGui::PopStyleVar(1);

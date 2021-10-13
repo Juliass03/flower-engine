@@ -3,6 +3,10 @@
 #include "../shader_compiler/shader_compiler.h"
 
 namespace engine{
+VkFormat SceneTextures::getDepthStencilFormat()
+{
+    return VulkanRHI::get()->getVulkanDevice()->findDepthStencilFormat();
+}
 
 void SceneTextures::allocate(uint32 width,uint32 height,bool forceAllocate)
 {
@@ -28,36 +32,37 @@ void SceneTextures::allocate(uint32 width,uint32 height,bool forceAllocate)
 	m_sceneColorTexture = RenderTexture::create(
         VulkanRHI::get()->getVulkanDevice(),
         width,height,
-        VK_FORMAT_R16G16B16A16_SFLOAT
+        getHDRSceneColorFormat()
     );
 
     m_depthStencilTexture = DepthStencilImage::create(
         VulkanRHI::get()->getVulkanDevice(),
-        width,height
+        width,height,
+        true // 需要采样深度图
     );
 
     m_finalColorTexture = RenderTexture::create(
         VulkanRHI::get()->getVulkanDevice(),
         width,height,
-        VK_FORMAT_R8G8B8A8_UNORM
+        getLDRSceneColorFormat() 
     );
 
     m_gbufferBaseColorRoughness = RenderTexture::create(
         VulkanRHI::get()->getVulkanDevice(),
         width,height,
-        VK_FORMAT_R8G8B8A8_UNORM
+        getGbufferBaseColorRoughnessFormat()
     );
 
     m_gbufferEmissiveAo = RenderTexture::create(
         VulkanRHI::get()->getVulkanDevice(),
         width,height,
-        VK_FORMAT_R8G8B8A8_UNORM
+        getGbufferEmissiveAoFormat()
     );
 
     m_gbufferNormalMetal = RenderTexture::create(
         VulkanRHI::get()->getVulkanDevice(),
         width,height,
-        VK_FORMAT_R8G8B8A8_UNORM
+        getGbufferNormalMetalFormat()
     );
 
     for(auto& callBackPair : m_callbackAfterSceneTextureRecreate)

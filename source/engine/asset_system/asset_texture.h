@@ -1,5 +1,6 @@
 #pragma once
 #include "asset_common.h"
+#include <vulkan/vulkan.h>
 
 namespace engine{ namespace asset_system{
 
@@ -20,6 +21,8 @@ struct TextureInfo
     ECompressMode compressMode;
     uint32 pixelSize[3];
     std::string originalFile;
+
+    VkFormat getVkFormat();
 };
 
 extern TextureInfo readTextureInfo(AssetFile* file);

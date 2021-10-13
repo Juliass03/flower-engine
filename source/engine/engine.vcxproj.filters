@@ -42,6 +42,11 @@
     <ClCompile Include="renderer\mesh\primitive.cpp" />
     <ClCompile Include="renderer\frame_data.cpp" />
     <ClCompile Include="renderer\texture.cpp" />
+    <ClCompile Include="scene\components\script_component.cpp" />
+    <ClCompile Include="scene\components\sceneview_camera.cpp" />
+    <ClCompile Include="renderer\render_passes\shadowDepth_pass.cpp" />
+    <ClCompile Include="scene\components\directionalLight.cpp" />
+    <ClCompile Include="asset_system\asset_mmd.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\cvar.h" />
@@ -96,5 +101,12 @@
     <ClInclude Include="renderer\mesh\primitive.h" />
     <ClInclude Include="renderer\frame_data.h" />
     <ClInclude Include="renderer\texture.h" />
+    <ClInclude Include="scene\components\script_component.h" />
+    <ClInclude Include="scene\components\camera_component.h" />
+    <ClInclude Include="scene\components\sceneview_camera.h" />
+    <ClInclude Include="renderer\render_passes\shadowDepth_pass.h" />
+    <ClInclude Include="scene\components\directionalLight.h" />
+    <ClInclude Include="asset_system\asset_mmd.h" />
+    <ClInclude Include="asset_system\mmd_filestring.h" />
   </ItemGroup>
 </Project>

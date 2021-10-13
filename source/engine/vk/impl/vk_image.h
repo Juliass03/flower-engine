@@ -113,17 +113,18 @@ namespace engine{
     class DepthStencilImage: public VulkanImage
     {
         DepthStencilImage() = default;
+        VkImageView m_depthOnlyImageView = VK_NULL_HANDLE;
     public:
-        virtual ~DepthStencilImage() = default;
-
-        static DepthStencilImage* create(VulkanDevice* device,uint32_t width, uint32_t height);
+        virtual ~DepthStencilImage();
+        VkImageView getDepthOnlyImageView() const { return m_depthOnlyImageView; }
+        static DepthStencilImage* create(VulkanDevice* device,uint32_t width, uint32_t height,bool bCreateDepthOnlyView);
     };
 
     class DepthOnlyImage: public VulkanImage
     {
         DepthOnlyImage() = default;
     public:
-        virtual ~DepthOnlyImage() = default;
+        virtual ~DepthOnlyImage();
         static DepthOnlyImage* create(VulkanDevice* device,uint32_t width, uint32_t height);
     };
 

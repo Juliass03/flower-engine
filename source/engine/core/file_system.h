@@ -17,19 +17,24 @@ static const char* s_mediaDir            = "./media/";
 static const char* s_iconPath            = "./media/icon/flower.png";
 static const char* s_projectSuffix       = ".flower";
 static const char* s_engineTex           = "./media/engine_texture/";
+static const char* s_engineMesh          = "./media/engine_mesh/";
 static const char* s_engineShader        = "./media/shader/";
 static const char* s_engineShaderCache   = "./media/cache/shader/";
 static const char* s_shaderCompile       = "glslc.exe";
 
-static const char* s_defaultWhiteTextureName      = "./media/engine_texture/T_Black.tga";
-static const char* s_defaultBlackTextureName      = "./media/engine_texture/T_White.tga";
+static const char* s_defaultWhiteTextureName      = "./media/engine_texture/T_White.tga";
+static const char* s_defaultBlackTextureName      = "./media/engine_texture/T_Black.tga";
 static const char* s_defaultNormalTextureName     = "./media/engine_texture/T_DefaultNormal.tga";
 static const char* s_defaultCheckboardTextureName = "./media/engine_texture/T_Checkerboard_SRGB.tga";
 static const char* s_defaultEmissiveTextureName   = "./media/engine_texture/T_DefaultEmissive_SRGB.tga";
 
+static const char* s_engineMeshBox  = "./media/engine_mesh/box.mesh";
+
 
 // engine shader path
 static const char* s_shader_tonemapper = "Engine/Tonemapper";
+static const char* s_shader_lighting   = "Engine/Lighting";
+static const char* s_shader_depth      = "Engine/Depth";
 
 class FileSystem
 {
@@ -189,6 +194,19 @@ public:
     {
         std::stringstream path;
         path << entry.path();
+        std::string pathStr = path.str();
+        // \\ 符号换成 /
+        pathStr = std::regex_replace(pathStr,std::regex("\\\\\\\\"),"/");
+
+        // 把路径符号中的" 去掉
+        pathStr = std::regex_replace(pathStr,std::regex("\""),"");
+        return pathStr;
+    }
+
+    static inline std::string toCommonPath(const std::filesystem::path& entry)
+    {
+        std::stringstream path;
+        path << entry;
         std::string pathStr = path.str();
         // \\ 符号换成 /
         pathStr = std::regex_replace(pathStr,std::regex("\\\\\\\\"),"/");

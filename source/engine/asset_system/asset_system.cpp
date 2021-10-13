@@ -8,6 +8,7 @@
 #include "../renderer/texture.h"
 #include "asset_texture.h"
 #include "asset_mesh.h"
+#include "../launch/launch_engine_loop.h"
 #include "../core/job_system.h"
 
 bool engine::asset_system::g_assetFolderDirty = false;
@@ -15,6 +16,7 @@ bool engine::asset_system::g_assetFolderDirty = false;
 namespace engine{ namespace asset_system{
 
 EngineAsset* EngineAsset::s_asset = new EngineAsset();
+AssetCache* AssetCache::s_cache = new AssetCache();
 
 Texture2DImage* loadFromFile(const std::string& path,VkFormat format,uint32 req,bool flip)
 {
@@ -82,18 +84,50 @@ void asset_system::EngineAsset::release()
 	bInit = false;
 }
 
+EngineAsset::IconInfo* EngineAsset::getIconInfo(const std::string& name)
+{
+	if(m_cacheIconInfo[name].icon == nullptr)
+	{
+		if(TextureLibrary::get()->existTexture(name))
+		{
+			auto pair = TextureLibrary::get()->getCombineTextureByName(name);
+			if(pair.first == ERequestTextureResult::Ready)
+			{
+				m_cacheIconInfo[name].icon = pair.second.texture;
+				m_cacheIconInfo[name].sampler = pair.second.sampler;
+			}
+		}
+	}
+	return &m_cacheIconInfo[name];
+}
+
 AssetSystem::AssetSystem(Ref<ModuleManager> in): IRuntimeModule(in) {  }
 
 bool AssetSystem::init()
 {
 	loadEngineTextures();
-	processProjectDirectory();
+	processProjectDirectory(true);
 	return true;
 }
 
 void AssetSystem::tick(float dt)
 {
-	
+	constexpr int32 scanTime = 1000;
+	static int32 scanTick = 0;
+	int32 fps = static_cast<int32>(getFps());
+	fps = fps > 0 ? fps : scanTime;
+
+	if(scanTick >= fps * 4)
+	{
+		scanTick = 0;
+		processProjectDirectory(false);
+	}
+	else
+	{
+		scanTick ++;
+	}
+
+	prepareTextureLoad();
 }
 
 void AssetSystem::release()
@@ -101,42 +135,129 @@ void AssetSystem::release()
 
 }
 
-bool AssetSystem::loadTexture2DImage(CombineTexture& inout,const std::string& gameName,std::function<void(CombineTexture loadResult)>&& loadedCallback)
+void AssetSystem::addLoadTextureTask(const std::string& pathStr)
 {
-	bool result = false;
-
-	if(!result)
+	if(m_texturesNameLoad.find(pathStr)==m_texturesNameLoad.end())
 	{
-		inout = TextureLibrary::get()->m_textureContainer[s_defaultCheckboardTextureName];
+		m_perScanAdditionalTextures.push_back(pathStr);
+		m_texturesNameLoad.emplace(pathStr);
 	}
-
-	return result;
 }
 
-bool AssetSystem::loadMesh(Mesh& inout,const std::string& gameName,std::function<void(Mesh* loadResult)>&& loadedCallback)
+VkSampler toVkSampler(asset_system::ESamplerType type)
 {
-	
+	switch(type)
+	{
+	case engine::asset_system::ESamplerType::PointClamp:
+		return VulkanRHI::get()->getPointClampSampler();
+
+	case engine::asset_system::ESamplerType::PointRepeat:
+		return VulkanRHI::get()->getPointRepeatSampler();
+
+	case engine::asset_system::ESamplerType::LinearClamp:
+		return VulkanRHI::get()->getLinearClampSampler();
+
+	case engine::asset_system::ESamplerType::LinearRepeat:
+		return VulkanRHI::get()->getLinearRepeatSampler();
+	}
+	return VulkanRHI::get()->getPointClampSampler();
+}
+
+void AssetSystem::prepareTextureLoad()
+{
+	for(auto& path : m_perScanAdditionalTextures)
+	{
+		m_loadingTextureTasks.push(path);
+	}
+	m_perScanAdditionalTextures.resize(0);
+
+	// NOTE: 由于在运行时生成mipmap，需要在Graphics队列中执行Blit命令
+	//       如果我在另外一个线程中提交命令，会产生多线程写入队列的竞争
+	//       而且我不想给Graphics队列加锁
+	//       因此只好每帧分担一部分任务了
+	constexpr auto perTickLoadNum = 3;
+	for(auto i = 0; i<perTickLoadNum; i++)
+	{
+		if(m_loadingTextureTasks.size()==0)
+		{
+			break;
+		}
+		auto& path = m_loadingTextureTasks.front();
+		auto& textureContainer = TextureLibrary::s_textureLibrary->m_textureContainer;
+		CHECK(textureContainer.find(path) == textureContainer.end());
+		textureContainer[path] = {};
+		loadTexture2DImage(textureContainer[path],path);
+		m_loadingTextureTasks.pop();
+	}
+}
+
+bool AssetSystem::loadTexture2DImage(CombineTexture& inout,const std::string& gameName)
+{
+	using namespace asset_system;
+	if(std::filesystem::exists(gameName)) // 文件若不存在则返回fasle并换成替代纹理
+	{
+		CHECK(inout.texture == nullptr);
+
+		AssetFile asset {};
+		loadBinFile(gameName.c_str(),asset);
+		CHECK(asset.type[0]=='T'&&
+			  asset.type[1]=='E'&&
+			  asset.type[2]=='X'&&
+			  asset.type[3]=='I');
+
+		TextureInfo info = readTextureInfo(&asset);
+
+		// Unpack data to container.
+		std::vector<uint8> pixelData{};
+		pixelData.resize(info.textureSize);
+		unpackTexture(&info,asset.binBlob.data(),asset.binBlob.size(),(char*)pixelData.data());
+
+		inout.sampler = toVkSampler(info.samplerType);
+
+		// TODO: Cache mipmap data on texture file.
+		// Runtime generated mipmap here is really slowly ...
+		// And runtime generate mipmap can't do mipmap streaming.
+		LOG_GRAPHICS_INFO("Uploading texture {0} to GPU...",gameName);
+		inout.texture = Texture2DImage::createAndUpload(
+			VulkanRHI::get()->getVulkanDevice(),
+			VulkanRHI::get()->getGraphicsCommandPool(),
+			VulkanRHI::get()->getGraphicsQueue(),
+			pixelData,
+			info.pixelSize[0],
+			info.pixelSize[1],
+			VK_IMAGE_ASPECT_COLOR_BIT, 
+			info.getVkFormat()
+		);
+
+		inout.bReady = true;
+		return true;
+	}
 
 	return false;
 }
 
 // NOTE: 扫描项目文件夹里的资源
 //       建立meta资源索引
-void AssetSystem::processProjectDirectory()
+void AssetSystem::processProjectDirectory(bool firstInit)
 {
-	jobsystem::execute([this](){
-		namespace fs = std::filesystem;
-		const std::string projectPath = s_projectDir;
-		for(const auto& entry:fs::recursive_directory_iterator(projectPath))
-		{
-			if(!fs::is_directory(entry.path()))
-			{
-				std::string pathStr = FileSystem::toCommonPath(entry);
-				std::string suffixStr = FileSystem::getFileSuffixName(pathStr);
-				std::string rawName = FileSystem::getFileRawName(pathStr);
-				std::string fileName = FileSystem::getFileNameWithoutSuffix(pathStr);
+	AssetCache::s_cache->clear();
+	g_assetFolderDirty = true;
+	namespace fs = std::filesystem;
+	const std::string projectPath = s_projectDir;
+	const std::string engineMeshPath = s_engineMesh;
 
-				if(suffixStr.find(".tga")!=std::string::npos)
+	auto processFile = [&](const std::filesystem::directory_entry& entry)
+	{
+		if(!fs::is_directory(entry.path()))
+		{
+			std::string pathStr = FileSystem::toCommonPath(entry);
+			std::string suffixStr = FileSystem::getFileSuffixName(pathStr);
+			std::string rawName = FileSystem::getFileRawName(pathStr);
+			std::string fileName = FileSystem::getFileNameWithoutSuffix(pathStr);
+
+			if(firstInit)
+			{
+				if(suffixStr.find(".tga")!=std::string::npos || suffixStr.find(".psd")!=std::string::npos)
 				{
 					jobsystem::execute([this,pathStr]()
 					{
@@ -151,8 +272,34 @@ void AssetSystem::processProjectDirectory()
 					});
 				}
 			}
+			
+			// TODO: 如何实现一个好的资源流送管理工具？
+			//       我们的资源上传到GPU后，是否需要引用计数管理其生命周期？
+			//       是否应该为引擎加载所有的纹理？
+			if(suffixStr.find(".texture") != std::string::npos)
+			{
+				AssetCache::s_cache->m_texture.emplace(pathStr);
+			}
+			else if(suffixStr.find(".mesh") != std::string::npos)
+			{
+				AssetCache::s_cache->m_staticMesh.emplace(pathStr);
+			}
+			else if(suffixStr.find(".material") != std::string::npos)
+			{
+				AssetCache::s_cache->m_materials.emplace(pathStr);
+			}
 		}
-	});
+	};
+
+	for(const auto& entry:fs::recursive_directory_iterator(projectPath))
+	{
+		processFile(entry);
+	}
+
+	for(const auto& entry:fs::recursive_directory_iterator(engineMeshPath))
+	{
+		processFile(entry);
+	}
 }
 
 void AssetSystem::addAsset(std::string path,EAssetFormat format)
@@ -163,7 +310,15 @@ void AssetSystem::addAsset(std::string path,EAssetFormat format)
 	{
 		LOG_IO_INFO("Bakeing texture {0}....",path);
 		std::string bakeName = rawPathToAssetPath(path,format);
-		bakeTexture(path.c_str(),bakeName.c_str(),true,true,4);
+		bool bNeedSrgb = false;
+		if(path.find("_Albedo")!=std::string::npos ||
+		   path.find("_Emissive")!=std::string::npos ||
+		   path.find("_BaseColor")!=std::string::npos
+			)
+		{
+			bNeedSrgb = true;
+		}
+		bakeTexture(path.c_str(),bakeName.c_str(),bNeedSrgb,true,4);
 		LOG_IO_INFO("Baked texture {0}.",bakeName);
 		remove(path.c_str());
 		g_assetFolderDirty = true;
@@ -173,11 +328,10 @@ void AssetSystem::addAsset(std::string path,EAssetFormat format)
 	{
 		LOG_IO_INFO("Baking static mesh {0}...",path);
 		std::string bakeName = rawPathToAssetPath(path,format);
-		bakeObjMesh(path.c_str(),bakeName.c_str(),"",true);
+		bakeAssimpMesh(path.c_str(),bakeName.c_str(),true);
 		LOG_IO_INFO("Baked static mesh {0}.",bakeName);
 		remove(path.c_str());
 		g_assetFolderDirty = true;
-
 		return;
 	}
 	case engine::asset_system::EAssetFormat::Unknown:
@@ -193,28 +347,40 @@ void AssetSystem::loadEngineTextures()
 
 	textureLibrary->m_textureContainer[s_defaultWhiteTextureName] = {};
 	auto& whiteTexture = textureLibrary->m_textureContainer[s_defaultWhiteTextureName];
-	whiteTexture.sampler = VulkanRHI::get()->getLinearClampSampler();
+	whiteTexture.sampler = VulkanRHI::get()->getLinearRepeatSampler();
 	whiteTexture.texture = loadFromFile(s_defaultWhiteTextureName,VK_FORMAT_B8G8R8A8_UNORM,4,false);
+	whiteTexture.bReady = true;
 
 	textureLibrary->m_textureContainer[s_defaultBlackTextureName] = {};
 	auto& blackTexture = textureLibrary->m_textureContainer[s_defaultBlackTextureName];
-	blackTexture.sampler = VulkanRHI::get()->getLinearClampSampler();
+	blackTexture.sampler = VulkanRHI::get()->getLinearRepeatSampler();
 	blackTexture.texture = loadFromFile(s_defaultBlackTextureName,VK_FORMAT_B8G8R8A8_UNORM,4,false);
+	blackTexture.bReady = true;
 
 	textureLibrary->m_textureContainer[s_defaultNormalTextureName] = {};
 	auto& normalTexture = textureLibrary->m_textureContainer[s_defaultNormalTextureName];
-	normalTexture.sampler = VulkanRHI::get()->getLinearClampSampler();
+	normalTexture.sampler = VulkanRHI::get()->getLinearRepeatSampler();
 	normalTexture.texture = loadFromFile(s_defaultNormalTextureName,VK_FORMAT_B8G8R8A8_UNORM,4,false);
+	normalTexture.bReady = true;
 
 	textureLibrary->m_textureContainer[s_defaultCheckboardTextureName] = {};
 	auto& checkboxTexture = textureLibrary->m_textureContainer[s_defaultCheckboardTextureName];
-	checkboxTexture.sampler = VulkanRHI::get()->getLinearClampSampler();
+	checkboxTexture.sampler = VulkanRHI::get()->getLinearRepeatSampler();
 	checkboxTexture.texture = loadFromFile(s_defaultCheckboardTextureName,VK_FORMAT_R8G8B8A8_SRGB,4,false);
+	checkboxTexture.bReady = true;
 
 	textureLibrary->m_textureContainer[s_defaultEmissiveTextureName] = {};
 	auto& emissiveTexture = textureLibrary->m_textureContainer[s_defaultEmissiveTextureName];
-	emissiveTexture.sampler = VulkanRHI::get()->getLinearClampSampler();
+	emissiveTexture.sampler = VulkanRHI::get()->getLinearRepeatSampler();
 	emissiveTexture.texture = loadFromFile(s_defaultEmissiveTextureName,VK_FORMAT_R8G8B8A8_SRGB,4,false);
+	emissiveTexture.bReady = true;
+}
+
+void AssetCache::clear()
+{
+	m_staticMesh.clear();
+	m_texture.clear();
+	m_materials.clear();
 }
 }
 

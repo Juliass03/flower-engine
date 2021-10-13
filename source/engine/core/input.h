@@ -1,22 +1,20 @@
 #pragma once
-#include <glm/glm.hpp>
+#include "core.h"
 #include "input_code.h"
 
 namespace engine{
-class Input
+namespace Input
 {
-public:
-    static bool isKeyPressed(const KeyCode key);
-    static bool isMouseButtonPressed(MouseCode button);
-    static glm::vec2 getMousePosition();
-    static float getMouseX();
-    static float getMouseY();
-    static glm::vec2 getScrollOffset();
-    static float getScrollOffsetX();
-    static float getScrollOffsetY();
-
-private:
-    static void setScrollOffset(float xOffset,float yOffset);
-    friend struct GLFWWindowData;
+    extern bool isKeyPressed(const KeyCode key);
+    extern bool isMouseButtonPressed(MouseCode button);
+    extern  glm::vec2 getMousePosition();
+    extern float getMouseX();
+    extern float getMouseY();
+    extern glm::vec2 getScrollOffset();
+    extern float getScrollOffsetX();
+    extern float getScrollOffsetY();
+    extern bool isMouseInViewport();
+    extern void setMouseInViewport(bool);
+    extern void setScrollOffset(float xOffset,float yOffset);
 };
 }

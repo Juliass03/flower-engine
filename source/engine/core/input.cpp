@@ -4,6 +4,7 @@
 namespace engine{
 
 glm::vec2 gScrollOffset = { 0.0f,0.0f };
+static bool bMouseInViewport = false;
 
 float Input::getMouseX()
 {
@@ -28,6 +29,16 @@ float Input::getScrollOffsetX()
 float Input::getScrollOffsetY()
 {
     return gScrollOffset.y;
+}
+
+bool Input::isMouseInViewport()
+{
+    return bMouseInViewport;
+}
+
+void Input::setMouseInViewport(bool bIn)
+{
+    bMouseInViewport = bIn;
 }
 
 void Input::setScrollOffset(float xOffset,float yOffset)

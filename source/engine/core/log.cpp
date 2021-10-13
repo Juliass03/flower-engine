@@ -54,7 +54,7 @@ const auto s_PrintFormat         = "%^[%H:%M:%S][%l] %n: %v%$";
 const auto s_PrintFormatWithId   = "%^[%H:%M:%S][thread id:%t][%l] %n: %v%$";
 const auto s_LogFileFormatWithId = "[%H:%M:%S][thread id:%t][%l] %n: %v";
 const auto s_LogFileFormat       = "[%H:%M:%S][%l] %n: %v";
-const auto s_EditorPrintFormat         = "%^[%H:%M:%S][%l] %n: %v%$";
+const auto s_EditorPrintFormat   = "%^[%H:%M:%S][%l] %n: %v%$";
 
 using TimePoint = std::chrono::system_clock::time_point;
 inline std::string serializeTimePoint( const TimePoint& time, const std::string& format)

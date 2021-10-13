@@ -33,13 +33,10 @@ protected:
 	Ref<RenderScene> m_renderScene;
 	DeletionQueue m_deletionQueue = {};
 	
-	// 在交换链重建前需要清理renderpass资源。
 	virtual void beforeSceneTextureRecreate() = 0;
-
-	// 在交换链重建后需要创建renderpass资源。
 	virtual void afterSceneTextureRecreate() = 0;
-
 	virtual void initInner() = 0;
+
 public:
 	bool isPassType(shaderCompiler::EShaderPass type) { return m_passType == type; }
 };

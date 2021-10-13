@@ -24,6 +24,7 @@ private:
 
 	// 场景树根节点
 	std::shared_ptr<SceneNode> m_root;
+	std::shared_ptr<SceneNode> m_sceneViewCameraNode;
 
 	// 除开Transform外的所有Component
 	ComponentContainer m_components = {};
@@ -39,6 +40,7 @@ private:
 		ar( 
 			cereal::make_nvp("Scene", m_name),
 			cereal::make_nvp("Root",m_root),
+			cereal::make_nvp("SceneViewCamera",m_sceneViewCameraNode),
 			m_CurrentId,
 			m_components
 		);
@@ -59,6 +61,8 @@ public:
 	bool isDirty() const { return m_dirty; }
 
 	void flushSceneNodeTransform();
+
+	void addSceneViewCameraNode();
 
 	size_t getLastGUID() const { return m_CurrentId; }
 	void deleteNode(std::shared_ptr<SceneNode> node);
@@ -89,6 +93,8 @@ public:
 	}
 
 	template<> inline void addComponent<class StaticMeshComponent>(std::shared_ptr<StaticMeshComponent>,std::shared_ptr<SceneNode>);
+	template<> inline void addComponent<class CameraComponent>(std::shared_ptr<CameraComponent>,std::shared_ptr<SceneNode>);
+	template<> inline void addComponent<class DirectionalLight>(std::shared_ptr<DirectionalLight>,std::shared_ptr<SceneNode>);
 
 	template<typename T>
 	void removeComponent(std::shared_ptr<SceneNode> node)
@@ -116,6 +122,7 @@ public:
 
 	std::shared_ptr<SceneNode> findNode(const std::string &name);
 	std::shared_ptr<SceneNode> getRootNode();
+	std::shared_ptr<SceneNode> getSceneViewCameraNode();
 
 	template <class T>
 	void setComponents(std::vector<std::weak_ptr<T>>&& components)

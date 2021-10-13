@@ -50,7 +50,7 @@ VkPipeline engine::VulkanGraphicsPipelineFactory::buildMeshDrawPipeline(VkDevice
 
     std::vector<VkDynamicState> dynamicStates;
     dynamicStates.push_back(VK_DYNAMIC_STATE_VIEWPORT);
-    dynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR);
+    dynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR); 
     dynamicStates.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
     dynamicState.pDynamicStates = dynamicStates.data();
     dynamicState.dynamicStateCount = (uint32_t)dynamicStates.size();

@@ -51,7 +51,7 @@ static AutoCVarInt32 cVarFpsMode(
     "r.Window.FpsMode",
     "Window fps mode,0 is free,1 is 30,2 is 60,3 is 120,4 is 240.",
     "Window",
-    3,
+    0,
     CVarFlags::ReadAndWrite
 );
 
@@ -303,9 +303,10 @@ void EngineLoop::release()
 {
     m_engine.release();
 
-    TextureLibrary::get()->release();
+    
     MeshLibrary::get()->release();
     asset_system::EngineAsset::get()->release();
+    TextureLibrary::get()->release();
     VulkanRHI::get()->release();
     GLFWRelease();
 }

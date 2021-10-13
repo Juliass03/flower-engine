@@ -7,17 +7,20 @@
 #include <glfw/glfw3.h>
 #include "../core/windowData.h"
 #include "../core/file_system.h"
+#include "components/sceneview_camera.h"
 
 namespace engine{
 
 Scene::Scene()
 {
 	m_root = SceneNode::create(usageNodeIndex::root,"Root");
+	addSceneViewCameraNode();
 }
 
 Scene::Scene(const std::string& name) : m_name(name)
 {
 	m_root = SceneNode::create(usageNodeIndex::root,"Root");
+	addSceneViewCameraNode();
 }
 
 Scene::~Scene()
@@ -31,6 +34,14 @@ void Scene::flushSceneNodeTransform()
 	{
 		node->m_transform->updateWorldTransform();
 	},m_root);
+}
+
+void Scene::addSceneViewCameraNode()
+{
+	m_sceneViewCameraNode = createNode("SceneViewCamera");
+
+	auto cameraComponent = std::make_shared<SceneViewCamera>();
+	addComponent<SceneViewCamera>(cameraComponent,m_sceneViewCameraNode);
 }
 
 void Scene::deleteNode(std::shared_ptr<SceneNode> node)
@@ -76,6 +87,11 @@ void Scene::addChild(std::shared_ptr<SceneNode> child)
 std::shared_ptr<SceneNode> Scene::getRootNode()
 {
 	return m_root;
+}
+
+std::shared_ptr<SceneNode> Scene::getSceneViewCameraNode()
+{
+	return m_sceneViewCameraNode;
 }
 
 bool Scene::setParent(std::shared_ptr<SceneNode> parent,std::shared_ptr<SceneNode> son)
@@ -219,7 +235,7 @@ void SceneManager::createEmptyScene()
 	CHECK(m_activeScene == nullptr);
 
 	m_activeScene = std::make_unique<Scene>("untitled");
-	m_activeScene->setDirty();
+	m_activeScene->setDirty(false);
 }
 
 }

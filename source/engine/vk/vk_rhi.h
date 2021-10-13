@@ -142,7 +142,9 @@ public:
     VkSemaphore getDynamicGraphicsCmdBufSemaphore(uint32 index) { return m_dynamicGraphicsCommandExecuteSemaphores[index]; }
     VkSampler createSampler(VkSamplerCreateInfo info);
     VkSampler getPointClampSampler();
+    VkSampler getPointRepeatSampler();
     VkSampler getLinearClampSampler();
+    VkSampler getLinearRepeatSampler();
 
 public:
     void addBeforeSwapchainRebuildCallback(std::string name,const std::function<RegisterFuncAfterSwapchainRecreate>& func)

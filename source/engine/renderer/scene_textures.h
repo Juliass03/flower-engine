@@ -10,7 +10,7 @@ class SceneTextures
 {
 private:
 	VulkanImage* m_gbufferBaseColorRoughness; // R8G8B8A8 rgb存基础色，a通道存粗糙度
-	VulkanImage* m_gbufferNormalMetal;        // R8G8B8A8 rgb存世界空间法线，a通道存金属度
+	VulkanImage* m_gbufferNormalMetal;        // r16g16b16a16 rgb存世界空间法线，a通道存金属度
 	VulkanImage* m_gbufferEmissiveAo;         // R8G8B8A8 rgb存自发光颜色，a通道存模型AO
 
 	VulkanImage* m_sceneColorTexture;        // HDR SceneColor Texture. R16G16B16A16 SFLOAT
@@ -25,11 +25,18 @@ public:
 	SceneTextures() = default;
 	~SceneTextures() { release(); }
 
+	static VkFormat getHDRSceneColorFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
+	static VkFormat getDepthStencilFormat();
+	static VkFormat getLDRSceneColorFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
+	static VkFormat getGbufferBaseColorRoughnessFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
+	static VkFormat getGbufferNormalMetalFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
+	static VkFormat getGbufferEmissiveAoFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
+
 	void allocate(uint32 width,uint32 height,bool forceAllocate = false);
 	void release();
 
 	Ref<VulkanImage> getHDRSceneColor() { return m_sceneColorTexture; }
-	Ref<VulkanImage> getDepthSceneColor() { return m_depthStencilTexture; }
+	Ref<VulkanImage> getDepthStencil() { return m_depthStencilTexture; }
 	Ref<VulkanImage> getLDRSceneColor() { return m_finalColorTexture; }
 	Ref<VulkanImage> getGbufferBaseColorRoughness() { return m_gbufferBaseColorRoughness; }
 	Ref<VulkanImage> getGbufferNormalMetal() { return m_gbufferNormalMetal; }

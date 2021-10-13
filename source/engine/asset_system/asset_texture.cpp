@@ -151,4 +151,26 @@ bool bakeTexture(const char* pathIn,const char* pathOut,bool srgb,bool compress,
     return saveBinFile(pathOut,newImage);
 }
 
-}}
+}
+
+VkFormat asset_system::TextureInfo::getVkFormat()
+{
+    switch(format)
+    {
+    case EAssetFormat::T_R8G8B8A8:
+    {
+        if(this->srgb)
+        {
+            return VK_FORMAT_R8G8B8A8_SRGB;
+        }
+        else
+        {
+            return VK_FORMAT_R8G8B8A8_UNORM;
+        }
+    }
+    default:
+        LOG_FATAL("Unkonw format!");
+    }
+}
+
+}

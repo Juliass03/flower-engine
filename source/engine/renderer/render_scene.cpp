@@ -1,6 +1,6 @@
 #include "render_scene.h"
-#include "../scene/components/staticmesh_renderer.h"
 #include "mesh.h"
+#include "../scene/components/staticmesh_renderer.h"
 #include "frame_data.h"
 
 namespace engine{
@@ -25,7 +25,12 @@ void RenderScene::initFrame(uint32 width,uint32 height,bool forceAllocateTexture
 	allocateSceneTextures(width,height,forceAllocateTextures);
 
 	// 2. 收集场景中的网格
-	meshCollect();
+	bool bMeshPassRebuild = shaderCompiler::g_meshPassShouldRebuild;
+	meshCollect(bMeshPassRebuild);
+	if(bMeshPassRebuild) // NOTE: 这里不是很好
+	{
+		shaderCompiler::g_meshPassShouldRebuild = false;
+	}
 
 	// 3. 更新ssbo
 	uploadGbufferSSBO();
@@ -45,13 +50,20 @@ void RenderScene::uploadGbufferSSBO()
 	
 }
 
+Scene& RenderScene::getActiveScene()
+{
+	return m_sceneManager->getActiveScene();
+}
+
 void RenderScene::allocateSceneTextures(uint32 width,uint32 height,bool forceAllocate)
 {
 	m_sceneTextures->allocate(width,height,forceAllocate);
 }
 
-void RenderScene::init()
+void RenderScene::init(Renderer* renderer)
 {
+	m_renderer = renderer;
+
 	// 无论如何首先初始化能用的RenderScene
 	initFrame(ScreenTextureInitSize,ScreenTextureInitSize);
 	m_gbufferSSBO->init();
@@ -65,7 +77,7 @@ void RenderScene::release()
 
 // NOTE: 在这里收集场景中的静态网格
 // TODO: 静态网格收集进行一遍即可，没必要每帧更新。
-void RenderScene::meshCollect()
+void RenderScene::meshCollect(bool bRebuildMaterial)
 {
 	m_cacheGBufferObjectSSBOData.clear();
 	m_cacheGBufferObjectSSBOData.resize(0);
@@ -79,7 +91,7 @@ void RenderScene::meshCollect()
 	{
 		if(auto component = componentWeakPtr.lock()) // NOTE: 获取网格Component
 		{
-			auto renderMesh = component->getRenderMesh(m_shaderCompiler);
+			auto renderMesh = component->getRenderMesh(m_shaderCompiler,m_renderer,bRebuildMaterial);
 			m_cacheStaticMeshRenderMesh.push_back(renderMesh);
 
 			GPUObjectData data{};

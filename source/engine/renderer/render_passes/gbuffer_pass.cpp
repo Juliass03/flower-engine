@@ -42,7 +42,7 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
     clearValues[1].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
     clearValues[2].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
     clearValues[3].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
-    clearValues[4].depthStencil = { 1.0f, 1 };
+    clearValues[4].depthStencil = { getEngineClearZFar(), 1 };
 
     rpInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     rpInfo.pClearValues = &clearValues[0];
@@ -72,21 +72,22 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
     for (auto& renderMesh : cacheStaticMesh)
     {
         renderMesh.mesh->vertexBuffer->bind(cmd);
+        renderMesh.mesh->indexBuffer->bind(cmd);
 
         for(auto& subMesh : renderMesh.mesh->subMeshes)
         {
             Material* activeMaterial = nullptr;
-            if(subMesh.material && subMesh.material->gbufferReference)
+            if(subMesh.cacheMaterial)
             {
-                activeMaterial = subMesh.material->gbufferReference;
+                activeMaterial = subMesh.cacheMaterial;
             }
             else
             {
-                activeMaterial = m_renderer->getMaterialLibrary()->getFallbackGbuffer();
+                activeMaterial = m_renderer->getMaterialLibrary()->getFallback(m_renderer->getMeshpassLayout(),shaderCompiler::EShaderPass::GBuffer);
             }
 
             const auto& loopLayout = activeMaterial->getShaderInfo()->effect->builtLayout;
-            const auto& loopPipeline = activeMaterial->getPipeline(backBufferIndex);
+            const auto& loopPipeline = activeMaterial->getGbufferPipeline();
 
             // 检查是否需要切换pipeline
             if(activePipeline != loopPipeline)
@@ -114,15 +115,13 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
 
                 // PassSet #2
                 m_renderScene->m_gbufferSSBO->bindDescriptorSet(cmd,activeLayout);
-
                 vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,activePipeline);
             }
 
             // PassSet #3
-            activeMaterial->bind(backBufferIndex);
+            activeMaterial->bindGbuffer(cmd);
 
-            subMesh.indexBuffer->bind(cmd);
-            vkCmdDrawIndexed(cmd, subMesh.indexCount,1,0,0,drawIndex);
+            vkCmdDrawIndexed(cmd, subMesh.indexCount,1,subMesh.indexStartPosition,0,drawIndex);
             drawIndex ++;
         }
     }
@@ -132,11 +131,10 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
 
 void engine::GBufferPass::createRenderpass()
 {
-    // TODO: 当前的GBuffer数目为 1
-    const size_t gbufferCount = 5;
-
-    std::array<VkAttachmentDescription,gbufferCount> attachmentDescs{};
-    for(size_t i = 0; i < attachmentDescs.size(); i++)
+    const size_t attachmentCount = 4;
+    const size_t depthAttachmentIndex = attachmentCount - 1;
+    std::array<VkAttachmentDescription,attachmentCount> attachmentDescs{};
+    for(size_t i = 0; i < depthAttachmentIndex; i++)
     {
         attachmentDescs[i] = {};
         attachmentDescs[i].samples = VK_SAMPLE_COUNT_1_BIT;
@@ -149,27 +147,30 @@ void engine::GBufferPass::createRenderpass()
         attachmentDescs[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     }
 
-    attachmentDescs[0].format = m_renderScene->getSceneTextures().getHDRSceneColor()->getFormat();
-    attachmentDescs[1].format = m_renderScene->getSceneTextures().getGbufferBaseColorRoughness()->getFormat();
-    attachmentDescs[2].format = m_renderScene->getSceneTextures().getGbufferNormalMetal()->getFormat();
-    attachmentDescs[3].format = m_renderScene->getSceneTextures().getGbufferEmissiveAo()->getFormat();
-    attachmentDescs[4].format = m_renderScene->getSceneTextures().getDepthSceneColor()->getFormat();
+    attachmentDescs[0].format = SceneTextures::getGbufferBaseColorRoughnessFormat();
+    attachmentDescs[1].format = SceneTextures::getGbufferNormalMetalFormat();
+    attachmentDescs[2].format = SceneTextures::getGbufferEmissiveAoFormat();
+    attachmentDescs[3].format = SceneTextures::getDepthStencilFormat();
 
-    // TODO: 修改为Frame
-    attachmentDescs[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; //VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachmentDescs[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     attachmentDescs[1].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     attachmentDescs[2].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    attachmentDescs[3].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    attachmentDescs[4].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    attachmentDescs[depthAttachmentIndex].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescs[depthAttachmentIndex].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescs[depthAttachmentIndex].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescs[depthAttachmentIndex].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescs[depthAttachmentIndex].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescs[depthAttachmentIndex].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
+    attachmentDescs[depthAttachmentIndex].finalLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
 
     std::vector<VkAttachmentReference> colorReferences;
     colorReferences.push_back({ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
     colorReferences.push_back({ 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
     colorReferences.push_back({ 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
-    colorReferences.push_back({ 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
 
     VkAttachmentReference depthReference = {};
-    depthReference.attachment = 4;
+    depthReference.attachment = depthAttachmentIndex; // depth放在最后一个
     depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkSubpassDescription subpass = {};
@@ -227,11 +228,10 @@ void engine::GBufferPass::createFramebuffers()
     for(uint32 i = 0; i < swapchain_imagecount; i++)
     {
         fbf.setRenderpass(m_renderpass)
-            .addAttachment(m_renderScene->getSceneTextures().getHDRSceneColor())
             .addAttachment(m_renderScene->getSceneTextures().getGbufferBaseColorRoughness())
             .addAttachment(m_renderScene->getSceneTextures().getGbufferNormalMetal())
             .addAttachment(m_renderScene->getSceneTextures().getGbufferEmissiveAo())
-            .addAttachment(m_renderScene->getSceneTextures().getDepthSceneColor());
+            .addAttachment(m_renderScene->getSceneTextures().getDepthStencil());
         m_framebuffers[i] = fbf.create(VulkanRHI::get()->getDevice());
     }
 }

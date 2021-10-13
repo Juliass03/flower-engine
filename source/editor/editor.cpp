@@ -25,7 +25,7 @@ void Editor::init()
     m_widgets.push_back(new WidgetConsole(engine));
     m_widgets.push_back(new WidgetViewport(engine));
     m_widgets.push_back(new WidgetAsset(engine));
-  //m_widgets.push_back(new WidgetImguiDemo(engine));
+    //m_widgets.push_back(new WidgetImguiDemo(engine));
     m_widgets.push_back(new WidgetDownbar(engine));
     m_widgets.push_back(new WidgetHierarchy(engine));
     m_widgets.push_back(new WidgetDetail(engine)); // Detail应该放在Hierarchy后

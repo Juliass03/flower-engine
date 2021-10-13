@@ -4,6 +4,8 @@
 
 namespace engine{
 
+extern float getFps();
+
 class EngineLoop final
 {
 public:

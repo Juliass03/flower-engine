@@ -11,6 +11,7 @@
 #include <algorithm>
 #include "../../imgui/imgui_internal.h"
 #include "../../engine/renderer/material.h"
+#include "../../engine/renderer/texture.h"
 
 using namespace engine;
 using namespace engine::asset_system;
@@ -40,7 +41,8 @@ WidgetAsset::WidgetAsset(engine::Ref<engine::Engine> engine)
 void WidgetAsset::scanFolder()
 {
 	m_currentFolderCacheEntry.clear();
-	for (auto& directoryEntry : std::filesystem::directory_iterator(m_projectDirectory))
+	std::filesystem::path fullPath = std::filesystem::absolute(m_projectDirectory);
+	for (auto& directoryEntry : std::filesystem::directory_iterator(fullPath))
 	{
 		CacheEntryInfo cacheInfo{};
 		cacheInfo.bFolder = directoryEntry.is_directory();
@@ -65,6 +67,21 @@ void WidgetAsset::onVisibleTick(size_t)
 
 	m_isHoveringWindow = false;
 	m_isHoveringItem = false;
+
+	bool forceHightlightAsset = false;
+
+	if(EditorAsset::get().inspectorRequireSkip)
+	{
+		EditorAsset::get().inspectorRequireSkip = false;
+
+		if(FileSystem::startWith(EditorAsset::get().inspectorClickAssetPath,"./project/"))
+		{
+			m_projectDirectory = FileSystem::getFolderName(EditorAsset::get().inspectorClickAssetPath);
+		}
+		
+		forceHightlightAsset = true;
+		bNeedScan = true;
+	}
 
 	const bool bAtProjectDir = 
 			(m_projectDirectory != std::filesystem::path(s_projectDir)) 
@@ -198,7 +215,7 @@ void WidgetAsset::onVisibleTick(size_t)
 					continue;
 				}
 
-				auto* icon = EngineAsset::get()->iconFile;
+				EngineAsset::IconInfo* icon = EngineAsset::get()->iconFile;
 				if(cacheInfo.bFolder)
 				{
 					icon = EngineAsset::get()->iconFolder;			
@@ -217,7 +234,17 @@ void WidgetAsset::onVisibleTick(size_t)
 				}
 				else if(FileSystem::endWith(cacheInfo.filenameString,".texture"))
 				{
-					icon = EngineAsset::get()->iconTexture;
+					std::string engineFolderPathFormat = FileSystem::toCommonPath(m_projectDirectory);
+					auto* texIcon = EngineAsset::get()->getIconInfo(engineFolderPathFormat + "/"+cacheInfo.filenameString);
+
+					if(texIcon->icon)
+					{
+						icon = texIcon;
+					}
+					else
+					{
+						icon = EngineAsset::get()->iconTexture;
+					}
 				}
 
 				displayCount++;
@@ -379,9 +406,16 @@ void WidgetAsset::onVisibleTick(size_t)
 							ImGui::RenderTextClipped(rect_label.Min,rect_label.Max,labelText,nullptr,&labelSize,ImVec2(0,0.6f),&rect_label);
 						}
 					}
-
-					
 					ImGui::EndGroup();
+				}
+
+				if(forceHightlightAsset)
+				{
+					if(FileSystem::getFileName(EditorAsset::get().inspectorClickAssetPath)==cacheInfo.filenameString)
+					{
+						EditorAsset::get().leftClickAssetPath = cacheInfo.filenameString;
+						EditorAsset::get().workingFoler = m_projectDirectory.string(); 
+					}
 				}
 
 				// ÅÐ¶Ï»»ÐÐ

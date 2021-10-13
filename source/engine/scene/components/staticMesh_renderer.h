@@ -12,12 +12,16 @@ namespace shaderCompiler
 class Transform;
 struct RenderMesh;
 struct Mesh;
+class Renderer;
 
 class StaticMeshComponent : public Component
 {
 public:
 	std::string m_meshName = "";
 	std::weak_ptr<SceneNode> m_node;
+	bool m_customMesh = false;
+	std::string m_customMeshName = "";
+	std::vector<std::string /* material*/> m_materials{};
 
 private:
 	friend class cereal::access;
@@ -27,6 +31,9 @@ private:
 	{
 		ar( cereal::base_class<Component>(this),
 			m_node,
+			m_customMesh,
+			m_customMeshName,
+			m_materials,
 			cereal::make_nvp("MeshName",m_meshName)
 		);
 	}
@@ -35,9 +42,9 @@ public:
 	StaticMeshComponent();
 	virtual ~StaticMeshComponent(){ };
 	virtual size_t getType() override { return EComponentType::StaticMeshComponent; }
-	RenderMesh getRenderMesh(Ref<shaderCompiler::ShaderCompiler> shaderCompiler);
-
-	void switchMesh(const std::string& name);
+	RenderMesh getRenderMesh(Ref<shaderCompiler::ShaderCompiler> shaderCompiler,Ref<Renderer> renderer,bool bRebuildMaterial);
+	void reflectMaterials();
+	Mesh& getMesh();
 };
 
 template<>

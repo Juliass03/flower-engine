@@ -455,9 +455,18 @@ Texture2DImage* Texture2DImage::createAndUpload(
     return ret;
 }
 
-DepthStencilImage* DepthStencilImage::create(VulkanDevice* device,uint32_t width, uint32_t height)
+DepthStencilImage::~DepthStencilImage()
+{
+    if(m_depthOnlyImageView!=VK_NULL_HANDLE)
+    {
+        vkDestroyImageView(*m_device,m_depthOnlyImageView,nullptr);
+    }
+}
+
+DepthStencilImage* DepthStencilImage::create(VulkanDevice* device,uint32_t width, uint32_t height,bool bCreateDepthOnlyView)
 {
     DepthStencilImage* ret = new DepthStencilImage();
+    VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D;
 
     VkImageCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -476,14 +485,39 @@ DepthStencilImage* DepthStencilImage::create(VulkanDevice* device,uint32_t width
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
     info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    ret->VulkanImage::create(device, info,VK_IMAGE_VIEW_TYPE_2D,  VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, false);
+    ret->VulkanImage::create(device, info,viewType, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, false);
+
+    if(bCreateDepthOnlyView)
+    {
+		VkImageViewCreateInfo viewInfo{};
+		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		viewInfo.image = ret->m_image;
+		viewInfo.viewType = viewType;
+		viewInfo.format = info.format;
+		VkImageSubresourceRange subres{};
+		subres.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		subres.baseArrayLayer = 0;
+		subres.levelCount = info.mipLevels;
+		subres.layerCount = info.arrayLayers;
+
+		viewInfo.subresourceRange = subres;
+		if(vkCreateImageView(*ret->m_device,&viewInfo,nullptr,&ret->m_depthOnlyImageView)!=VK_SUCCESS)
+		{
+			LOG_GRAPHICS_FATAL("Fail to create depth only image view.");
+		}
+    }
 
     return ret;
+}
+
+DepthOnlyImage::~DepthOnlyImage()
+{
 }
 
 DepthOnlyImage* DepthOnlyImage::create(VulkanDevice* device,uint32_t width,uint32_t height)
 {
     DepthOnlyImage* ret = new DepthOnlyImage();
+    VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D;
 
     VkImageCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -502,7 +536,7 @@ DepthOnlyImage* DepthOnlyImage::create(VulkanDevice* device,uint32_t width,uint3
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
     info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    ret->VulkanImage::create(device, info,VK_IMAGE_VIEW_TYPE_2D,  VK_IMAGE_ASPECT_DEPTH_BIT, false);
+    ret->VulkanImage::create(device, info,viewType,  VK_IMAGE_ASPECT_DEPTH_BIT, false);
 
     return ret;
 }

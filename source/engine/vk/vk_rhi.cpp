@@ -3,6 +3,16 @@
 
 namespace engine{
 
+static AutoCVarInt32 cVarReverseZ(
+	"r.Shading.ReverseZ",
+	"Enable reverse z. 0 is off, others are on.",
+	"Shading",
+	1,
+	CVarFlags::InitOnce | CVarFlags::ReadOnly
+);
+
+constexpr auto MAX_TEXTURE_LOD = 24;
+
 VulkanRHI* VulkanRHI::s_RHI = new VulkanRHI();
 
 void VulkanRHI::init(GLFWwindow* window,
@@ -291,6 +301,8 @@ VkSampler VulkanRHI::createSampler(VkSamplerCreateInfo info)
     return m_samplerCache.createSampler(&info);
 }
 
+
+
 VkSampler VulkanRHI::getPointClampSampler()
 {
     SamplerFactory sfa{};
@@ -308,7 +320,30 @@ VkSampler VulkanRHI::getPointClampSampler()
         .MaxAnisotropy(1.0f)
         .AnisotropyEnable(VK_FALSE)
         .MinLod(0.0f)
-        .MaxLod(0.0f)
+        .MaxLod(MAX_TEXTURE_LOD)
+        .MipLodBias(0.0f);
+
+    return VulkanRHI::get()->createSampler(sfa.getCreateInfo());
+}
+
+VkSampler VulkanRHI::getPointRepeatSampler()
+{
+    SamplerFactory sfa{};
+    sfa
+        .MagFilter(VK_FILTER_NEAREST)
+        .MinFilter(VK_FILTER_NEAREST)
+        .MipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR)
+        .AddressModeU(VK_SAMPLER_ADDRESS_MODE_REPEAT)
+        .AddressModeV(VK_SAMPLER_ADDRESS_MODE_REPEAT)
+        .AddressModeW(VK_SAMPLER_ADDRESS_MODE_REPEAT)
+        .CompareOp(VK_COMPARE_OP_LESS)
+        .CompareEnable(VK_FALSE)
+        .BorderColor(VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK)
+        .UnnormalizedCoordinates(VK_FALSE)
+        .MaxAnisotropy(1.0f)
+        .AnisotropyEnable(VK_FALSE)
+        .MinLod(0.0f)
+        .MaxLod(MAX_TEXTURE_LOD)
         .MipLodBias(0.0f);
 
     return VulkanRHI::get()->createSampler(sfa.getCreateInfo());
@@ -325,12 +360,34 @@ VkSampler VulkanRHI::getLinearClampSampler()
         .AddressModeW(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
         .CompareOp(VK_COMPARE_OP_LESS)
         .CompareEnable(VK_FALSE)
+        .BorderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE)
+        .UnnormalizedCoordinates(VK_FALSE)
+        .MaxAnisotropy(1.0f)
+        .AnisotropyEnable(VK_FALSE)
+        .MinLod(0.0f)
+        .MaxLod(MAX_TEXTURE_LOD)
+        .MipLodBias(0.0f);
+
+    return VulkanRHI::get()->createSampler(sfa.getCreateInfo());
+}
+
+VkSampler VulkanRHI::getLinearRepeatSampler()
+{
+    SamplerFactory sfa{};
+    sfa.MagFilter(VK_FILTER_LINEAR)
+        .MinFilter(VK_FILTER_LINEAR)
+        .MipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR)
+        .AddressModeU(VK_SAMPLER_ADDRESS_MODE_REPEAT)
+        .AddressModeV(VK_SAMPLER_ADDRESS_MODE_REPEAT)
+        .AddressModeW(VK_SAMPLER_ADDRESS_MODE_REPEAT)
+        .CompareOp(VK_COMPARE_OP_LESS)
+        .CompareEnable(VK_FALSE)
         .BorderColor(VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK)
         .UnnormalizedCoordinates(VK_FALSE)
         .MaxAnisotropy(1.0f)
         .AnisotropyEnable(VK_FALSE)
         .MinLod(0.0f)
-        .MaxLod(0.0f)
+        .MaxLod(MAX_TEXTURE_LOD)
         .MipLodBias(0.0f);
 
     return VulkanRHI::get()->createSampler(sfa.getCreateInfo());
@@ -536,5 +593,4 @@ void VulkanRHI::recreateSwapChain()
         callBackPair.second();
     }
 }
-
 }

@@ -21,7 +21,7 @@ class RenderScene
 public:
 	void initFrame(uint32 width,uint32 height,bool forceAllocateTextures = false);
 
-	void init();
+	void init(class Renderer* renderer);
 	void release();
 	
 	RenderScene(Ref<SceneManager> sceneManager,Ref<shaderCompiler::ShaderCompiler> shaderCompiler);
@@ -35,12 +35,15 @@ public:
 	SceneUploadSSBO* m_gbufferSSBO;
 	std::vector<GPUObjectData> m_cacheGBufferObjectSSBOData {};
 
+	Scene& getActiveScene();
+
 private:
 	void allocateSceneTextures(uint32 width,uint32 height,bool forceAllocate = false);
-	void meshCollect();
+	void meshCollect(bool bRebuildMaterial);
 
 private:
 	SceneTextures* m_sceneTextures;
+	Renderer* m_renderer;
 	Ref<SceneManager> m_sceneManager;
 	Ref<shaderCompiler::ShaderCompiler> m_shaderCompiler;
 };

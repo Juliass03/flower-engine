@@ -5,8 +5,41 @@
 #include "render_passes/gbuffer_pass.h"
 #include "render_passes/tonemapper_pass.h"
 #include "material.h"
+#include "../scene/components/sceneview_camera.h"
+#include "../scene/components/directionalLight.h"
+#include "render_passes/lighting_pass.h"
+#include "render_passes/shadowDepth_pass.h"
 
 namespace engine{
+
+static AutoCVarInt32 cVarReverseZ(
+	"r.Shading.ReverseZ",
+	"Enable reverse z. 0 is off, others are on.",
+	"Shading",
+	1,
+	CVarFlags::InitOnce | CVarFlags::ReadOnly
+);
+
+bool reverseZOpen()
+{
+    return cVarReverseZ.get() > 0;
+}
+
+float getEngineClearZFar()
+{
+    return reverseZOpen() ? 0.0f : 1.0f;
+}
+
+float getEngineClearZNear()
+{
+    return reverseZOpen() ? 1.0f : 0.0f;
+}
+
+VkCompareOp getEngineZTestFunc()
+{
+    return reverseZOpen() ? VK_COMPARE_OP_GREATER : VK_COMPARE_OP_LESS;
+}
+
 
 Renderer::Renderer(Ref<ModuleManager> in):
 	IRuntimeModule(in)
@@ -32,11 +65,13 @@ bool Renderer::init()
 		m_dynamicDescriptorAllocator[i]->init(VulkanRHI::get()->getVulkanDevice());
 	}
 
-	m_renderScene->init();
+	m_renderScene->init(this);
 	m_uiPass->initImgui();
 
 	// 注册RenderPasses
+	// m_renderpasses.push_back(new ShadowDepthPass(this,m_renderScene,shader_compiler,"ShadowDepth"));
 	m_renderpasses.push_back(new GBufferPass(this,m_renderScene,shader_compiler,"GBuffer"));
+	m_renderpasses.push_back(new LightingPass(this,m_renderScene,shader_compiler,"Lighting"));
 	m_renderpasses.push_back(new TonemapperPass(this,m_renderScene,shader_compiler,"ToneMapper"));
 
 	// 首先调用PerframeData的初始化函数确保全局的PerframeData正确初始化
@@ -44,16 +79,12 @@ bool Renderer::init()
 	m_frameData.buildPerFrameDataDescriptorSets(this);
 
 	// 接下来调用每一个Renderpass的初始化函数
-	MeshRenderpassLayout renderpassLayouts{};
 	for(auto* pass : m_renderpasses)
 	{
 		pass->init();
-		if(pass->isPassType(shaderCompiler::EShaderPass::GBuffer))
-		{
-			renderpassLayouts.gbuffer = pass->getRenderpass();
-		}
 	}
-	m_materialLibrary->init(shader_compiler,renderpassLayouts);
+	updateRenderpassLayout();
+	m_materialLibrary->init(shader_compiler);
 	return true;
 }
 
@@ -80,16 +111,16 @@ void Renderer::tick(float dt)
 		m_frameData.markPerframeDescriptorSetsDirty();
 	}
 
-	
-
 	// NOTE: 通过initFrame申请到合适的RT后在frameData中构建描述符集
 	m_renderScene->initFrame(m_screenViewportWidth, m_screenViewportHeight,bForceAllocate);
 	m_frameData.buildPerFrameDataDescriptorSets(this);
 
 	// 更新全局的frameData
-	updateGPUData();
+	updateGPUData(dt);
 	m_frameData.updateFrameData(m_gpuFrameData);
 	m_frameData.updateViewData(m_gpuViewData);
+
+	// NOTE: 由于Sceneza
 
 	// 开始动态记录
 	VkCommandBuffer dynamicBuf = *VulkanRHI::get()->getDynamicGraphicsCmdBuf(backBufferIndex);
@@ -165,6 +196,21 @@ void Renderer::UpdateScreenSize(uint32 width,uint32 height)
 	m_screenViewportHeight = renderSceneHeight;
 }
 
+void Renderer::updateRenderpassLayout()
+{
+	for(auto* pass : m_renderpasses)
+	{
+		if(pass->isPassType(shaderCompiler::EShaderPass::GBuffer))
+		{
+			m_renderpassLayout.gBufferPass = pass->getRenderpass();
+		}
+		else if(pass->isPassType(shaderCompiler::EShaderPass::ShadowDepth))
+		{
+			m_renderpassLayout.shadowDepth = pass->getRenderpass();
+		}
+	}
+}
+
 void Renderer::uiRecord(size_t i)
 {
 	m_uiPass->newFrame();
@@ -175,7 +221,7 @@ void Renderer::uiRecord(size_t i)
 	}
 }
 
-void Renderer::updateGPUData()
+void Renderer::updateGPUData(float dt)
 {
 	float gametime = g_timer.gameTime();
 	m_gpuFrameData.appTime = glm::vec4(
@@ -185,10 +231,46 @@ void Renderer::updateGPUData()
 		glm::cos(gametime)
 	);
 
-	m_gpuViewData.view = glm::mat4(1.0f);
-	m_gpuViewData.proj = glm::mat4(1.0f);
-	m_gpuViewData.viewProj = glm::mat4(1.0f);
-	m_gpuViewData.worldPos = glm::vec4(0.0f);
+	auto directionalLights = m_renderScene->getActiveScene().getComponents<DirectionalLight>();
+	bool bHasValidateDirectionalLight = false;
+
+	if(directionalLights.size()>0)
+	{
+		// NOTE: 当前我们仅处理第一盏有效的直射灯
+		for(auto& light:directionalLights)
+		{
+			if(const auto lightPtr = light.lock())
+			{
+				bHasValidateDirectionalLight = true;
+
+				m_gpuFrameData.sunLightColor = lightPtr->getColor();
+				m_gpuFrameData.sunLightDir = lightPtr->getDirection();
+			}
+		}
+	}
+
+	if(!bHasValidateDirectionalLight)
+	{
+		m_gpuFrameData.sunLightColor = glm::vec4(1.0f,1.0f,1.0f,1.0f);
+		m_gpuFrameData.sunLightDir = glm::vec4(0.33f,0.34f,0.33f,1.0f);
+	}
+	
+
+	auto sceneViewCameraNode = m_renderScene->getActiveScene().getSceneViewCameraNode();
+	auto sceneViewCameraComponent = sceneViewCameraNode->getComponent<SceneViewCamera>();
+
+	// 更新场景相机
+	sceneViewCameraComponent->tick(dt,m_screenViewportWidth,m_screenViewportHeight);
+
+	m_gpuViewData.view = sceneViewCameraComponent->getView();
+	m_gpuViewData.proj = sceneViewCameraComponent->getProjection();
+	m_gpuViewData.viewProj = m_gpuViewData.proj * m_gpuViewData.view;
+	m_gpuViewData.worldPos = glm::vec4(sceneViewCameraComponent->getPosition(),1.0f);
+}
+
+MeshPassLayout Renderer::getMeshpassLayout() const
+{
+	return m_renderpassLayout;
 }
 
 

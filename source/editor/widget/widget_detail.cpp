@@ -12,6 +12,9 @@
 #include "../../engine/core/core.h"
 #include "../../engine/renderer/mesh.h"
 #include "../../engine/scene/components/staticmesh_renderer.h"
+#include "../../engine/scene/components/directionalLight.h"
+#include "widget_asset.h"
+#include "widget_assetInspector.h"
 
 using namespace engine;
 using namespace engine::asset_system;
@@ -66,6 +69,8 @@ void WidgetDetail::onVisibleTick(size_t)
 			drawTransform(selectNode);
 			
 			drawStaticMesh(selectNode);
+
+			drawDirectionalLight(selectNode);
 
 			ImGui::Spacing();
 			ImGui::Separator();
@@ -210,6 +215,7 @@ void WidgetDetail::drawStaticMesh(std::shared_ptr<engine::SceneNode> node)
 				auto boldFont = io.Fonts->Fonts[0];
 				ImGui::PushID(idName.c_str());
 				float size = ImGui::CalcTextSize(idName.c_str()).x;
+
 				ImGui::Columns(2);
 				ImGui::SetColumnWidth(0, size + ImGui::GetColumnOffset());
 				ImGui::Text(idName.c_str());
@@ -220,6 +226,10 @@ void WidgetDetail::drawStaticMesh(std::shared_ptr<engine::SceneNode> node)
 					ImGui::OpenPopup("##StaticMeshComponentSelect");
 				}
 
+				std::string oldPrimitveName = component->m_meshName;
+				std::string oldCutomName = component->m_customMeshName;
+				bool oldUseCustomMesh = component->m_customMesh;
+
 				if(ImGui::BeginPopup("##StaticMeshComponentSelect"))
 				{
 					const auto selectedNode = EditorScene::get().getSelectNode().lock();
@@ -227,21 +237,118 @@ void WidgetDetail::drawStaticMesh(std::shared_ptr<engine::SceneNode> node)
 
 					if (onNode)
 					{
-						loopPrimitiveType([&](std::string name){
+						loopPrimitiveType([&](std::string name,EPrimitiveMesh type){
 							if (ImGui::MenuItem(name.c_str()))
 							{
 								component->m_meshName = name;
+								if(type==EPrimitiveMesh::Custom)
+								{
+									component->m_customMesh = true;
+								}
+								else
+								{
+									component->m_customMesh = false;
+								}
 							}
 						}); 
+
+
 					}
 					ImGui::EndPopup();
 				}
-				
+
+				if(component->m_customMesh)
+				{
+					const auto& meshes = asset_system::AssetCache::s_cache->m_staticMesh;
+					static int index = 0;
+					static int lastTimeSize = -1;
+
+					// TODO: This is slow and need optimization.
+					int loopIndex = 0;
+					std::vector<const char*> cacheName{};
+					std::string boxName = toString(EPrimitiveMesh::Box);
+					cacheName.push_back(boxName.c_str()); // 第0个永远为Box作为回滚
+					for(const auto& elem : meshes)
+					{
+						if(component->m_customMeshName == elem && lastTimeSize != int(meshes.size() + 1)) // 防止队列刷新后出现错误的选择
+						{
+							index = loopIndex + 1; // 注意处理插入的第0个box
+						}
+						cacheName.push_back(elem.c_str());
+						loopIndex++;
+					}
+
+					if(cacheName.size()>0)
+					{
+						if(index < cacheName.size())
+						{
+							ImGui::Combo(u8"网格选择",&index,cacheName.data(),int(cacheName.size()),-1);
+
+							if(lastTimeSize != int(cacheName.size()) && component->m_customMeshName != cacheName[index])
+							{
+								component->m_customMeshName = boxName; // 删除选择的物体后使用引擎Box作为回滚
+								index = 0;
+							}
+							else
+							{
+								component->m_customMeshName = cacheName[index];
+							}
+						}
+					}
+					lastTimeSize = int(cacheName.size());
+				}
 
 				ImGui::Columns(1);
 				ImGui::PopID();
+
+				// 开始监视每个submesh的材质
+				if(!(component->m_customMesh==oldUseCustomMesh &&
+					component->m_customMeshName==oldCutomName  &&
+					component->m_meshName==oldPrimitveName)) // 网格发生变化
+				{
+					component->reflectMaterials();
+				}
+
+				for(auto& material : component->m_materials)
+				{
+					if(ImGui::Button(material.c_str()))
+					{
+						EditorAsset::get().inspectorRequireSkip = true;
+						EditorAsset::get().inspectorClickAssetPath = material;
+					}
+				}
 			}
 			
+			ImGui::Separator();
+		},true);
+	}
+}
+
+void WidgetDetail::drawDirectionalLight(std::shared_ptr<engine::SceneNode> node)
+{
+	auto& activeScene = m_sceneManager->getActiveScene();
+	if(!node->hasComponent<DirectionalLight>())
+		return;
+
+	if(const auto component = node->getComponent<DirectionalLight>())
+	{
+		drawComponent<DirectionalLight>(u8"太阳灯光", node,activeScene, [&](auto& in_component)
+		{
+			ImGui::Separator();
+
+			{
+				glm::vec4 oldColor = in_component->getColor();
+				static ImVec4 color;
+				color = ImVec4(oldColor.x, oldColor.y, oldColor.z, 1.0f);
+				ImGui::ColorPicker4(u8"颜色",(float*)&color,ImGuiColorEditFlags_HDR|ImGuiColorEditFlags_NoBorder);
+				glm::vec4 newColor = glm::vec4(color.x,color.y,color.z,1.0f);
+				
+				if(newColor!=oldColor)
+				{
+					in_component->setColor(newColor);
+				}
+			}
+
 			ImGui::Separator();
 		},true);
 	}
@@ -265,6 +372,14 @@ void WidgetDetail::drawAddCommand(std::shared_ptr<engine::SceneNode> node)
 			activeScene.addComponent(std::make_shared<StaticMeshComponent>(),node);
 			activeScene.setDirty(true);
 			LOG_INFO("Node {0} has add static mesh component.",node->getName());
+		}
+
+		// Directional Light
+		if (ImGui::MenuItem(u8"太阳灯光") && !node->hasComponent(EComponentType::DirectionalLight))
+		{
+			activeScene.addComponent(std::make_shared<DirectionalLight>(),node);
+			activeScene.setDirty(true);
+			LOG_INFO("Node {0} has add directional light component.",node->getName());
 		}
 
         ImGui::EndPopup();

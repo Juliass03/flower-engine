@@ -1,7 +1,8 @@
 #include "staticmesh_renderer.h"
-#include "../scene.h"
 #include "../../renderer/mesh.h"
 #include "../../shader_compiler/shader_compiler.h"
+#include "../../renderer/renderer.h"
+#include "../../renderer/material.h"
 
 using namespace engine;
 
@@ -11,12 +12,27 @@ engine::StaticMeshComponent::StaticMeshComponent()
 
 }
 
-RenderMesh engine::StaticMeshComponent::getRenderMesh(Ref<shaderCompiler::ShaderCompiler> shaderCompiler)
+Mesh& engine::StaticMeshComponent::getMesh()
+{
+	Mesh* mesh;
+
+	if(m_customMesh)
+	{
+		mesh = &MeshLibrary::get()->getMeshByName(m_customMeshName);
+	}
+	else
+	{
+		mesh = &MeshLibrary::get()->getMeshByName(m_meshName);
+	}
+
+	return *mesh;
+}
+
+RenderMesh engine::StaticMeshComponent::getRenderMesh(Ref<shaderCompiler::ShaderCompiler> shaderCompiler,Ref<Renderer> renderer,bool bRebuildMaterial)
 {
 	if(auto node = m_node.lock())
 	{
-		Mesh& mesh = MeshLibrary::get()->getMeshByName(m_meshName);
-		auto& renderBounds = mesh.renderBounds;
+		Mesh& mesh = getMesh();
 
 		auto transform = node->getComponent<Transform>();
 		RenderMesh ret {};
@@ -26,13 +42,45 @@ RenderMesh engine::StaticMeshComponent::getRenderMesh(Ref<shaderCompiler::Shader
 		ret.modelMatrix = transform->getWorldMatrix();
 		ret.mesh = &mesh;
 
+		if(m_materials.size() != mesh.subMeshes.size())
+		{
+			reflectMaterials();
+		}
+
+		auto* materialLib = renderer->getMaterialLibrary();
+		uint32 index = 0;
+		for(auto& subMesh : mesh.subMeshes)
+		{
+			if(m_materials[index] != "")
+			{
+				// ×¢²á²ÄÖÊ
+				subMesh.cacheMaterial = materialLib->registerMaterial(
+					shaderCompiler,
+					m_materials[index]
+				);
+
+				subMesh.cacheMaterial->getMaterialDescriptorSet(renderer->getMeshpassLayout(),bRebuildMaterial);
+			}
+			index++;
+		}
 		return ret;
+	}
+	else
+	{
+		LOG_FATAL("Miss node!");
+		return RenderMesh();
 	}
 }
 
-void engine::StaticMeshComponent::switchMesh(const std::string& name)
+void engine::StaticMeshComponent::reflectMaterials()
 {
-	m_meshName = name;
+	Mesh& mesh = getMesh();
 
-
+	m_materials.resize(mesh.subMeshes.size());
+	int32 index = 0;
+	for(auto& subMesh : mesh.subMeshes)
+	{
+		m_materials[index] = subMesh.materialInfoPath;
+		index++;
+	}
 }

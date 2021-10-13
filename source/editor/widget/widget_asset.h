@@ -30,6 +30,9 @@ public:
 		return instance;
 	}
 
+	std::string inspectorClickAssetPath = "";
+	bool inspectorRequireSkip = false;
+
 	std::string getSelectAsset() const { return rightClickAssetPath; }
 };
 
