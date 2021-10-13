@@ -256,8 +256,8 @@ struct AssimpModelProcess
     MeshInfo::SubMeshInfo processMesh(aiMesh* mesh,const aiScene* scene,const std::string& materialFolderPath)
     {
         MeshInfo::SubMeshInfo subMeshInfo{};
-        subMeshInfo.indexStartPosition = m_indices.size(); // 先存储顶点开始的位置信息
-        uint32 indexOffset = m_vertices.size();
+        subMeshInfo.indexStartPosition = (uint32)m_indices.size(); // 先存储顶点开始的位置信息
+        uint32 indexOffset = (uint32)m_vertices.size();
 
         std::vector<StandardVertex> vertices{};
         std::vector<VertexIndexType> indices{};
