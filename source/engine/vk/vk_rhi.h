@@ -10,6 +10,7 @@
 #include "impl/vk_sampler.h"
 #include "impl/vk_shader.h"
 #include "impl/vk_swapchain.h"
+#include "impl/vk_fence.h"
 #include "../core/deletion_queue.h"
 
 namespace engine{
@@ -39,6 +40,7 @@ private:
     VulkanInstance m_instance = {};
     VkCommandPool m_graphicsCommandPool = VK_NULL_HANDLE;
     VkCommandPool m_computeCommandPool = VK_NULL_HANDLE;
+    VkCommandPool m_copyCommandPool = VK_NULL_HANDLE;
     DeletionQueue m_deletionQueue = {};
 
     VmaAllocator m_vmaAllocator = {};
@@ -52,6 +54,7 @@ private: // rhi vulkan commandbuffer
 private: // cache
     VulkanSamplerCache m_samplerCache = {};
     VulkanShaderCache m_shaderCache = {};
+    VulkanFencePool m_fencePool = {};
 
     // ≥÷æ√–‘µƒ√Ë ˆ∑˚…Í«Î
     VulkanDescriptorAllocator m_staticDescriptorAllocator = {};
@@ -98,11 +101,15 @@ public:
     VmaAllocator& getVmaAllocator() { return m_vmaAllocator; }
     VkQueue& getGraphicsQueue() { return m_device.graphicsQueue; }
     VkQueue& getComputeQueue() { return m_device.computeQueue; }
+    VkQueue& getCopyQueue();
+
     const VkDevice& getDevice() const { return m_device.device; }
     VulkanDevice* getVulkanDevice() { return &m_device; }
     VkCommandPool& getGraphicsCommandPool() { return m_graphicsCommandPool; }
     VkCommandPool& getComputeCommandPool() { return m_computeCommandPool; }
+    VkCommandPool& getCopyCommandPool() { return m_copyCommandPool; }
     VkInstance getInstance() { return m_instance; }
+    VulkanFencePool& getFencePool() { return m_fencePool; }
     VulkanVertexBuffer* createVertexBuffer(const std::vector<float>& data,std::vector<EVertexAttribute>&& as) = delete;
     VulkanVertexBuffer* createVertexBuffer(const std::vector<float>& data,const std::vector<EVertexAttribute>& as) 
     { 
@@ -127,6 +134,7 @@ public:
     VkFormat getSwapchainFormat() const { return m_swapchain.getSwapchainImageFormat();  }
     VulkanCommandBuffer* createGraphicsCommandBuffer(VkCommandBufferLevel level = VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY);
     VulkanCommandBuffer* createComputeCommandBuffer(VkCommandBufferLevel level = VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+    VulkanCommandBuffer* createCopyCommandBuffer(VkCommandBufferLevel level = VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY);
     VkRenderPass createRenderpass(const VkRenderPassCreateInfo& info);
     VkPipelineLayout createPipelineLayout(const VkPipelineLayoutCreateInfo& info);
     VulkanDescriptorFactory vkDescriptorFactoryBegin() { return VulkanDescriptorFactory::begin(&m_descriptorLayoutCache,&m_staticDescriptorAllocator); }

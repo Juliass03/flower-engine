@@ -10,18 +10,30 @@ class VulkanQueueFamilyIndices
 	friend class VulkanDevice;
 public:
 	uint32_t graphicsFamily; // 图形队列族
+	uint32_t graphicsQueueCount;
+
 	uint32_t presentFamily;  // 显示队列族
+	uint32_t presentQueueCount;
+
 	uint32_t computeFaimly;  // 计算队列族
+	uint32_t computeQueueCount;
+
+	uint32_t transferFamily; // 传输队列族
+	uint32_t transferQueueCount;
 
 	bool isCompleted() 
 	{
-		return bGraphicsFamilySet && bPresentFamilySet && bComputeFaimlySet;
+		return bGraphicsFamilySet && bPresentFamilySet && bComputeFaimlySet && bTransferFamilySet;
 	}
 
 private:
 	bool bGraphicsFamilySet = false;
 	bool bPresentFamilySet = false;
 	bool bComputeFaimlySet = false;
+	bool bTransferFamilySet = false;
+
+	bool bSoloComputeQueueFamily = false;
+	bool bSoloTransferFamily = false;
 };
 
 struct VulkanSwapchainSupportDetails 
@@ -37,9 +49,15 @@ public:
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	VkDevice device = VK_NULL_HANDLE;
 	VkPhysicalDeviceProperties physicalDeviceProperties = {};
-	VkQueue graphicsQueue = VK_NULL_HANDLE; // 图形队列
-	VkQueue presentQueue = VK_NULL_HANDLE;  // 显示队列
-	VkQueue computeQueue = VK_NULL_HANDLE;  // 计算队列
+
+	VkQueue graphicsQueue = VK_NULL_HANDLE; // 主图形队列
+	VkQueue presentQueue = VK_NULL_HANDLE;  // 主显示队列
+	VkQueue computeQueue = VK_NULL_HANDLE;  // 主计算队列（用于辅助主图形队列的异步计算）
+
+	// 剩余的队列
+	std::vector<VkQueue> availableTransferQueues;    // 所有可用的传输队列 
+	std::vector<VkQueue> availableComputeQueues;     // 所有可用的计算队列
+	std::vector<VkQueue> availableGraphicsQueues;    // 所有可用的图形队列
 
 private:
 	VkInstance m_instance = VK_NULL_HANDLE;

@@ -36,6 +36,7 @@ void main()
 
     vec3 normalTangentSpace = texture(NormalTexture,inUV0).xyz;
     normalTangentSpace.xy = normalTangentSpace.xy * 2.0f - vec2(1.0f);
+    normalTangentSpace.y *= -1.0f;
     normalTangentSpace.z = sqrt(max(0.0f,1.0f - dot(normalTangentSpace.xy,normalTangentSpace.xy)));
 
     outGbufferNormalRoughness.rgb = (getNormalFromVertexAttribute(normalTangentSpace) + vec3(1.0f)) * 0.5f ;

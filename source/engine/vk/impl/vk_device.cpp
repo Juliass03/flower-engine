@@ -35,18 +35,48 @@ void VulkanDevice::createLogicDevice()
 	auto indices = findQueueFamilies();
 
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-	std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily, indices.presentFamily,indices.computeFaimly };
 
-	// 创建graphicsFamily presentFamily computeFaimly对应队列 
-	float queuePriority = 1.0f;
-	for (uint32_t queueFamily : uniqueQueueFamilies) 
-	{
+	// 我们首先确定Present队列位于哪一个队列族
+	bool bPresentInGraphics = indices.presentFamily == indices.graphicsFamily;
+	bool bPresentInCompute  = indices.presentFamily == indices.computeFaimly;
+	bool bPresentInTransfer = indices.presentFamily == indices.transferFamily;
+	CHECK(bPresentInCompute || bPresentInGraphics || bPresentInTransfer);
+
+	std::vector<float> graphicsQueuePriority(indices.graphicsQueueCount,1.0f);
+	std::vector<float> computeQueuePriority(indices.computeQueueCount,1.0f);
+	std::vector<float> transferQueuePriority(indices.transferQueueCount,1.0f);
+	{ // 主图形队列
+		
 		VkDeviceQueueCreateInfo queueCreateInfo{};
 		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueFamilyIndex = queueFamily;
-		queueCreateInfo.queueCount = 1;
-		queueCreateInfo.pQueuePriorities = &queuePriority;
+		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily;
+		queueCreateInfo.queueCount = indices.graphicsQueueCount;
+		queueCreateInfo.pQueuePriorities = graphicsQueuePriority.data();
 		queueCreateInfos.push_back(queueCreateInfo);
+	}
+	
+	{ // 主计算队列
+		if(indices.bSoloComputeQueueFamily)   // 仅存在单独的计算队列时才申请
+		{
+			VkDeviceQueueCreateInfo queueCreateInfo{};
+			queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			queueCreateInfo.queueFamilyIndex = indices.computeFaimly;
+			queueCreateInfo.queueCount = indices.computeQueueCount;
+			queueCreateInfo.pQueuePriorities = computeQueuePriority.data();
+			queueCreateInfos.push_back(queueCreateInfo);
+		}
+	}
+
+	{ // 传输队列
+		if(indices.bSoloTransferFamily)   // 仅存在单独的传输队列时才申请
+		{
+			VkDeviceQueueCreateInfo queueCreateInfo{};
+			queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			queueCreateInfo.queueFamilyIndex = indices.transferFamily;
+			queueCreateInfo.queueCount = indices.transferQueueCount;
+			queueCreateInfo.pQueuePriorities = transferQueuePriority.data();
+			queueCreateInfos.push_back(queueCreateInfo);
+		}
 	}
 
 	// 2. 开始填写创建结构体信息
@@ -69,10 +99,67 @@ void VulkanDevice::createLogicDevice()
 		LOG_GRAPHICS_FATAL("Create vulkan logic device.");
 	}
 
-	// 获取队列
-	vkGetDeviceQueue(device,indices.graphicsFamily,0,&graphicsQueue);
-	vkGetDeviceQueue(device,indices.presentFamily, 0,&presentQueue);
-	vkGetDeviceQueue(device,indices.computeFaimly, 0,&computeQueue);
+	// 获取主队列
+	vkGetDeviceQueue(device,indices.graphicsFamily,0, &graphicsQueue);
+	vkGetDeviceQueue(device,indices.computeFaimly, 0, &computeQueue);
+
+	// 接下来填入辅助队列
+	if(bPresentInGraphics)
+	{
+		if(indices.graphicsQueueCount == 1)
+		{
+			vkGetDeviceQueue(device,indices.graphicsFamily,0,&presentQueue);
+		}
+		else if(indices.graphicsQueueCount==2)
+		{
+			vkGetDeviceQueue(device,indices.graphicsFamily,1,&presentQueue);
+		}
+		else if(indices.graphicsQueueCount > 2)
+		{
+			vkGetDeviceQueue(device,indices.graphicsFamily,1,&presentQueue);
+			availableGraphicsQueues.resize(indices.graphicsQueueCount - 2);
+			for(size_t index = 0; index < availableGraphicsQueues.size(); index++)
+			{
+				availableGraphicsQueues[index] = VK_NULL_HANDLE;
+				vkGetDeviceQueue(device, indices.graphicsFamily, (uint32_t)index + 2, &availableGraphicsQueues[index]);
+			}
+		}
+	}
+	else
+	{
+		// 非图形队列则直接用第一个算了
+		vkGetDeviceQueue(device, indices.presentFamily, 0, &presentQueue);
+
+		if(indices.graphicsQueueCount>1)
+		{
+			availableGraphicsQueues.resize(indices.graphicsQueueCount-1);
+			for(size_t index = 0; index<availableGraphicsQueues.size(); index++)
+			{
+				availableGraphicsQueues[index] = VK_NULL_HANDLE;
+				vkGetDeviceQueue(device,indices.graphicsFamily,(uint32_t)index + 1,&availableGraphicsQueues[index]);
+			}
+		}
+	}
+
+	if(indices.computeQueueCount > 0 && indices.bSoloComputeQueueFamily)
+	{
+		availableComputeQueues.resize(indices.computeQueueCount);
+		for(size_t index = 0; index < availableComputeQueues.size(); index++)
+		{
+			availableComputeQueues[index] = VK_NULL_HANDLE;
+			vkGetDeviceQueue(device,indices.computeFaimly,(uint32_t)index, &availableComputeQueues[index]);
+		}
+	}
+
+	if(indices.transferQueueCount > 0 && indices.bSoloTransferFamily)
+	{
+		availableTransferQueues.resize(indices.transferQueueCount);
+		for(size_t index = 0; index < availableTransferQueues.size(); index++)
+		{
+			availableTransferQueues[index] = VK_NULL_HANDLE;
+			vkGetDeviceQueue(device,indices.computeFaimly,(uint32_t)index,&availableTransferQueues[index]);
+		}
+	}
 }
 
 VkFormat VulkanDevice::findSupportedFormat(const std::vector<VkFormat>& candidates,VkImageTiling tiling,VkFormatFeatureFlags features)
@@ -200,16 +287,25 @@ VulkanQueueFamilyIndices VulkanDevice::findQueueFamilies()
 	int i = 0;
 	for (const auto& queueFamily : queueFamilies) 
 	{
-		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) 
+		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) // 有图形Flag的队列单独使用
 		{
 			indices.graphicsFamily = i;
 			indices.bGraphicsFamilySet = true;
+			indices.graphicsQueueCount = queueFamily.queueCount; 
 		}
-
-		if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) 
+		else if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) 
 		{
 			indices.computeFaimly = i;
 			indices.bComputeFaimlySet = true;
+			indices.bSoloComputeQueueFamily = true; // 具有单独的计算队列
+			indices.computeQueueCount = queueFamily.queueCount;
+		}
+		else if(queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT)
+		{
+			indices.transferFamily = i;
+			indices.bTransferFamilySet = true;
+			indices.bSoloTransferFamily = true; // 具有单独的传输队列
+			indices.transferQueueCount = queueFamily.queueCount;
 		}
 
 		VkBool32 presentSupport = false;
@@ -223,8 +319,24 @@ VulkanQueueFamilyIndices VulkanDevice::findQueueFamilies()
 		if (indices.isCompleted()) {
 			break;
 		}
-
 		i++;
+	}
+
+	if(!indices.isCompleted())
+	{
+		CHECK(indices.bGraphicsFamilySet);
+		if(!indices.bComputeFaimlySet)
+		{
+			indices.computeFaimly = indices.graphicsFamily; // 如果没有单独的计算队列则直接使用图形队列
+			indices.bComputeFaimlySet = true;
+			indices.computeQueueCount = 1; // 如果没有独立队列族干脆把计算队列数设为1
+		}
+
+		if(!indices.bTransferFamilySet)
+		{
+			indices.transferFamily = indices.graphicsFamily; // 如果没有单独的传输队列则使用图形队列
+			indices.bTransferFamilySet = true;// 如果没有独立队列族干脆把传输队列数设为1
+		}
 	}
 
 	return indices;

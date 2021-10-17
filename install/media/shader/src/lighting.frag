@@ -4,7 +4,7 @@
 #include "../glsl/common.glsl"
 #include "../glsl/frame_data.glsl"
 #include "../glsl/view_data.glsl"
-#include "../glsl/pass_lighting.glsl"
+#include "../glsl/pass_lighting.glsl" 
 
 void main()
 {
@@ -29,4 +29,6 @@ void main()
     // TODO: Lighting.
     outHdrSceneColor.rgb =vec3(NoLSafe + 0.05f) * baseColor;
     outHdrSceneColor.a = 1.0f;
+
+    outHdrSceneColor.rgb = baseColor;
 }

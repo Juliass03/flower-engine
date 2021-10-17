@@ -18,7 +18,7 @@ namespace engine{
         VkDeviceSize m_size = {};
         VkImageLayout m_currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         VkImageCreateInfo m_createInfo = {};
-    protected:
+    public:
         VulkanImage() = default;
 
         virtual void create(
@@ -31,7 +31,7 @@ namespace engine{
         ); 
 
         void generateMipmaps(VkCommandBuffer cb,int32_t texWidth,int32_t texHeight,uint32_t mipLevels,VkImageAspectFlagBits flag);
-        void copyBufferToImage(VkCommandBuffer cb,VkBuffer buffer,uint32 width,uint32 height,VkImageAspectFlagBits flag);
+        void copyBufferToImage(VkCommandBuffer cb,VkBuffer buffer,uint32 width,uint32 height,VkImageAspectFlagBits flag,uint32 mipmapLevel = 0);
         void setCurrentLayout(VkImageLayout oldLayout) { m_currentLayout = oldLayout; }
         void transitionLayout(VkCommandBuffer cb,VkImageLayout newLayout,VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
     public:

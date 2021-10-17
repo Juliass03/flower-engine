@@ -135,6 +135,7 @@
     <ClCompile Include="vk\impl\vk_descriptor.cpp" />
     <ClCompile Include="vk\impl\vk_device.cpp" />
     <ClCompile Include="vk\impl\vk_factory.cpp" />
+    <ClCompile Include="vk\impl\vk_fence.cpp" />
     <ClCompile Include="vk\impl\vk_image.cpp" />
     <ClCompile Include="vk\impl\vk_instance.cpp" />
     <ClCompile Include="vk\impl\vk_sampler.cpp" />
@@ -195,6 +196,7 @@
     <ClInclude Include="vk\impl\vk_descriptor.h" />
     <ClInclude Include="vk\impl\vk_device.h" />
     <ClInclude Include="vk\impl\vk_factory.h" />
+    <ClInclude Include="vk\impl\vk_fence.h" />
     <ClInclude Include="vk\impl\vk_image.h" />
     <ClInclude Include="vk\impl\vk_instance.h" />
     <ClInclude Include="vk\impl\vk_sampler.h" />

@@ -289,7 +289,7 @@ void VulkanImage::generateMipmaps(VkCommandBuffer cb,int32_t texWidth,int32_t te
         1,&barrier);
 }
 
-void VulkanImage::copyBufferToImage(VkCommandBuffer cb,VkBuffer buffer,uint32 width,uint32 height,VkImageAspectFlagBits flag)
+void VulkanImage::copyBufferToImage(VkCommandBuffer cb,VkBuffer buffer,uint32 width,uint32 height,VkImageAspectFlagBits flag,uint32 mipmapLevel)
 {
     transitionLayout(cb,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,flag);
     VkBufferImageCopy region{};
@@ -298,7 +298,7 @@ void VulkanImage::copyBufferToImage(VkCommandBuffer cb,VkBuffer buffer,uint32 wi
     region.bufferImageHeight = 0;
 
     region.imageSubresource.aspectMask = flag;
-    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.mipLevel = mipmapLevel;
     region.imageSubresource.baseArrayLayer = 0;
     region.imageSubresource.layerCount = 1;
 

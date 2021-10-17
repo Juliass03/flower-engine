@@ -7,7 +7,7 @@ static AutoCVarInt32 cVarReverseZ(
 	"r.Shading.ReverseZ",
 	"Enable reverse z. 0 is off, others are on.",
 	"Shading",
-	1,
+	0,
 	CVarFlags::InitOnce | CVarFlags::ReadOnly
 );
 
@@ -72,6 +72,7 @@ void VulkanRHI::init(GLFWwindow* window,
     m_shaderCache.init(m_device.device);
     m_descriptorLayoutCache.init(&m_device);
     m_staticDescriptorAllocator.init(&m_device);
+    m_fencePool.init(m_device.device);
 
     createVmaAllocator();
     m_deletionQueue.push([&]()
@@ -81,6 +82,7 @@ void VulkanRHI::init(GLFWwindow* window,
         m_descriptorLayoutCache.cleanup();
         m_shaderCache.release(); 
         m_samplerCache.cleanup();
+        m_fencePool.release();
     });
 
     // 创建静态和动态的CommandBuffer
@@ -215,6 +217,27 @@ void VulkanRHI::submit(uint32 count,VkSubmitInfo* infos)
 void VulkanRHI::resetFence()
 {
     vkCheck(vkResetFences(m_device,1,&m_inFlightFences[m_currentFrame]));
+}
+
+VkQueue& VulkanRHI::getCopyQueue()
+{
+    if(m_device.availableTransferQueues.size() > 1)
+    {
+        return m_device.availableTransferQueues[1];
+    }
+    else if(m_device.availableTransferQueues.size()==1)
+    {
+        return m_device.availableTransferQueues[0];
+    }
+    else if( m_device.availableGraphicsQueues.size() > 0)
+    {
+        // 否则用倒数第一个闲置的图形队列
+        return m_device.availableGraphicsQueues[m_device.availableGraphicsQueues.size() - 1];
+    }
+    else
+    {
+        return m_device.graphicsQueue;
+    }
 }
 
 void VulkanRHI::submitAndResetFence(VkSubmitInfo& info)
@@ -431,6 +454,15 @@ void VulkanRHI::createCommandPool()
     {
         LOG_GRAPHICS_FATAL("Fail to create compute CommandPool.");
     }
+
+    VkCommandPoolCreateInfo copyPoolInfo{};
+    copyPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    copyPoolInfo.queueFamilyIndex = queueFamilyIndices.transferFamily;
+    copyPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    if(vkCreateCommandPool(m_device,&poolInfo,nullptr,&m_copyCommandPool)!=VK_SUCCESS)
+    {
+        LOG_GRAPHICS_FATAL("Fail to create copy CommandPool.");
+    }
 }
 
 void VulkanRHI::createSyncObjects()
@@ -537,6 +569,16 @@ VulkanCommandBuffer* VulkanRHI::createComputeCommandBuffer(VkCommandBufferLevel 
     );
 }
 
+VulkanCommandBuffer* VulkanRHI::createCopyCommandBuffer(VkCommandBufferLevel level)
+{
+    return VulkanCommandBuffer::create(
+        &m_device,
+        m_copyCommandPool,
+        level,
+        getCopyQueue()
+    );
+}
+
 void VulkanRHI::releaseCommandPool()
 {
     if(m_graphicsCommandPool!=VK_NULL_HANDLE)
@@ -546,6 +588,10 @@ void VulkanRHI::releaseCommandPool()
     if(m_computeCommandPool!=VK_NULL_HANDLE)
     {
         vkDestroyCommandPool(m_device, m_computeCommandPool, nullptr);
+    }
+    if(m_copyCommandPool!=VK_NULL_HANDLE)
+    {
+        vkDestroyCommandPool(m_device, m_copyCommandPool, nullptr);
     }
 }
 

@@ -141,8 +141,8 @@ namespace engine
         float Yaw;
         float Pitch;
 
-        float zNear = 0.01f;
-        float zFar = 100000.0f;
+        float zNear = 0.1f;
+        float zFar = 200.0f;
 
         // ≈‰÷√
         float MovementSpeed;

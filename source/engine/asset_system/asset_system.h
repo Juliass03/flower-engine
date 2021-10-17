@@ -14,6 +14,8 @@ namespace engine
 
 namespace engine{ namespace asset_system{
 
+constexpr auto TEXTURE_COMPONENT = 4;
+
 extern bool g_assetFolderDirty;
 
 class EngineAsset
@@ -79,6 +81,8 @@ struct AssetCache
     void clear();
 };
 
+class GpuUploadTextureAsync;
+
 // NOTE: AssetSystem为异步加载系统
 //       各种AssetLibrary如MeshLibrary、TextureLibrary产生加载命令
 //       调用一次std::asyc，并传入一个lambda作为加载完毕的命令
@@ -101,11 +105,14 @@ private:
     void prepareTextureLoad();
     bool loadTexture2DImage(CombineTexture& inout,const std::string& gameName);
 
+    void checkTextureUploadStateAsync();
 
 private:
     std::unordered_set<std::string> m_texturesNameLoad;   // 扫描后的纹理名字将会填充到这里
     std::vector<std::string> m_perScanAdditionalTextures; // 每次扫描后多出来的纹理
     std::queue<std::string> m_loadingTextureTasks;
+
+    std::vector<std::shared_ptr<GpuUploadTextureAsync>> m_uploadingTextureAsyncTask;
 };
 
 }}
