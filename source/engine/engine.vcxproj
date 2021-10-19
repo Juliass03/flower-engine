@@ -99,6 +99,7 @@
     <ClCompile Include="asset_system\asset_mmd.cpp" />
     <ClCompile Include="asset_system\asset_system.cpp" />
     <ClCompile Include="asset_system\asset_texture.cpp" />
+    <ClCompile Include="asset_system\texture_compress.cpp" />
     <ClCompile Include="core\crc.cpp" />
     <ClCompile Include="core\input.cpp" />
     <ClCompile Include="core\job_system.cpp" />
@@ -148,7 +149,7 @@
     <ClInclude Include="asset_system\asset_mmd.h" />
     <ClInclude Include="asset_system\asset_system.h" />
     <ClInclude Include="asset_system\asset_texture.h" />
-    <ClInclude Include="asset_system\mmd_filestring.h" />
+    <ClInclude Include="asset_system\texture_compress.h" />
     <ClInclude Include="async\book_cpp_concurrency_action.h" />
     <ClInclude Include="core\crc.h" />
     <ClInclude Include="core\deletion_queue.h" />

@@ -1,6 +1,7 @@
 #pragma once
 #include "asset_common.h"
 #include <vulkan/vulkan.h>
+#include "texture_compress.h"
 
 namespace engine{ namespace asset_system{
 
@@ -25,13 +26,15 @@ struct TextureInfo
     uint32 mipmapLevels;
     bool bCacheMipmaps;
 
+    bool bGpuCompress;
+    EBlockType gpuCompressType;
+
     VkFormat getVkFormat();
 };
 
 extern TextureInfo readTextureInfo(AssetFile* file);
 extern void unpackTexture(TextureInfo* info,const char* srcBuffer,size_t srcSize,char* dest);
 extern AssetFile packTexture(TextureInfo* info,void* pixelData);
-
-extern bool bakeTexture(const char* pathIn,const char* pathOut,bool srgb,bool compress,uint32 req_comp,bool bGenerateMipmap);
+extern bool bakeTexture(const char* pathIn,const char* pathOut,bool srgb,bool compress,uint32 req_comp,bool bGenerateMipmap,bool bGpuCompress,EBlockType blockType);
 
 }}

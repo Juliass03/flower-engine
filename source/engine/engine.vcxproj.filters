@@ -48,6 +48,7 @@
     <ClCompile Include="scene\components\directionalLight.cpp" />
     <ClCompile Include="asset_system\asset_mmd.cpp" />
     <ClCompile Include="vk\impl\vk_fence.cpp" />
+    <ClCompile Include="asset_system\texture_compress.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\cvar.h" />
@@ -108,7 +109,7 @@
     <ClInclude Include="renderer\render_passes\shadowDepth_pass.h" />
     <ClInclude Include="scene\components\directionalLight.h" />
     <ClInclude Include="asset_system\asset_mmd.h" />
-    <ClInclude Include="asset_system\mmd_filestring.h" />
     <ClInclude Include="vk\impl\vk_fence.h" />
+    <ClInclude Include="asset_system\texture_compress.h" />
   </ItemGroup>
 </Project>

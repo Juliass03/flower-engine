@@ -374,11 +374,21 @@ bool AssetSystem::loadTexture2DImage(CombineTexture& inout,const std::string& ga
 			m_uploadingTextureAsyncTask.push_back(uploader);
 			uploader->init(VulkanRHI::get()->getCopyCommandPool(),*VulkanRHI::get()->getVulkanDevice(),VulkanRHI::get()->getCopyQueue());
 
+			const bool bGpuCompress = info.bGpuCompress;
+			const auto blockType = info.gpuCompressType;
+
 			// 首先填充stageBuffer
 			for(uint32 level = 0; level<info.mipmapLevels; level++)
 			{
 				CHECK(mipWidth >= 1 && mipHeight >= 1);
 				uint32 currentMipLevelSize = mipWidth * mipHeight * TEXTURE_COMPONENT;
+				if(bGpuCompress)
+				{
+					currentMipLevelSize = getTotoalBlockPixelCount(blockType,mipWidth,mipHeight);
+				}
+
+				// TODO: 如果是BC压缩，最后两级Mipmap使用倒数第三级Mipmap的Buffer
+				//       可以减少StageBuffer数
 				auto* stageBuffer = VulkanBuffer::create(
 					VulkanRHI::get()->getVulkanDevice(),
 					VulkanRHI::get()->getCopyCommandPool(),
@@ -514,14 +524,14 @@ void AssetSystem::addAsset(std::string path,EAssetFormat format)
 		LOG_IO_INFO("Bakeing texture {0}....",path);
 		std::string bakeName = rawPathToAssetPath(path,format);
 		bool bNeedSrgb = false;
-		if(path.find("_Albedo")!=std::string::npos    ||
-		   path.find("_Emissive")!=std::string::npos  ||
-		   path.find("_BaseColor")!=std::string::npos
+		if(path.find("_Albedo.")!=std::string::npos    ||
+		   path.find("_Emissive.")!=std::string::npos  ||
+		   path.find("_BaseColor.")!=std::string::npos
 			)
 		{
 			bNeedSrgb = true;
 		}
-		bakeTexture(path.c_str(),bakeName.c_str(),bNeedSrgb,true,4,true);
+		bakeTexture(path.c_str(),bakeName.c_str(),bNeedSrgb,true,4,true,true,EBlockType::BC3);
 		LOG_IO_INFO("Baked texture {0}.",bakeName);
 		remove(path.c_str());
 		g_assetFolderDirty = true;

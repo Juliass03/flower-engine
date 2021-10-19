@@ -7,6 +7,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
+#define STB_DXT_IMPLEMENTATION
+#include <stb/stb_dxt.h>
+
 namespace engine{ namespace asset_system{
 
 // NOTE: 获得输入纹理的所有Mipmap像素数
@@ -34,6 +37,38 @@ uint32 getTextureMipmapPixelCount(uint32_t width,uint32_t height,uint32_t compon
     return mipPixelCount;
 }
 
+// NOTE: 获得所有Mipmap层级的总像素数
+uint32 getTextureMipmapPixelCountGpuCompress(uint32 texWidth,uint32 texHeight,uint32 mipmapCounts,EBlockType fmt)
+{
+    CHECK(texWidth >= 4);
+    CHECK(texHeight >= 4);
+
+    if(fmt==EBlockType::BC3)
+    {
+        // BC3 1/4 压缩率
+        const auto totalMipCount = getMipLevelsCount(texWidth,texHeight);
+        if(totalMipCount==mipmapCounts) // 有最后两级
+        {
+            const uint32 totalMipmapPixelCountWithoutFinal2Level = getTextureMipmapPixelCount(texWidth,texHeight,4,mipmapCounts);
+
+            // 最后两级均视为4x4的块来压缩
+            return (totalMipmapPixelCountWithoutFinal2Level - 1*1*4 - 2*2*4 + 4*4*4 * 2 ) /4;
+        }
+        else if(mipmapCounts==totalMipCount-1) // 没有最后一级
+        {
+            const uint32 totalMipmapPixelCountWithoutFinal2Level = getTextureMipmapPixelCount(texWidth,texHeight,4,mipmapCounts);
+			return (totalMipmapPixelCountWithoutFinal2Level - 1*1*4 - 2*2*4 + 4*4*4)/4;
+        }
+        else if(mipmapCounts==totalMipCount-2) // 没有最后两级
+        {
+            return getTextureMipmapPixelCount(texWidth,texHeight,4,mipmapCounts) / 4;
+        }
+    }
+
+    LOG_FATAL("ERROR Fmt");
+    return 0;
+}
+
 inline unsigned char srgbToLinear(unsigned char inSrgb)
 {
     float srgb = inSrgb / 255.0f;
@@ -55,12 +90,12 @@ inline unsigned char linearToSrgb(unsigned char inlin)
 static bool mipmapGenerate(const unsigned char* data,std::vector<unsigned char>& result, uint32_t width,uint32_t height,uint32_t componentCount,bool bSrgb)
 {
     if(componentCount != 4) return false;
-    if(width!=height)
-    {
-        // 非2的次方纹理的mipmap暂时不打算生成
-        // 之后有空引入3x3的滤波器在做处理
-        return false;
-    }
+    if(width!=height){ return false; }
+    if(width < 4) return false;
+    if(height < 4) return false;
+    if(width & (width - 1)) return false; // 非2的幂次
+    if(height & (height -1)) return false; // 非2的幂次
+
 
     uint32_t mipmapCount = getMipLevelsCount(width,height);
 
@@ -173,6 +208,161 @@ static bool mipmapGenerate(const unsigned char* data,std::vector<unsigned char>&
     return true;
 }
 
+static bool mipmapCompressBC3(std::vector<unsigned char>& inData,std::vector<unsigned char>& result,uint32_t width,uint32_t height)
+{
+    static const uint32 componentCount = 4;
+    static const uint32 blockSize = 4;
+
+    uint32_t mipmapCount = getMipLevelsCount(width,height);
+    CHECK(mipmapCount >= 3); // 最小两级Mipmap将使用倒数第三级Mipmap的数据，因为它们大小不足4x4
+
+    result.resize(getTextureMipmapPixelCountGpuCompress(width,height,mipmapCount,EBlockType::BC3));
+
+	uint32 mipWidth = width;
+	uint32 mipHeight = height;
+
+	uint32 mipPtrPos = 0;
+
+    uint8 block[64] {};
+    uint8* outBuffer = result.data();
+	for(uint32_t mipmapLevel = 0; mipmapLevel < mipmapCount; mipmapLevel++)
+	{
+        CHECK(mipPtrPos < (uint32)inData.size());
+		CHECK(mipWidth  >= 1);
+		CHECK(mipHeight >= 1);
+
+		// 处理当前Mip层级的所有的像素
+
+        if(mipWidth>=4)
+        {
+            for(uint32 pixelPosY = 0; pixelPosY < mipHeight; pixelPosY += blockSize)
+			{
+                for(uint32 pixelPosX = 0; pixelPosX < mipWidth; pixelPosX += blockSize)
+				{
+					// 提出4x4像素块中的数据到block中
+					uint32 blockLocation = 0;
+                    for(uint32 j = 0; j < blockSize; j++)
+					{
+                        for(uint32 i = 0; i < blockSize; i++)
+						{
+							const uint32 dimX = pixelPosX + i;
+							const uint32 dimY = pixelPosY + j;
+
+							const uint32 pixelLocation = mipPtrPos+(dimX+dimY*mipWidth)*componentCount;
+							unsigned char* dataStart = inData.data()+pixelLocation;
+
+							// 按顺序填入四个通道的像素
+							for(uint32 k = 0; k<componentCount; k++)
+							{
+								CHECK(blockLocation<64);
+								block[blockLocation] = *dataStart; blockLocation++; dataStart++;
+							}
+						}
+					}
+
+					// 提取完毕后做压缩处理
+					stb_compress_dxt_block(outBuffer,block,1,STB_DXT_HIGHQUAL);
+					outBuffer += 16; // 偏移16个像素
+				}
+			}
+        }
+		else if(mipWidth==2 && mipHeight==2)
+		{
+             const uint32 pixelLocation00 = mipPtrPos + (0 + 0 * mipWidth) * componentCount;
+             const uint32 pixelLocation01 = mipPtrPos + (0 + 1 * mipWidth) * componentCount;
+             const uint32 pixelLocation10 = mipPtrPos + (1 + 0 * mipWidth) * componentCount;
+             const uint32 pixelLocation11 = mipPtrPos + (1 + 1 * mipWidth) * componentCount;
+
+             // 00 block填充
+             for(uint32 j = 0; j<2; j++)
+             {
+                 for(uint32 i = 0; i<2; i++)
+                 {
+                    uint32 blockIndex = (i + j * 4) * 4;
+                    block[blockIndex + 0] = *(inData.data()  + pixelLocation00 + 0);
+                    block[blockIndex + 1] = *(inData.data()  + pixelLocation00 + 1);
+                    block[blockIndex + 2] = *(inData.data()  + pixelLocation00 + 2);
+                    block[blockIndex + 3] = *(inData.data()  + pixelLocation00 + 3);
+                 }
+             }
+
+             // 01 block填充
+             for(uint32 j = 0; j<2; j++)
+             {
+                 for(uint32 i = 0; i<2; i++)
+				 {
+					 uint32 blockIndex = (i+j*4)*4;
+					 block[blockIndex+0] = *(inData.data()+pixelLocation01+0);
+					 block[blockIndex+1] = *(inData.data()+pixelLocation01+1);
+					 block[blockIndex+2] = *(inData.data()+pixelLocation01+2);
+					 block[blockIndex+3] = *(inData.data()+pixelLocation01+3);
+				 }
+			 }
+
+             // 10 block填充
+             for(uint32 j = 0; j<2; j++)
+             {
+                 for(uint32 i = 0; i<2; i++)
+				 {
+					 uint32 blockIndex = (i+j*4)*4;
+					 block[blockIndex+0] = *(inData.data()+pixelLocation10+0);
+					 block[blockIndex+1] = *(inData.data()+pixelLocation10+1);
+					 block[blockIndex+2] = *(inData.data()+pixelLocation10+2);
+					 block[blockIndex+3] = *(inData.data()+pixelLocation10+3);
+				 }
+			 }
+
+             // 11 block填充
+             for(uint32 j = 0; j<2; j++)
+             {
+                 for(uint32 i = 0; i<2; i++)
+				 {
+					 uint32 blockIndex = (i+j*4)*4;
+					 block[blockIndex+0] = *(inData.data()+pixelLocation11+0);
+					 block[blockIndex+1] = *(inData.data()+pixelLocation11+1);
+					 block[blockIndex+2] = *(inData.data()+pixelLocation11+2);
+					 block[blockIndex+3] = *(inData.data()+pixelLocation11+3);
+				 }
+			 }
+
+			 stb_compress_dxt_block(outBuffer,block,1,STB_DXT_HIGHQUAL);
+			 outBuffer += 16; // 偏移16个像素
+		}
+		else if(mipWidth==1 && mipHeight==1)
+		{
+            uint8* dataStart = inData.data() + mipPtrPos;
+            for(uint32 i = 0; i < 64; i += 4)
+            {
+                // 填入四个通道
+                block[i + 0] = *(dataStart + 0);
+                block[i + 1] = *(dataStart + 1);
+                block[i + 2] = *(dataStart + 2);
+                block[i + 3] = *(dataStart + 3);
+            }
+            stb_compress_dxt_block(outBuffer,block,1,STB_DXT_HIGHQUAL);
+            // outBuffer += 16; // 偏移16个像素 // 最后一级无需偏移
+		}
+
+        // 将指针偏移到下一级Mip开始的像素位置
+		mipPtrPos += mipWidth * mipHeight * componentCount;
+
+		mipWidth  /= 2;
+		mipHeight /= 2;
+	}
+
+    return true;
+}
+
+static bool mipmapCompressGpu(std::vector<unsigned char>& inData,std::vector<unsigned char>& result,uint32_t width,uint32_t height,uint32_t componentCount,bool bSrgb,EBlockType type)
+{
+    if(type == EBlockType::BC3)
+    {
+        return mipmapCompressBC3(inData,result,width,height);
+    }
+
+    return false;
+}
+
 uint32 toUint32(ESamplerType type)
 {
     return static_cast<uint32>(type);
@@ -218,6 +408,8 @@ AssetFile packTexture(TextureInfo* info,void* pixelData)
     textureMetadata["sampler"] = toUint32(info->samplerType);
     textureMetadata["mipmapLevels"] = info->mipmapLevels;
     textureMetadata["bCacheMipmaps"] = info->bCacheMipmaps;
+    textureMetadata["bGpuCompress"] = info->bGpuCompress;
+    textureMetadata["gpuCompressType"] = uint32(info->gpuCompressType);
 
     // LZ4 压缩
     if(info->compressMode == ECompressMode::LZ4)
@@ -261,6 +453,8 @@ TextureInfo readTextureInfo(AssetFile* file)
 
     info.bCacheMipmaps = textureMetadata["bCacheMipmaps"];
     info.mipmapLevels = textureMetadata["mipmapLevels"];
+    info.bGpuCompress = textureMetadata["bGpuCompress"];
+    info.gpuCompressType = EBlockType(textureMetadata["gpuCompressType"]);
 
     info.srgb = textureMetadata["srgb"];
     info.samplerType = toSamplerType(textureMetadata["sampler"]);
@@ -290,7 +484,7 @@ EAssetFormat castToAssetFormat(int32 channels)
     return EAssetFormat::Unknown;
 }
 
-bool bakeTexture(const char* pathIn,const char* pathOut,bool srgb,bool compress,uint32 req_comp,bool bGenerateMipmap)
+bool bakeTexture(const char* pathIn,const char* pathOut,bool srgb,bool compress,uint32 req_comp,bool bGenerateMipmap,bool bGpuCompress,EBlockType blockType)
 {
     CHECK(req_comp == 4);
     int32 texWidth, texHeight, texChannels;
@@ -301,6 +495,8 @@ bool bakeTexture(const char* pathIn,const char* pathOut,bool srgb,bool compress,
         LOG_IO_FATAL("Fail to load image {0}.",pathIn);
     }
 
+    static const auto BLOCK_TYPE = EBlockType::BC3;
+
 	std::vector<unsigned char> generateMips{};
     bool bGenerateMipsSucess = false;
 	if(bGenerateMipmap)
@@ -308,12 +504,37 @@ bool bakeTexture(const char* pathIn,const char* pathOut,bool srgb,bool compress,
         bGenerateMipsSucess = mipmapGenerate((unsigned char*)pixels,generateMips,texWidth,texHeight,req_comp,srgb);
 	}
 
+    const bool bNeedGpuCompress = bGpuCompress && bGenerateMipsSucess;
+    std::vector<unsigned char> generateMipsCompressGpu{};
+    bool bGpuCompressSucess = false;
+    if(bNeedGpuCompress)
+    {
+        bGpuCompressSucess = mipmapCompressGpu(generateMips,generateMipsCompressGpu,texWidth,texHeight,req_comp,srgb,BLOCK_TYPE);
+    }
+
     TextureInfo info;
-	info.bCacheMipmaps = bGenerateMipsSucess;
-	info.mipmapLevels = getMipLevelsCount(texWidth,texHeight);
+    info.bCacheMipmaps = bGenerateMipsSucess;
+    info.gpuCompressType = blockType;
+    info.bGpuCompress = bGpuCompressSucess;
+    info.mipmapLevels = getMipLevelsCount(texWidth,texHeight);
 
-    int32 imageSize = bGenerateMipsSucess ? getTextureMipmapPixelCount(texWidth,texHeight,req_comp,info.mipmapLevels) : texWidth * texHeight * req_comp;
+    int32 imageSize = 0;
+    if(bGpuCompressSucess)
+    {
+        CHECK(getTextureMipmapPixelCountGpuCompress(texWidth,texHeight,info.mipmapLevels,BLOCK_TYPE) == (uint32)generateMipsCompressGpu.size());
+        imageSize = (int32)generateMipsCompressGpu.size();
+    }
+    else if(bGenerateMipsSucess)
+    {
+        CHECK(getTextureMipmapPixelCount(texWidth,texHeight,req_comp,info.mipmapLevels) == (uint32)generateMips.size());
+        imageSize = (int32)generateMips.size();
+    }
+    else
+    {
+        imageSize = texWidth * texHeight * req_comp;
+    }
 
+    
     info.format = castToAssetFormat(req_comp);
     info.originalFile = pathIn;
     info.textureSize = imageSize;
@@ -326,8 +547,19 @@ bool bakeTexture(const char* pathIn,const char* pathOut,bool srgb,bool compress,
     info.pixelSize[2] = 1;
     info.compressMode = compress ? ECompressMode::LZ4 : ECompressMode::None;
 
-    AssetFile newImage = bGenerateMipsSucess ? packTexture(&info,generateMips.data()) : packTexture(&info,pixels);
-
+    AssetFile newImage{};
+    if(bGpuCompressSucess)
+    {
+        newImage = packTexture(&info,generateMipsCompressGpu.data());
+    }
+    else if(bGenerateMipsSucess)
+    {
+        newImage = packTexture(&info,generateMips.data());
+    }
+    else
+    {
+        newImage = packTexture(&info,pixels);
+    }
     stbi_image_free(pixels);
     return saveBinFile(pathOut,newImage);
 }
@@ -342,16 +574,35 @@ VkFormat asset_system::TextureInfo::getVkFormat()
     {
         if(this->srgb)
         {
-            return VK_FORMAT_R8G8B8A8_SRGB;
+            if(this->bGpuCompress)
+            {
+                if(this->gpuCompressType==EBlockType::BC3)
+                {
+                    return VK_FORMAT_BC3_SRGB_BLOCK;
+                }
+            }
+            else
+            {
+                return VK_FORMAT_R8G8B8A8_SRGB;
+            }
         }
         else
         {
-            return VK_FORMAT_R8G8B8A8_UNORM;
+            if(this->bGpuCompress)
+            {
+                if(this->gpuCompressType==EBlockType::BC3)
+                {
+                    return VK_FORMAT_BC3_UNORM_BLOCK;
+                }
+            }
+            else
+            {
+                return VK_FORMAT_R8G8B8A8_UNORM;
+            }
         }
     }
-    default:
-        LOG_FATAL("Unkonw format!");
     }
+    LOG_FATAL("Unkonw format!");
 }
 
 }
