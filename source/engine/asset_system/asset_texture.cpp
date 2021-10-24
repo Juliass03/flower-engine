@@ -1,8 +1,18 @@
-#include "asset_texture.h"
 #include "asset_system.h"
+#include "../core/file_system.h"
+#include <filesystem>
+#include <fstream>
+#include "../vk/vk_rhi.h"
+#include <stb/stb_image.h>
+#include "../../imgui/imgui_impl_vulkan.h"
+#include "../renderer/texture.h"
+#include "asset_texture.h"
+#include "asset_mesh.h"
+#include "../launch/launch_engine_loop.h"
+#include "../core/job_system.h"
+
 #include <nlohmann/json.hpp>
 #include <lz4/lz4.h>
-#include "../vk/impl/vk_common.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
@@ -603,6 +613,460 @@ VkFormat asset_system::TextureInfo::getVkFormat()
     }
     }
     LOG_FATAL("Unkonw format!");
+}
+
+inline void submitAsync(
+    VkDevice device,
+    VkCommandPool commandPool,
+    VkQueue queue,
+    VkFence fence,
+    const std::function<void(VkCommandBuffer cb)>& func)
+{
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(device,&allocInfo,&commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(commandBuffer,&beginInfo);
+    func(commandBuffer);
+
+    vkEndCommandBuffer(commandBuffer);
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+    vkQueueSubmit(queue,1,&submitInfo,fence);
+    vkFreeCommandBuffers(device,commandPool,1,&commandBuffer);
+}
+
+namespace asset_system
+{
+    // NOTE: 一个Uploader对应一个纹理上传任务
+    class GpuUploadTextureAsync
+    {
+        bool m_ready = false;
+        VkCommandPool m_pool = VK_NULL_HANDLE;
+        VkDevice m_device = VK_NULL_HANDLE;
+
+        void release()
+        {
+            if(fence!=nullptr)
+            {
+                VulkanRHI::get()->getFencePool().waitAndReleaseFence(fence,1000000);
+                fence = nullptr;
+            }
+            if(uploadBuffers.size()>0)
+            {
+                for(auto* buf : uploadBuffers)
+                {
+                    delete buf;
+                    buf = nullptr;
+                }
+                uploadBuffers.clear();
+                uploadBuffers.resize(0);
+            }
+            finishCallBack = {};
+            if(cmdBuf!=VK_NULL_HANDLE)
+            {
+                vkFreeCommandBuffers(m_device,m_pool,1,&cmdBuf);
+                cmdBuf = VK_NULL_HANDLE;
+            }
+        }
+    public:
+        Ref<VulkanFence> fence = nullptr;
+        std::vector<VulkanBuffer*> uploadBuffers{};
+        std::function<void()> finishCallBack{};
+        VkCommandBuffer cmdBuf = VK_NULL_HANDLE;
+
+        void init()
+        {
+            release();
+            m_device = *VulkanRHI::get()->getVulkanDevice();
+            m_pool = VulkanRHI::get()->getCopyCommandPool();
+
+            VkCommandBufferAllocateInfo allocInfo{};
+            allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocInfo.commandPool = VulkanRHI::get()->getCopyCommandPool();
+            allocInfo.commandBufferCount = 1;
+            vkAllocateCommandBuffers(*VulkanRHI::get()->getVulkanDevice(),&allocInfo,&cmdBuf);
+
+            fence = VulkanRHI::get()->getFencePool().createFence(false);
+        }
+
+        void beginCmd()
+        {
+            VkCommandBufferBeginInfo beginInfo{};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            vkBeginCommandBuffer(cmdBuf,&beginInfo);
+        }
+
+        void endCmdAndSubmit()
+        {
+            vkEndCommandBuffer(cmdBuf);
+            VkSubmitInfo submitInfo{};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &cmdBuf;
+
+            vkQueueSubmit(VulkanRHI::get()->getAsyncCopyQueue()->queue,1,&submitInfo,fence->getFence());
+        }
+
+        bool tick()
+        {
+            if(!m_ready)
+            {
+                if(VulkanRHI::get()->getFencePool().isFenceSignaled(fence))
+                {
+                    m_ready = true;
+                    if(finishCallBack)
+                    {
+                        finishCallBack();
+                    }
+                    release();
+                }
+            }
+            return m_ready;
+        }
+    };
+}
+
+void asset_system::AssetSystem::checkTextureUploadStateAsync()
+{
+    for(auto iterP = m_uploadingTextureAsyncTask.begin(); iterP!=m_uploadingTextureAsyncTask.end();)
+    {
+        bool tickResult = (*iterP)->tick();
+        if(tickResult) // finish
+        {
+            iterP = m_uploadingTextureAsyncTask.erase(iterP);
+        }
+        else
+        {
+            ++iterP;
+        }
+    }
+}
+
+VkSampler toVkSampler(asset_system::ESamplerType type)
+{
+    switch(type)
+    {
+    case engine::asset_system::ESamplerType::PointClamp:
+        return VulkanRHI::get()->getPointClampSampler();
+
+    case engine::asset_system::ESamplerType::PointRepeat:
+        return VulkanRHI::get()->getPointRepeatSampler();
+
+    case engine::asset_system::ESamplerType::LinearClamp:
+        return VulkanRHI::get()->getLinearClampSampler();
+
+    case engine::asset_system::ESamplerType::LinearRepeat:
+        return VulkanRHI::get()->getLinearRepeatSampler();
+    }
+    return VulkanRHI::get()->getPointClampSampler();
+}
+
+
+bool asset_system::AssetSystem::loadTexture2DImage(CombineTexture& inout,const std::string& gameName)
+{
+    using namespace asset_system;
+    if(std::filesystem::exists(gameName)) // 文件若不存在则返回fasle并换成替代纹理
+    {
+        CHECK(inout.texture == nullptr);
+
+        AssetFile asset {};
+        loadBinFile(gameName.c_str(),asset);
+        CHECK(asset.type[0]=='T'&&
+            asset.type[1]=='E'&&
+            asset.type[2]=='X'&&
+            asset.type[3]=='I');
+
+        TextureInfo info = readTextureInfo(&asset);
+
+        // Unpack data to container.
+        std::vector<uint8> pixelData{};
+        pixelData.resize(info.textureSize);
+        unpackTexture(&info,asset.binBlob.data(),asset.binBlob.size(),(char*)pixelData.data());
+        inout.sampler = toVkSampler(info.samplerType);
+
+        if(info.bCacheMipmaps)
+        {
+            inout.texture = Texture2DImage::create(
+                VulkanRHI::get()->getVulkanDevice(),
+                info.pixelSize[0],
+                info.pixelSize[1],
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                info.getVkFormat(),
+                false,
+                info.mipmapLevels
+            );
+
+            uint32 mipWidth  = info.pixelSize[0];
+            uint32 mipHeight = info.pixelSize[1];
+            uint32 offsetPtr = 0; 
+
+            auto uploader = std::make_shared<GpuUploadTextureAsync>();
+            m_uploadingTextureAsyncTask.push_back(uploader);
+            uploader->init();
+
+            const bool bGpuCompress = info.bGpuCompress;
+            const auto blockType = info.gpuCompressType;
+
+            // 首先填充stageBuffer
+            for(uint32 level = 0; level<info.mipmapLevels; level++)
+            {
+                CHECK(mipWidth >= 1 && mipHeight >= 1);
+                uint32 currentMipLevelSize = mipWidth * mipHeight * TEXTURE_COMPONENT;
+                if(bGpuCompress)
+                {
+                    currentMipLevelSize = getTotoalBlockPixelCount(blockType,mipWidth,mipHeight);
+                }
+
+                auto* stageBuffer = VulkanBuffer::create(
+                    VulkanRHI::get()->getVulkanDevice(),
+                    VulkanRHI::get()->getCopyCommandPool(),
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+                    VMA_MEMORY_USAGE_CPU_TO_GPU,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    (VkDeviceSize)currentMipLevelSize,
+                    (void*)(pixelData.data() + offsetPtr)
+                );
+                uploader->uploadBuffers.push_back(stageBuffer);
+                mipWidth  /= 2;
+                mipHeight /= 2;
+                offsetPtr += currentMipLevelSize;
+            }
+
+            const uint32 mipLevels = info.mipmapLevels;
+            mipWidth = info.pixelSize[0]; mipHeight = info.pixelSize[1];
+            VulkanImage* imageProcess = inout.texture;
+
+            uploader->beginCmd();
+            for(uint32 level = 0; level < mipLevels; level++)
+            {
+                CHECK(mipWidth >= 1 && mipHeight >= 1);
+                imageProcess->copyBufferToImage(uploader->cmdBuf,*uploader->uploadBuffers[level],mipWidth,mipHeight,VK_IMAGE_ASPECT_COLOR_BIT,level);
+                if(level==(mipLevels-1))
+                {
+                    imageProcess->transitionLayout(uploader->cmdBuf,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,VK_IMAGE_ASPECT_COLOR_BIT);
+                }
+                mipWidth  /= 2;
+                mipHeight /= 2;
+            }
+            uploader->endCmdAndSubmit();
+
+            uploader->finishCallBack = [&inout]()
+            {
+                inout.bReady = true;
+                TextureLibrary::get()->updateTextureToBindlessDescriptorSet(inout);
+            };
+        }
+        else
+        {
+            LOG_GRAPHICS_INFO("Uploading texture {0} to GPU and generate mipmaps...",gameName);
+            inout.texture = Texture2DImage::createAndUpload(
+                VulkanRHI::get()->getVulkanDevice(),
+                VulkanRHI::get()->getGraphicsCommandPool(),
+                VulkanRHI::get()->getGraphicsQueue(),
+                pixelData,
+                info.pixelSize[0],
+                info.pixelSize[1],
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                info.getVkFormat()
+            );
+            inout.bReady = true;
+            TextureLibrary::get()->updateTextureToBindlessDescriptorSet(inout);
+        }
+        return true;
+    }
+
+    return false;
+}
+
+
+Texture2DImage* loadFromFile(const std::string& path,VkFormat format,uint32 req,bool flip)
+{
+    int32 texWidth, texHeight, texChannels;
+    stbi_set_flip_vertically_on_load(flip);  
+    stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels,req);
+
+    if (!pixels) 
+    {
+        LOG_IO_FATAL("Fail to load image {0}.",path);
+    }
+
+    int32 imageSize = texWidth * texHeight * req;
+
+    std::vector<uint8> pixelData{};
+    pixelData.resize(imageSize);
+
+    memcpy(pixelData.data(),pixels,imageSize);
+
+    stbi_image_free(pixels);
+    stbi_set_flip_vertically_on_load(false);  
+
+    Texture2DImage* ret = Texture2DImage::createAndUpload(
+        VulkanRHI::get()->getVulkanDevice(),
+        VulkanRHI::get()->getGraphicsCommandPool(),
+        VulkanRHI::get()->getGraphicsQueue(),
+        pixelData,
+        texWidth,texHeight,VK_IMAGE_ASPECT_COLOR_BIT,format
+    );
+
+    return ret;
+}
+
+void asset_system::EngineAsset::init()
+{
+    if(bInit) return;
+    std::string mediaDir = s_mediaDir; 
+
+    iconFolder = new IconInfo(mediaDir + "icon/folder.png");
+    iconFile = new IconInfo(mediaDir + "icon/file.png");
+    iconBack = new IconInfo(mediaDir + "icon/back.png");
+    iconHome = new IconInfo(mediaDir + "icon/home.png");
+    iconFlash = new IconInfo(mediaDir + "icon/flash.png");
+    iconProject = new IconInfo(mediaDir + "icon/project.png");
+    iconMaterial = new IconInfo(mediaDir + "icon/material.png");
+    iconMesh = new IconInfo(mediaDir + "icon/mesh.png");
+    iconTexture = new IconInfo(mediaDir + "icon/image.png");
+
+    bInit = true;
+}
+
+void asset_system::EngineAsset::release()
+{
+    if(!bInit) return;
+
+    delete iconFolder;
+    delete iconFile;
+    delete iconBack;
+    delete iconHome;
+    delete iconFlash;
+    delete iconProject;
+    delete iconMesh;
+    delete iconMaterial;
+    delete iconTexture;
+    bInit = false;
+}
+
+asset_system::EngineAsset::IconInfo* asset_system::EngineAsset::getIconInfo(const std::string& name)
+{
+    if(m_cacheIconInfo[name].icon == nullptr)
+    {
+        if(TextureLibrary::get()->existTexture(name))
+        {
+            auto pair = TextureLibrary::get()->getCombineTextureByName(name);
+            if(pair.first == ERequestTextureResult::Ready)
+            {
+                m_cacheIconInfo[name].icon = pair.second.texture;
+                m_cacheIconInfo[name].sampler = pair.second.sampler;
+            }
+        }
+    }
+    return &m_cacheIconInfo[name];
+}
+
+void asset_system::AssetSystem::loadEngineTextures()
+{
+    auto* textureLibrary = TextureLibrary::get();
+
+    textureLibrary->m_textureContainer[s_defaultWhiteTextureName] = {};
+    auto& whiteTexture = textureLibrary->m_textureContainer[s_defaultWhiteTextureName];
+    whiteTexture.sampler = VulkanRHI::get()->getLinearRepeatSampler();
+    whiteTexture.texture = loadFromFile(s_defaultWhiteTextureName,VK_FORMAT_B8G8R8A8_UNORM,4,false);
+    whiteTexture.bReady = true;
+    TextureLibrary::get()->updateTextureToBindlessDescriptorSet(whiteTexture);
+
+    textureLibrary->m_textureContainer[s_defaultBlackTextureName] = {};
+    auto& blackTexture = textureLibrary->m_textureContainer[s_defaultBlackTextureName];
+    blackTexture.sampler = VulkanRHI::get()->getLinearRepeatSampler();
+    blackTexture.texture = loadFromFile(s_defaultBlackTextureName,VK_FORMAT_B8G8R8A8_UNORM,4,false);
+    blackTexture.bReady = true;
+    TextureLibrary::get()->updateTextureToBindlessDescriptorSet(blackTexture);
+
+    textureLibrary->m_textureContainer[s_defaultNormalTextureName] = {};
+    auto& normalTexture = textureLibrary->m_textureContainer[s_defaultNormalTextureName];
+    normalTexture.sampler = VulkanRHI::get()->getLinearRepeatSampler();
+    normalTexture.texture = loadFromFile(s_defaultNormalTextureName,VK_FORMAT_B8G8R8A8_UNORM,4,false);
+    normalTexture.bReady = true;
+    TextureLibrary::get()->updateTextureToBindlessDescriptorSet(normalTexture);
+
+    textureLibrary->m_textureContainer[s_defaultCheckboardTextureName] = {};
+    auto& checkboxTexture = textureLibrary->m_textureContainer[s_defaultCheckboardTextureName];
+    checkboxTexture.sampler = VulkanRHI::get()->getLinearRepeatSampler();
+    checkboxTexture.texture = loadFromFile(s_defaultCheckboardTextureName,VK_FORMAT_R8G8B8A8_SRGB,4,false);
+    checkboxTexture.bReady = true;
+    TextureLibrary::get()->updateTextureToBindlessDescriptorSet(checkboxTexture);
+
+    textureLibrary->m_textureContainer[s_defaultEmissiveTextureName] = {};
+    auto& emissiveTexture = textureLibrary->m_textureContainer[s_defaultEmissiveTextureName];
+    emissiveTexture.sampler = VulkanRHI::get()->getLinearRepeatSampler();
+    emissiveTexture.texture = loadFromFile(s_defaultEmissiveTextureName,VK_FORMAT_R8G8B8A8_SRGB,4,false);
+    emissiveTexture.bReady = true;
+    TextureLibrary::get()->updateTextureToBindlessDescriptorSet(emissiveTexture);
+}
+
+
+void asset_system::EngineAsset::IconInfo::init(const std::string& path,bool flip)
+{
+    icon = loadFromFile(path, VK_FORMAT_R8G8B8A8_SRGB, 4,flip);
+    sampler = VulkanRHI::get()->getLinearClampSampler();
+}
+
+void asset_system::EngineAsset::IconInfo::release()
+{
+    delete icon;
+}
+
+void* asset_system::EngineAsset::IconInfo::getId()
+{
+    if(cacheId!=nullptr)
+    {
+        return cacheId;
+    }
+    else
+    {
+        cacheId = (void*)ImGui_ImplVulkan_AddTexture(sampler,icon->getImageView(),icon->getCurentLayout());
+        return cacheId;
+    }
+}
+
+uint32 asset_system::getBlockSize(EBlockType fmt)
+{
+    switch(fmt)
+    {
+    case engine::asset_system::EBlockType::BC3:
+        return 16;
+    }
+
+    LOG_FATAL("UNKONW BLOCK TYPE!");
+    return 0;
+}
+
+uint32 engine::asset_system::getTotoalBlockPixelCount(EBlockType fmt,uint32 width,uint32 height)
+{
+    CHECK(width == height);
+
+    if(fmt == EBlockType::BC3)
+    {
+        uint32 trueWidth  = width  >= 4 ? width  : 4;
+        uint32 trueHeight = height >= 4 ? height : 4;
+
+        // NOTE:BC3 4通道 1/4压缩
+        return trueWidth * trueHeight;// * 4 / 4;
+    }
+
+    LOG_FATAL("ERROR Block Type!");
+    return 0;
 }
 
 }

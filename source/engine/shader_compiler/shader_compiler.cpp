@@ -19,9 +19,7 @@
 using namespace engine;
 using namespace engine::shaderCompiler;
 
-const char* engineShaderTag = ":/";
-bool engine::shaderCompiler::g_globalPassShouldRebuild = false;
-bool engine::shaderCompiler::g_meshPassShouldRebuild = false;
+bool engine::shaderCompiler::g_shaderPassChange = false;
 
 static AutoCVarInt32 cVarRemoveShaderString(
 	"r.ShaderCompiler.RemoveShaderText",
@@ -31,13 +29,60 @@ static AutoCVarInt32 cVarRemoveShaderString(
 	CVarFlags::ReadOnly | CVarFlags::InitOnce
 );
 
-template <typename TP>
-long long to_time_t(TP tp)
+template <typename TP> long long toTimeT(TP tp)
 {
 	using namespace std::chrono;
 	auto sctp = time_point_cast<system_clock::duration>(tp - TP::clock::now()
 		+ system_clock::now());
 	return system_clock::to_time_t(sctp);
+}
+
+std::string engine::shaderCompiler::toString(EShaderPass passType)
+{
+	if(passType == EShaderPass::GBuffer)
+	{
+		return "GBuffer";
+	}
+	else if(passType == EShaderPass::Tonemapper)
+	{
+		return "Tonemapper";
+	}
+	else if(passType == EShaderPass::Lighting)
+	{
+		return "Lighting";
+	}
+	else if(passType == EShaderPass::Depth)
+	{
+		return "Depth";
+	}
+	else
+	{
+		return "Unknow";
+	}
+}
+
+engine::shaderCompiler::EShaderPass engine::shaderCompiler::toShaderPassType(const std::string& name)
+{
+	if(name=="GBuffer")
+	{
+		return EShaderPass::GBuffer;
+	}
+	else if(name=="Tonemapper")
+	{
+		return EShaderPass::Tonemapper;
+	}
+	else if(name=="Depth")
+	{
+		return EShaderPass::Depth;
+	}
+	else if(name=="Lighting")
+	{
+		return EShaderPass::Lighting;
+	}
+	else
+	{
+		return EShaderPass::Max;
+	}
 }
 
 bool engine::shaderCompiler::compileShader(const std::string& path,ShaderInfo& inout)
@@ -116,7 +161,8 @@ bool engine::shaderCompiler::compileShader(const std::string& path,ShaderInfo& i
 
 			std::string shaderpathName = *iter;
 
-			if (shaderpathName.rfind(":/", 0) == 0) 
+			static const char* engineShaderTag = ":/";
+			if (shaderpathName.rfind(engineShaderTag, 0) == 0) 
 			{ 
 				shaderpathName = std::regex_replace(shaderpathName,std::regex(engineShaderTag),s_engineShader);
 			}
@@ -154,9 +200,7 @@ std::string getShaderCacheName(ShaderInfo info)
 
 bool engine::shaderCompiler::ShaderCompiler::init()
 {
-	buildCallbackShader();
-
-	// 初始化时先刷新一遍脏shader
+	// NOTE: 初始化时先刷新一遍脏shader
 	flushDirtyShaderMap();
 
 	return true;
@@ -173,13 +217,19 @@ void engine::shaderCompiler::ShaderCompiler::release()
 	m_engineShadersWatcher.end();
 }
 
+bool engine::shaderCompiler::ShaderCompiler::containShader(const std::string& key) const
+{
+	auto el = m_cacheShaderMap.find(key);
+	return el != m_cacheShaderMap.end();
+}
+
 void engine::shaderCompiler::ShaderCompiler::flushDirtyShaderMap()
 {
-	// 直接拷贝一份出来以防止太长时间的监视线程阻塞
-	mtx.lock();
+	// NOTE: 直接拷贝一份出来以防止太长时间的监视线程阻塞
+	m_dirtyShaderMapMutex.lock();
 	std::unordered_map<std::string,ShaderAction> copyThreadSafeDirtyShaderMaps = m_dirtyShaderMaps;
 	m_dirtyShaderMaps.clear();
-	mtx.unlock();
+	m_dirtyShaderMapMutex.unlock();
 
 	for(auto& pair : copyThreadSafeDirtyShaderMaps)
 	{
@@ -225,47 +275,13 @@ void engine::shaderCompiler::ShaderCompiler::flushDirtyShaderMap()
 	}
 }
 
-void engine::shaderCompiler::ShaderCompiler::buildCallbackShader()
-{
-	{
-		m_cacheShaderMap[fallbackShaderName::gbuffer] = std::make_shared<ShaderInfo>();
-		auto& shaderInfo = *m_cacheShaderMap[fallbackShaderName::gbuffer];
-		shaderInfo.passType = EShaderPass::GBuffer;
-		shaderInfo.compiled = true;
-		shaderInfo.compiled_suceess = true;
-		shaderInfo.compiling = false;
-		shaderInfo.compiled_vertShaderPath = fallbackShaderPath::gbufferVert;
-		shaderInfo.compiled_fragShaderPath = fallbackShaderPath::gbufferFrag;
-		shaderInfo.shaderName = fallbackShaderName::gbuffer;
-		shaderInfo.effect = std::make_shared<ShaderEffect>();
-		shaderInfo.effect->addStage(VulkanRHI::get()->getShader(shaderInfo.compiled_vertShaderPath),VK_SHADER_STAGE_VERTEX_BIT);
-		shaderInfo.effect->addStage(VulkanRHI::get()->getShader(shaderInfo.compiled_fragShaderPath),VK_SHADER_STAGE_FRAGMENT_BIT);
-		shaderInfo.effect->reflectLayout(VulkanRHI::get()->getDevice(),nullptr,0);
-	}
-
-	{
-		m_cacheShaderMap[fallbackShaderName::depth] = std::make_shared<ShaderInfo>();
-		auto& shaderInfo = *m_cacheShaderMap[fallbackShaderName::depth];
-		shaderInfo.passType = EShaderPass::ShadowDepth;
-		shaderInfo.compiled = true;
-		shaderInfo.compiled_suceess = true;
-		shaderInfo.compiling = false;
-		shaderInfo.compiled_vertShaderPath = fallbackShaderPath::depthVert;
-		shaderInfo.compiled_fragShaderPath = fallbackShaderPath::depthFrag;
-		shaderInfo.shaderName = fallbackShaderName::depth;
-		shaderInfo.effect = std::make_shared<ShaderEffect>();
-		shaderInfo.effect->addStage(VulkanRHI::get()->getShader(shaderInfo.compiled_vertShaderPath),VK_SHADER_STAGE_VERTEX_BIT);
-		shaderInfo.effect->addStage(VulkanRHI::get()->getShader(shaderInfo.compiled_fragShaderPath),VK_SHADER_STAGE_FRAGMENT_BIT);
-		shaderInfo.effect->reflectLayout(VulkanRHI::get()->getDevice(),nullptr,0);
-	}
-}
-
 void engine::shaderCompiler::ShaderCompiler::shaderFileWatch(std::string path_to_watch, engine::FileWatcher::FileStatus status,std::filesystem::file_time_type timeType)
 {
-	// 我们仅对 .shader 结尾的文件修改做处理
+	// NOTE: 当前我们仅对 .shader 结尾的文件修改做处理
+	// TODO: 监视所有.glsl .vert .frag等结尾的文件修改
 	if(FileSystem::getFileSuffixName(path_to_watch) != ".shader") return;
 
-	// 不符合shader格式的shader文件不予编译
+	// NOTE: 不符合shader格式的shader文件不予编译
 	ShaderInfo info;
 	if(!compileShader(path_to_watch,info))
 	{
@@ -275,7 +291,8 @@ void engine::shaderCompiler::ShaderCompiler::shaderFileWatch(std::string path_to
 
 	ShaderAction shader_action;
 	shader_action.info = info;
-	shader_action.info.lastEditTime = std::to_string(to_time_t(timeType));
+	shader_action.info.lastEditTime = std::to_string(toTimeT(timeType));
+
 	switch(status)
 	{
 	case engine::FileWatcher::FileStatus::Created:
@@ -295,8 +312,10 @@ void engine::shaderCompiler::ShaderCompiler::shaderFileWatch(std::string path_to
 		break;
 	}
 
-	// 如果重名则直接覆盖掉
+	// NOTE: 如果重名则直接覆盖掉
+	m_dirtyShaderMapMutex.lock();
 	m_dirtyShaderMaps[path_to_watch] = shader_action;
+	m_dirtyShaderMapMutex.unlock();
 }
 
 ShaderCompact engine::shaderCompiler::ShaderCompiler::getFallbackShader(EShaderPass passType)
@@ -318,7 +337,7 @@ ShaderCompact engine::shaderCompiler::ShaderCompiler::getFallbackShader(EShaderP
 		ret.vertex = VulkanRHI::get()->getShader(fallbackShaderPath::lightingVert);
 		ret.frag   = VulkanRHI::get()->getShader(fallbackShaderPath::lightingFrag);
 	}
-	else if(passType==EShaderPass::ShadowDepth)
+	else if(passType==EShaderPass::Depth)
 	{
 		ret.vertex = VulkanRHI::get()->getShader(fallbackShaderPath::depthVert);
 		ret.frag   = VulkanRHI::get()->getShader(fallbackShaderPath::depthFrag);
@@ -331,13 +350,23 @@ ShaderCompact engine::shaderCompiler::ShaderCompiler::getFallbackShader(EShaderP
 	return ret;
 }
 
-engine::shaderCompiler::ShaderCompiler::ShaderCompiler(Ref<ModuleManager> manager) 
-	: IRuntimeModule(manager),
-	m_engineShadersWatcher(engine::FileWatcher(s_engineShader,std::chrono::milliseconds(500),
-		"engineShaderWatcher",
-		[&](std::string path_to_watch, engine::FileWatcher::FileStatus status,std::filesystem::file_time_type timeType) -> void {
-	shaderFileWatch(path_to_watch,status,timeType);
-}))
+const std::unordered_map<std::string,std::shared_ptr<ShaderInfo>>& engine::shaderCompiler::ShaderCompiler::getCacheShader() const
+{
+	return m_cacheShaderMap;
+}
+
+engine::shaderCompiler::ShaderCompiler::ShaderCompiler(Ref<ModuleManager> manager) : 
+	  IRuntimeModule(manager)
+	, m_engineShadersWatcher(
+		engine::FileWatcher(
+				s_engineShader
+			, std::chrono::milliseconds(500)
+			, "engineShaderWatcher"
+			, [&](std::string path_to_watch, engine::FileWatcher::FileStatus status,std::filesystem::file_time_type timeType) -> void 
+			{
+				shaderFileWatch(path_to_watch,status,timeType);
+			}
+		))
 {
 	const auto& cachePathMap = m_engineShadersWatcher.getCachePaths();
 
@@ -348,7 +377,7 @@ engine::shaderCompiler::ShaderCompiler::ShaderCompiler(Ref<ModuleManager> manage
 		{
 			ShaderAction action;
 			action.action = ShaderAction::Action::Add;
-			action.info.lastEditTime = std::to_string(to_time_t(pair.second));
+			action.info.lastEditTime = std::to_string(toTimeT(pair.second));
 			if(compileShader(pair.first,action.info))
 			{
 				m_dirtyShaderMaps[pair.first] = action;
@@ -377,24 +406,6 @@ ShaderCompact engine::shaderCompiler::ShaderCompiler::getShader(const std::strin
 
 	// fallback
 	return getFallbackShader(passType);
-}
-
-std::shared_ptr<ShaderInfo> engine::shaderCompiler::ShaderCompiler::getMeshPassShaderInfo(const std::string& shaderName,EShaderPass passType)
-{
-	if(containShader(shaderName) && m_cacheShaderMap[shaderName]->compiled_suceess && m_cacheShaderMap[shaderName]->compiled)
-	{
-		return m_cacheShaderMap[shaderName];
-	}
-	else if(passType == EShaderPass::GBuffer)
-	{
-		return m_cacheShaderMap[fallbackShaderName::gbuffer];
-	}
-	else if(passType==EShaderPass::ShadowDepth)
-	{
-		return m_cacheShaderMap[fallbackShaderName::depth];
-	}
-
-	return nullptr;
 }
 
 bool compileShaderInner(ShaderInfo* info,const std::string& shaderFileName,const std::string& shaderin,EShaderStage stage)
@@ -514,7 +525,7 @@ void engine::shaderCompiler::ShaderInfo::compileShader()
 			this->compiling = false;
 			this->compiled = true;
 			this->compiled_suceess = false;
-			LOG_TRACE("Shader {0} failed to compile!",compileName);
+			LOG_WARN("Shader {0} failed to compile!",compileName);
 		};
 
 		std::string cacheFileVertexShaderName = cacheFileName + ".vert";
@@ -523,45 +534,13 @@ void engine::shaderCompiler::ShaderInfo::compileShader()
 		bCompileResult |= compileShaderInner(this,cacheFileVertexShaderName,this->vertShaderPath,EShaderStage::Vert);
 		bCompileResult |= compileShaderInner(this,cacheFileFragShaderName,this->fragShaderPath,EShaderStage::Frag);
 
-		// compile failed.
-		if( !bCompileResult)
+		if(!bCompileResult)
 		{
 			compileFailed();
 			return;
 		}
 
-		// 构建shader effect
-		this->effect = std::make_shared<ShaderEffect>();
-		this->effect->addStage(VulkanRHI::get()->getShader(this->compiled_vertShaderPath),VK_SHADER_STAGE_VERTEX_BIT);
-		this->effect->addStage(VulkanRHI::get()->getShader(this->compiled_fragShaderPath),VK_SHADER_STAGE_FRAGMENT_BIT);
-		this->effect->reflectLayout(VulkanRHI::get()->getDevice(),nullptr,0);
-		
-		if(this->passType==EShaderPass::GBuffer   ||
-		   this->passType==EShaderPass::ShadowDepth)
-		{
-			g_meshPassShouldRebuild = true;
-		}
-		else
-		{
-			g_globalPassShouldRebuild = true; 
-		}
+		g_shaderPassChange = true; 
 		compileSuccess();
 	});
 }
-
-engine::shaderCompiler::ShaderInfo::ShaderInfo()
-{
-	passType = EShaderPass::Unknow;
-	vertShaderPath = "";
-	fragShaderPath = "";
-	compiled_fragShaderPath = "";
-	compiled_vertShaderPath = "";
-	compiled = false;
-	compiling = false;
-	compiled_suceess = false;
-	effect = nullptr;
-	shaderName = "";
-	lastEditTime = "";
-}
-
-

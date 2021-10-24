@@ -3,6 +3,7 @@
 #include "../mesh.h"
 #include "../material.h"
 #include "../renderer.h"
+#include "../texture.h"
 
 using namespace engine;
 
@@ -10,22 +11,27 @@ void engine::GBufferPass::initInner()
 {
     createRenderpass();
     createFramebuffers();
+    bInitPipeline = false;
+    createPipeline();
 
     m_deletionQueue.push([&]()
     {
         destroyRenderpass();
         destroyFramebuffers();
+        destroyPipeline();
     });
 }
 
 void engine::GBufferPass::beforeSceneTextureRecreate()
 {
     destroyFramebuffers();
+    destroyPipeline();
 }
 
 void engine::GBufferPass::afterSceneTextureRecreate()
 {
     createFramebuffers();
+    createPipeline();
 }
 
 void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIndex)
@@ -65,63 +71,40 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
     vkCmdSetViewport(cmd,0,1,&viewport);
     vkCmdSetDepthBias(cmd,0,0,0);
 
+    std::vector<VkDescriptorSet> meshPassSets = {
+          m_renderer->getFrameData().m_frameDataDescriptorSets[backBufferIndex].set
+        , TextureLibrary::get()->getBindlessTextureDescriptorSet()
+        , m_renderer->getRenderScene().m_meshObjectSSBO->descriptorSets.set
+        , m_renderer->getRenderScene().m_meshMaterialSSBO->descriptorSets.set
+    };
+
+    // NOTE: 一次绑定！
+    vkCmdBindDescriptorSets(
+        cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_pipelineLayouts[backBufferIndex],
+        0,
+        (uint32)meshPassSets.size(),
+        meshPassSets.data(),
+        0,
+        nullptr
+    );
+    vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,m_pipelines[backBufferIndex]);
+
     uint32 drawIndex = 0;
     auto& cacheStaticMesh = m_renderScene->m_cacheStaticMeshRenderMesh;
-	VkPipelineLayout activeLayout = VK_NULL_HANDLE;
-	VkPipeline activePipeline = VK_NULL_HANDLE;
     for (auto& renderMesh : cacheStaticMesh)
     {
-        renderMesh.mesh->vertexBuffer->bind(cmd);
-        renderMesh.mesh->indexBuffer->bind(cmd);
+        if(!renderMesh.bMeshVisible) continue;
 
-        for(auto& subMesh : renderMesh.mesh->subMeshes)
+        renderMesh.vertexBuffer->bind(cmd);
+        renderMesh.indexBuffer->bind(cmd);
+
+        for(auto& subMesh : renderMesh.submesh)
         {
-            Material* activeMaterial = nullptr;
-            if(subMesh.cacheMaterial)
+            if(subMesh.bCullingResult)
             {
-                activeMaterial = subMesh.cacheMaterial;
+                vkCmdDrawIndexed(cmd, subMesh.indexCount,1,subMesh.indexStartPosition,0,drawIndex);
             }
-            else
-            {
-                activeMaterial = m_renderer->getMaterialLibrary()->getFallback(m_renderer->getMeshpassLayout(),shaderCompiler::EShaderPass::GBuffer);
-            }
-
-            const auto& loopLayout = activeMaterial->getShaderInfo()->effect->builtLayout;
-            const auto& loopPipeline = activeMaterial->getGbufferPipeline();
-
-            // 检查是否需要切换pipeline
-            if(activePipeline != loopPipeline)
-            {
-                activePipeline = loopPipeline;
-                activeLayout = loopLayout;
-
-                auto& activeFrameData = m_renderer->getFrameData();
-
-                vkCmdBindDescriptorSets(
-                    cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    activeLayout,
-                    0, // PassSet #0
-                    1,
-                    &activeFrameData.m_frameDataDescriptorSets[backBufferIndex].set,0,nullptr
-                );
-
-                vkCmdBindDescriptorSets(
-                    cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    activeLayout,
-                    1, // PassSet #1
-                    1,
-                    &activeFrameData.m_viewDataDescriptorSets[backBufferIndex].set,0,nullptr
-                );
-
-                // PassSet #2
-                m_renderScene->m_gbufferSSBO->bindDescriptorSet(cmd,activeLayout);
-                vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,activePipeline);
-            }
-
-            // PassSet #3
-            activeMaterial->bindGbuffer(cmd);
-
-            vkCmdDrawIndexed(cmd, subMesh.indexCount,1,subMesh.indexStartPosition,0,drawIndex);
             drawIndex ++;
         }
     }
@@ -228,10 +211,10 @@ void engine::GBufferPass::createFramebuffers()
     for(uint32 i = 0; i < swapchain_imagecount; i++)
     {
         fbf.setRenderpass(m_renderpass)
-            .addAttachment(m_renderScene->getSceneTextures().getGbufferBaseColorRoughness())
-            .addAttachment(m_renderScene->getSceneTextures().getGbufferNormalMetal())
-            .addAttachment(m_renderScene->getSceneTextures().getGbufferEmissiveAo())
-            .addAttachment(m_renderScene->getSceneTextures().getDepthStencil());
+           .addAttachment(m_renderScene->getSceneTextures().getGbufferBaseColorRoughness())
+           .addAttachment(m_renderScene->getSceneTextures().getGbufferNormalMetal())
+           .addAttachment(m_renderScene->getSceneTextures().getGbufferEmissiveAo())
+           .addAttachment(m_renderScene->getSceneTextures().getDepthStencil());
         m_framebuffers[i] = fbf.create(VulkanRHI::get()->getDevice());
     }
 }
@@ -244,4 +227,85 @@ void engine::GBufferPass::destroyFramebuffers()
     }
 
     m_framebuffers.resize(0);
+}
+
+void engine::GBufferPass::createPipeline()
+{
+    if(bInitPipeline) return;
+
+    uint32 backBufferCount = (uint32)VulkanRHI::get()->getSwapchainImageViews().size();
+
+    m_pipelines.resize(backBufferCount);
+    m_pipelineLayouts.resize(backBufferCount);
+    for(uint32 index = 0; index < backBufferCount; index++)
+    {
+        VkPipelineLayoutCreateInfo plci = vkPipelineLayoutCreateInfo();
+        std::vector<VkDescriptorSetLayout> setLayouts = {
+              m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout
+            , TextureLibrary::get()->getBindlessTextureDescriptorSetLayout()
+            , m_renderer->getRenderScene().m_meshObjectSSBO->descriptorSetLayout.layout
+            , m_renderer->getRenderScene().m_meshMaterialSSBO->descriptorSetLayout.layout
+        };
+        plci.setLayoutCount = (uint32)setLayouts.size();
+        plci.pSetLayouts = setLayouts.data();
+        m_pipelineLayouts[index] = VulkanRHI::get()->createPipelineLayout(plci);
+
+        VulkanGraphicsPipelineFactory gpf = {};
+        auto packShader = m_shaderCompiler->getShader(s_shader_gbuffer,shaderCompiler::EShaderPass::GBuffer);
+
+        auto vertShader = packShader.vertex;
+        auto fragShader = packShader.frag;
+
+        gpf.shaderStages.clear();
+        gpf.shaderStages.push_back(vkPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, *vertShader));
+        gpf.shaderStages.push_back(vkPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, *fragShader));
+
+        VulkanVertexInputDescription vvid = {};
+        vvid.bindings   =  { VulkanVertexBuffer::getInputBinding(getStandardMeshAttributes()) };
+        vvid.attributes = VulkanVertexBuffer::getInputAttribute(getStandardMeshAttributes());
+
+        gpf.vertexInputDescription = vvid;
+        gpf.inputAssembly = vkInputAssemblyCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        gpf.rasterizer = vkRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL);
+        gpf.rasterizer.cullMode = VK_CULL_MODE_NONE;
+        gpf.multisampling = vkMultisamplingStateCreateInfo();
+        gpf.colorBlendAttachments.push_back(vkColorBlendAttachmentState());
+        gpf.colorBlendAttachments.push_back(vkColorBlendAttachmentState());
+        gpf.colorBlendAttachments.push_back(vkColorBlendAttachmentState());
+        gpf.depthStencil = vkDepthStencilCreateInfo(true,true,getEngineZTestFunc());
+
+        gpf.pipelineLayout =  m_pipelineLayouts[index];
+
+        auto sceneTextureExtent = m_renderScene->getSceneTextures().getGbufferBaseColorRoughness()->getExtent();
+        VkExtent2D sceneTextureExtent2D{};
+        sceneTextureExtent2D.width = sceneTextureExtent.width;
+        sceneTextureExtent2D.height = sceneTextureExtent.height;
+        gpf.viewport.x = 0.0f;
+        gpf.viewport.y = 0.0f;
+        gpf.viewport.width =  (float)sceneTextureExtent2D.width;
+        gpf.viewport.height = (float)sceneTextureExtent2D.height;
+        gpf.viewport.minDepth = 0.0f;
+        gpf.viewport.maxDepth = 1.0f;
+        gpf.scissor.offset = { 0, 0 };
+        gpf.scissor.extent = sceneTextureExtent2D;
+
+        m_pipelines[index] = gpf.buildMeshDrawPipeline(VulkanRHI::get()->getDevice(),m_renderpass);
+    }
+
+    bInitPipeline = true;
+}
+
+void engine::GBufferPass::destroyPipeline()
+{
+    if(!bInitPipeline) return;
+
+    for(uint32 index = 0; index < m_pipelines.size(); index++)
+    {
+        vkDestroyPipeline(VulkanRHI::get()->getDevice(),m_pipelines[index],nullptr);
+        vkDestroyPipelineLayout(VulkanRHI::get()->getDevice(),m_pipelineLayouts[index],nullptr);
+    }
+    m_pipelines.resize(0);
+    m_pipelineLayouts.resize(0);
+
+    bInitPipeline = false;
 }

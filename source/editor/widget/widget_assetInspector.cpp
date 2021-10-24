@@ -46,17 +46,33 @@ WidgetAssetInspector::~WidgetAssetInspector()
 
 void WidgetAssetInspector::inspectMaterial(const std::string& path)
 {
-	auto cacheInfo =  MaterialInfoCache::s_cache->getMaterialInfoCache(path);
-	
-	ImGui::Text(cacheInfo->shaderName.c_str());
+	Material* mat = MaterialLibrary::get()->getMaterial(path);
 
-	for(auto& texture : cacheInfo->textures)
+	ImGui::Text("BaseColor");
+	if(ImGui::Button(mat->baseColorTexture.c_str()))
 	{
-		ImGui::Text(texture.first.c_str());
-		if(ImGui::Button(texture.second.second.c_str()))
-		{
-			EditorAsset::get().inspectorRequireSkip = true;
-			EditorAsset::get().inspectorClickAssetPath = texture.second.second;
-		}
+		EditorAsset::get().inspectorRequireSkip = true;
+		EditorAsset::get().inspectorClickAssetPath = mat->baseColorTexture;
+	}
+
+	ImGui::Text("Normal");
+	if(ImGui::Button(mat->normalTexture.c_str()))
+	{
+		EditorAsset::get().inspectorRequireSkip = true;
+		EditorAsset::get().inspectorClickAssetPath = mat->normalTexture;
+	}
+
+	ImGui::Text("Specular");
+	if(ImGui::Button(mat->specularTexture.c_str()))
+	{
+		EditorAsset::get().inspectorRequireSkip = true;
+		EditorAsset::get().inspectorClickAssetPath = mat->specularTexture;
+	}
+
+	ImGui::Text("Emissive");
+	if(ImGui::Button(mat->emissiveTexture.c_str()))
+	{
+		EditorAsset::get().inspectorRequireSkip = true;
+		EditorAsset::get().inspectorClickAssetPath = mat->emissiveTexture;
 	}
 }

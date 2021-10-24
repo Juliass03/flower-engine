@@ -115,10 +115,16 @@ void engine::Mesh::buildFromGameAsset(const std::string& gameName)
 
         subMesh.renderBounds.radius = subMeshInfo.bounds.radius;
 
+        // NOTE: 这里先让材质库加载一次材质
         if(subMeshInfo.materialPath != "")
         {
-            MaterialInfoCache::s_cache->getMaterialInfoCache(subMeshInfo.materialPath);
+            subMesh.cacheMaterial =  MaterialLibrary::get()->getMaterial(subMeshInfo.materialPath);
             subMesh.materialInfoPath = subMeshInfo.materialPath;
+        }
+        else
+        {
+            subMesh.cacheMaterial = &MaterialLibrary::get()->getCallbackMaterial();
+            subMesh.materialInfoPath = "";
         }
     }
 
@@ -192,4 +198,14 @@ void engine::MeshLibrary::release()
     }
 
     m_meshContainer.clear();
+}
+
+const std::unordered_set<std::string>& engine::MeshLibrary::getStaticMeshList() const
+{ 
+    return m_staticMeshList; 
+}
+
+void engine::MeshLibrary::emplaceStaticeMeshList(const std::string& name)
+{
+    m_staticMeshList.emplace(name); 
 }

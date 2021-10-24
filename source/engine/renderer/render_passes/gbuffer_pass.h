@@ -19,13 +19,21 @@ public:
 	virtual void dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIndex) override;
 private:
 	std::vector<VkFramebuffer> m_framebuffers = {};
+	VkQueryPool m_queryPool;
 
 private:
+	bool bInitPipeline = false;
+	std::vector<VkPipeline> m_pipelines = {};
+	std::vector<VkPipelineLayout> m_pipelineLayouts = {};
+
 	void createRenderpass();
 	void destroyRenderpass();
 
 	void createFramebuffers();
 	void destroyFramebuffers();
+
+	void createPipeline();
+	void destroyPipeline();
 };
 
 }

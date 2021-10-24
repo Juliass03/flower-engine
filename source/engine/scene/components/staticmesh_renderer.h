@@ -21,7 +21,7 @@ public:
 	std::weak_ptr<SceneNode> m_node;
 	bool m_customMesh = false;
 	std::string m_customMeshName = "";
-	std::vector<std::string /* material*/> m_materials{};
+	std::vector<std::string /*material path*/> m_materials{};
 
 private:
 	friend class cereal::access;
@@ -42,7 +42,7 @@ public:
 	StaticMeshComponent();
 	virtual ~StaticMeshComponent(){ };
 	virtual size_t getType() override { return EComponentType::StaticMeshComponent; }
-	RenderMesh getRenderMesh(Ref<shaderCompiler::ShaderCompiler> shaderCompiler,Ref<Renderer> renderer,bool bRebuildMaterial);
+	RenderMesh getRenderMesh(Ref<shaderCompiler::ShaderCompiler> shaderCompiler,Ref<Renderer> renderer);
 	void reflectMaterials();
 	Mesh& getMesh();
 };

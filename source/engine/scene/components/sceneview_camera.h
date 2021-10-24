@@ -17,6 +17,7 @@ private:
 	glm::vec3 m_position {0.0f};
 
 	float m_zNear;
+	float m_fovY;
 	float m_zFar;
 	class SceneViewCameraImpl* m_cameraImpl = nullptr;
 
@@ -31,7 +32,8 @@ private:
 			m_viewMatrix,
 			m_projectMatrix,
 			m_zNear,
-			m_zFar
+			m_zFar,
+			m_fovY
 		);
 	}
 
@@ -42,6 +44,7 @@ public:
 	virtual ~SceneViewCamera();
 	virtual size_t getType() override { return EComponentType::SceneViewCamera; }
 
+	float getFoVy() const { return m_fovY; }
 	float getZNear() const { return m_zNear; }
 	float getZFar() const  { return m_zFar; }
 	void setZNear(float in) { m_zNear = in; }

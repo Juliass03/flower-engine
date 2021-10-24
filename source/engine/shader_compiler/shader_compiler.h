@@ -5,28 +5,28 @@
 #include "../core/file_system.h"
 #include "../core/core.h"
 #include "../core/runtime_module.h"
-#include "shader_effect.h"
-#include <bitset>
 
 namespace engine{ namespace shaderCompiler{
 
-extern bool g_globalPassShouldRebuild;
-extern bool g_meshPassShouldRebuild;
+extern bool g_shaderPassChange;
 
 enum class EShaderPass
 {
 	GBuffer,
+	Depth,
 	Tonemapper,
 	Lighting,
-	ShadowDepth,
+
 	Unknow,
 	Max,
 };
 
 namespace fallbackShaderName
 {
-	static const char* gbuffer = "Fallback:GBuffer";
-	static const char* depth = "Fallback:Depth";
+	static const char* gbuffer    = "Fallback:GBuffer";
+	static const char* depth      = "Fallback:Depth";
+	static const char* lighting   = "Fallback:Lighting";
+	static const char* tonemapper = "Fallback:Tonemapper";
 }
 
 namespace fallbackShaderPath
@@ -44,57 +44,15 @@ namespace fallbackShaderPath
 	static const char* depthFrag = "media/shader/fallback/bin/depth.frag.spv";
 }
 
-static std::string toString(EShaderPass passType)
-{
-	if(passType == EShaderPass::GBuffer)
-	{
-		return "GBuffer";
-	}
-	else if(passType == EShaderPass::Tonemapper)
-	{
-		return "Tonemapper";
-	}
-	else if(passType == EShaderPass::Lighting)
-	{
-		return "Lighting";
-	}
-	else if(passType == EShaderPass::ShadowDepth)
-	{
-		return "ShadowDepth";
-	}
-	else
-	{
-		return "Unknow";
-	}
-}
-
-static EShaderPass toShaderPassType(const std::string& name)
-{
-	if(name=="GBuffer")
-	{
-		return EShaderPass::GBuffer;
-	}
-	else if(name=="Tonemapper")
-	{
-		return EShaderPass::Tonemapper;
-	}
-	else if(name=="ShadowDepth")
-	{
-		return EShaderPass::ShadowDepth;
-	}
-	else if(name=="Lighting")
-	{
-		return EShaderPass::Lighting;
-	}
-	else
-	{
-		return EShaderPass::Unknow;
-	}
-}
+extern std::string toString(EShaderPass passType);
+extern EShaderPass toShaderPassType(const std::string& name);
 
 struct ShaderInfo
 {
-	EShaderPass passType;
+	EShaderPass passType = EShaderPass::Unknow;
+
+	std::string shaderName;
+	std::string lastEditTime;
 
 	std::string vertShaderPath;
 	std::string fragShaderPath;
@@ -102,17 +60,11 @@ struct ShaderInfo
 	std::string compiled_vertShaderPath;
 	std::string compiled_fragShaderPath;
 
-	bool compiled = false; // 已经编译过了？
-	bool compiling = false; // 编译中？
+	bool compiled         = false; // 已经编译过了？
+	bool compiling        = false; // 编译中？
 	bool compiled_suceess = false; // 编译的是否成功？
 
 	void compileShader();
-	ShaderInfo();
-
-	std::shared_ptr<ShaderEffect> effect;
-
-	std::string shaderName;
-	std::string lastEditTime;
 };
 
 extern bool compileShader(const std::string& path,ShaderInfo& inout);
@@ -145,44 +97,25 @@ public:
 
 private:
 	FileWatcher m_engineShadersWatcher;
-	std::mutex mtx; 
+	
+	// NOTE: 缓存shader名的哈希表
+	std::unordered_map<std::string/*shader name*/,std::shared_ptr<ShaderInfo>/*shader info*/> m_cacheShaderMap;
 
-	// 缓存shader名的哈希表
-	std::unordered_map<std::string/* shader name */,std::shared_ptr<ShaderInfo>/* shader info */> m_cacheShaderMap;
-
-	// 监视线程写
-	// 主线程读 + 清理。 
-	std::unordered_map<std::string/* shader file path */,ShaderAction/* shader info */> m_dirtyShaderMaps;
-
-	bool containShader(const std::string& key)
-	{
-		auto el = m_cacheShaderMap.find(key);
-		return el != m_cacheShaderMap.end();
-	}
+	// NOTE: 监视线程写
+	//       主线程读 + 清理。 
+	std::unordered_map<std::string/*shader file path*/,ShaderAction/*shader info*/> m_dirtyShaderMaps;
+	std::mutex m_dirtyShaderMapMutex; 
 
 private:
-	void buildCallbackShader();
-
-
-private:
-	// 主线程的flush tick
 	void flushDirtyShaderMap();
-
-	const std::unordered_map<std::string/* shader name */,std::shared_ptr<ShaderInfo>/* shader info */>& getCacheShader() const
-	{
-		return m_cacheShaderMap;
-	}
-
 	void shaderFileWatch(std::string path_to_watch, engine::FileWatcher::FileStatus status,std::filesystem::file_time_type);
-
 	ShaderCompact getFallbackShader(EShaderPass passType);
+	const std::unordered_map<std::string/*shader name*/,std::shared_ptr<ShaderInfo>/*shader info*/>& getCacheShader() const;
+	bool containShader(const std::string& key) const;
 
 public:
 	ShaderCompiler(Ref<ModuleManager>);
-
 	ShaderCompact getShader(const std::string& shaderName,EShaderPass passType);
-
-	std::shared_ptr<ShaderInfo> getMeshPassShaderInfo(const std::string& shaderName,EShaderPass passType);
 };
 
 }}

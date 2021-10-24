@@ -8,7 +8,7 @@ class ShadowDepthPass : public GraphicsPass
 {
 public:
 	ShadowDepthPass(Ref<Renderer> renderer,Ref<RenderScene> scene,Ref<shaderCompiler::ShaderCompiler> sc,const std::string& name)
-		:GraphicsPass(renderer,scene,sc,name,shaderCompiler::EShaderPass::ShadowDepth)
+		:GraphicsPass(renderer,scene,sc,name,shaderCompiler::EShaderPass::Depth)
 	{
 
 	}

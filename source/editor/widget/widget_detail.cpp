@@ -259,7 +259,7 @@ void WidgetDetail::drawStaticMesh(std::shared_ptr<engine::SceneNode> node)
 
 				if(component->m_customMesh)
 				{
-					const auto& meshes = asset_system::AssetCache::s_cache->m_staticMesh;
+					const auto& meshes = MeshLibrary::get()->getStaticMeshList();
 					static int index = 0;
 					static int lastTimeSize = -1;
 
@@ -304,9 +304,9 @@ void WidgetDetail::drawStaticMesh(std::shared_ptr<engine::SceneNode> node)
 				// 开始监视每个submesh的材质
 				if(!(component->m_customMesh==oldUseCustomMesh &&
 					component->m_customMeshName==oldCutomName  &&
-					component->m_meshName==oldPrimitveName)) // 网格发生变化
+					component->m_meshName == oldPrimitveName)) 
 				{
-					component->reflectMaterials();
+					component->reflectMaterials(); // 网格发生变化则反射一次材质数据
 				}
 
 				for(auto& material : component->m_materials)

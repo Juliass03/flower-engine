@@ -9,8 +9,9 @@
 #include "../scene/components/directionalLight.h"
 #include "render_passes/lighting_pass.h"
 #include "render_passes/shadowDepth_pass.h"
+#include "render_prepare.h"
 
-namespace engine{
+using namespace engine;
 
 static AutoCVarInt32 cVarReverseZ(
 	"r.Shading.ReverseZ",
@@ -20,39 +21,35 @@ static AutoCVarInt32 cVarReverseZ(
 	CVarFlags::InitOnce | CVarFlags::ReadOnly
 );
 
-bool reverseZOpen()
+bool engine::reverseZOpen()
 {
     return cVarReverseZ.get() > 0;
 }
 
-float getEngineClearZFar()
+float engine::getEngineClearZFar()
 {
-    return reverseZOpen() ? 0.0f : 1.0f;
+    return engine::reverseZOpen() ? 0.0f : 1.0f;
 }
 
-float getEngineClearZNear()
+float engine::getEngineClearZNear()
 {
-    return reverseZOpen() ? 1.0f : 0.0f;
+    return engine::reverseZOpen() ? 1.0f : 0.0f;
 }
 
-VkCompareOp getEngineZTestFunc()
+VkCompareOp engine::getEngineZTestFunc()
 {
-    return reverseZOpen() ? VK_COMPARE_OP_GREATER : VK_COMPARE_OP_LESS;
+    return reverseZOpen() ? VK_COMPARE_OP_GREATER_OR_EQUAL : VK_COMPARE_OP_LESS_OR_EQUAL;
 }
 
 
-Renderer::Renderer(Ref<ModuleManager> in):
-	IRuntimeModule(in)
+Renderer::Renderer(Ref<ModuleManager> in) : IRuntimeModule(in)
 {
 	Ref<shaderCompiler::ShaderCompiler> shader_compiler = m_moduleManager->getRuntimeModule<shaderCompiler::ShaderCompiler>();
 	Ref<SceneManager> sceneManager = m_moduleManager->getRuntimeModule<SceneManager>();
 	m_renderScene = new RenderScene(sceneManager,shader_compiler);
 	m_uiPass = new ImguiPass();
-
-	m_materialLibrary = new MaterialLibrary();
 }
 
-// TODO: 可编程渲染管线
 bool Renderer::init()
 {
 	Ref<shaderCompiler::ShaderCompiler> shader_compiler = m_moduleManager->getRuntimeModule<shaderCompiler::ShaderCompiler>();
@@ -83,8 +80,7 @@ bool Renderer::init()
 	{
 		pass->init();
 	}
-	updateRenderpassLayout();
-	m_materialLibrary->init(shader_compiler);
+
 	return true;
 }
 
@@ -96,10 +92,10 @@ void Renderer::tick(float dt)
 	uint32 backBufferIndex = VulkanRHI::get()->acquireNextPresentImage();
 	
 	bool bForceAllocate = false;
-	if(shaderCompiler::g_globalPassShouldRebuild)
+	if(shaderCompiler::g_shaderPassChange)
 	{
 		bForceAllocate = true;
-		shaderCompiler::g_globalPassShouldRebuild = false;
+		shaderCompiler::g_shaderPassChange = false;
 	}
 
 	if( bForceAllocate ||
@@ -117,10 +113,9 @@ void Renderer::tick(float dt)
 
 	// 更新全局的frameData
 	updateGPUData(dt);
-	m_frameData.updateFrameData(m_gpuFrameData);
-	m_frameData.updateViewData(m_gpuViewData);
 
-	// NOTE: 由于Sceneza
+	m_frameData.updateFrameData(m_gpuFrameData);
+	m_renderScene->renderPrepare(m_gpuFrameData);
 
 	// 开始动态记录
 	VkCommandBuffer dynamicBuf = *VulkanRHI::get()->getDynamicGraphicsCmdBuf(backBufferIndex);
@@ -176,10 +171,9 @@ void Renderer::release()
 	m_uiPass->release();
 	m_renderScene->release();
 	m_frameData.release();
-	m_materialLibrary->release();
+
 	delete m_uiPass;
 	delete m_renderScene;
-	delete m_materialLibrary;
 
 	for(size_t i = 0; i<m_dynamicDescriptorAllocator.size(); i++)
 	{
@@ -194,21 +188,6 @@ void Renderer::UpdateScreenSize(uint32 width,uint32 height)
 	const uint32 renderSceneHeight = glm::max(height,10u);
 	m_screenViewportWidth = renderSceneWidth;
 	m_screenViewportHeight = renderSceneHeight;
-}
-
-void Renderer::updateRenderpassLayout()
-{
-	for(auto* pass : m_renderpasses)
-	{
-		if(pass->isPassType(shaderCompiler::EShaderPass::GBuffer))
-		{
-			m_renderpassLayout.gBufferPass = pass->getRenderpass();
-		}
-		else if(pass->isPassType(shaderCompiler::EShaderPass::ShadowDepth))
-		{
-			m_renderpassLayout.shadowDepth = pass->getRenderpass();
-		}
-	}
 }
 
 void Renderer::uiRecord(size_t i)
@@ -252,7 +231,7 @@ void Renderer::updateGPUData(float dt)
 	if(!bHasValidateDirectionalLight)
 	{
 		m_gpuFrameData.sunLightColor = glm::vec4(1.0f,1.0f,1.0f,1.0f);
-		m_gpuFrameData.sunLightDir = glm::vec4(0.33f,0.34f,0.33f,1.0f);
+		m_gpuFrameData.sunLightDir = glm::vec4(0.0f,0.34f,0.33f,1.0f);
 	}
 	
 
@@ -262,17 +241,26 @@ void Renderer::updateGPUData(float dt)
 	// 更新场景相机
 	sceneViewCameraComponent->tick(dt,m_screenViewportWidth,m_screenViewportHeight);
 
-	m_gpuViewData.view = sceneViewCameraComponent->getView();
-	m_gpuViewData.proj = sceneViewCameraComponent->getProjection();
-	m_gpuViewData.viewProj = m_gpuViewData.proj * m_gpuViewData.view;
-	m_gpuViewData.worldPos = glm::vec4(sceneViewCameraComponent->getPosition(),1.0f);
+	m_gpuFrameData.camView = sceneViewCameraComponent->getView();
+	m_gpuFrameData.camProj = sceneViewCameraComponent->getProjection();
+	m_gpuFrameData.camViewProj = m_gpuFrameData.camProj * m_gpuFrameData.camView;
+	m_gpuFrameData.camWorldPos = glm::vec4(sceneViewCameraComponent->getPosition(),1.0f);
+
+	m_gpuFrameData.cameraInfo = glm::vec4(
+		sceneViewCameraComponent->getFoVy(),
+		float(m_screenViewportWidth) / float(m_screenViewportHeight),
+		sceneViewCameraComponent->getZNear(),
+		sceneViewCameraComponent->getZFar()
+	);
 }
 
-MeshPassLayout Renderer::getMeshpassLayout() const
-{
-	return m_renderpassLayout;
+
+VulkanDescriptorAllocator& Renderer::getDynamicDescriptorAllocator(uint32 i)
+{ 
+	return *m_dynamicDescriptorAllocator[i]; 
 }
 
-
-
+VulkanDescriptorFactory Renderer::vkDynamicDescriptorFactoryBegin(uint32 i)
+{ 
+	return VulkanDescriptorFactory::begin(&VulkanRHI::get()->getDescriptorLayoutCache(), m_dynamicDescriptorAllocator[i]); 
 }

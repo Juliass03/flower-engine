@@ -85,14 +85,6 @@ void engine::LightingPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferI
         m_pipelineLayouts[backBufferIndex],
         1, // PassSet #1
         1,
-        &m_renderer->getFrameData().m_viewDataDescriptorSets[backBufferIndex].set,0,nullptr
-    );
-
-    vkCmdBindDescriptorSets(
-        cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
-        m_pipelineLayouts[backBufferIndex],
-        2, // PassSet #2
-        1,
         &m_lightingPassDescriptorSets[backBufferIndex].set,0,nullptr
     );
     vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,m_pipelines[backBufferIndex]);
@@ -222,10 +214,10 @@ void engine::LightingPass::createPipeline()
         depthStencilImage.sampler = VulkanRHI::get()->getPointClampSampler();
 
         m_renderer->vkDynamicDescriptorFactoryBegin(index)
-            .bindImage(0,&gbufferBaseColorRoughnessImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-            .bindImage(1,&gbufferNormalMetalImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-            .bindImage(2,&gbufferEmissiveAoImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-            .bindImage(3,&depthStencilImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+            .bindImage(0,&gbufferBaseColorRoughnessImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .bindImage(1,&gbufferNormalMetalImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .bindImage(2,&gbufferEmissiveAoImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,  VK_SHADER_STAGE_FRAGMENT_BIT)
+            .bindImage(3,&depthStencilImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build(m_lightingPassDescriptorSets[index],m_lightingPassDescriptorSetLayouts[index]);
     }
 
@@ -241,9 +233,8 @@ void engine::LightingPass::createPipeline()
         plci.pPushConstantRanges = nullptr;
 
         std::vector<VkDescriptorSetLayout> setLayouts = {
-            m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout,
-            m_renderer->getFrameData().m_viewDataDescriptorSetLayouts[index].layout,
-            m_lightingPassDescriptorSetLayouts[index].layout 
+              m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout
+            , m_lightingPassDescriptorSetLayouts[index].layout 
         };
 
         plci.setLayoutCount = (uint32)setLayouts.size();

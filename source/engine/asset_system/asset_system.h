@@ -16,8 +16,6 @@ namespace engine{ namespace asset_system{
 
 constexpr auto TEXTURE_COMPONENT = 4;
 
-extern bool g_assetFolderDirty;
-
 class EngineAsset
 {
 private:
@@ -71,16 +69,6 @@ private:
     std::unordered_map<std::string/*texture name*/,IconInfo/*cache*/> m_cacheIconInfo;
 };
 
-struct AssetCache
-{
-    std::unordered_set<std::string> m_staticMesh;
-    std::unordered_set<std::string> m_texture;
-    std::unordered_set<std::string> m_materials;
-
-    static AssetCache* s_cache;
-    void clear();
-};
-
 class GpuUploadTextureAsync;
 
 // NOTE: AssetSystem为异步加载系统
@@ -98,21 +86,28 @@ public:
     void addLoadTextureTask(const std::string&);
     
 private:
-    void processProjectDirectory(bool firstInit = false);
+    void processProjectDirectory();
     void addAsset(std::string path,EAssetFormat format);
-    void loadEngineTextures();
-
-    void prepareTextureLoad();
-    bool loadTexture2DImage(CombineTexture& inout,const std::string& gameName);
-
-    void checkTextureUploadStateAsync();
 
 private:
+    bool m_bAssetFolderDirty = false;
+    std::vector<std::pair<std::string,std::function<void()>>> m_callbackOnAssetFolderDirty;
+    void broadcastCallbackOnAssetFolderDirty();
+
+public:     
+    void registerOnAssetFolderDirtyCallBack(std::string&& name,std::function<void()>&& callback);
+    void unregisterOnAssetFolderDirtyCallBack(std::string&& name);
+
+private: // 纹理上传部分
     std::unordered_set<std::string> m_texturesNameLoad;   // 扫描后的纹理名字将会填充到这里
     std::vector<std::string> m_perScanAdditionalTextures; // 每次扫描后多出来的纹理
     std::queue<std::string> m_loadingTextureTasks;
-
     std::vector<std::shared_ptr<GpuUploadTextureAsync>> m_uploadingTextureAsyncTask;
+
+    void loadEngineTextures();
+    void prepareTextureLoad();
+    bool loadTexture2DImage(CombineTexture& inout,const std::string& gameName);
+    void checkTextureUploadStateAsync();
 };
 
 }}

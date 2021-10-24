@@ -16,6 +16,8 @@
 using namespace engine;
 using namespace engine::asset_system;
 
+const char* g_flushCallbackName = "FlushAssetWidget";
+
 struct CacheEntryInfoCompare
 {
 	bool operator()(const CacheEntryInfo& a,const CacheEntryInfo& b)
@@ -36,6 +38,9 @@ WidgetAsset::WidgetAsset(engine::Ref<engine::Engine> engine)
 	m_assetSystem = engine->getRuntimeModule<AssetSystem>();
 
 	bNeedScan = true;
+	m_assetSystem->registerOnAssetFolderDirtyCallBack(g_flushCallbackName,[this](){
+		bNeedScan = true;
+	});
 }
 
 void WidgetAsset::scanFolder()
@@ -159,11 +164,10 @@ void WidgetAsset::onVisibleTick(size_t)
 	m_searchFilter.Draw(searchName.c_str(),180.0f);
 	ImGui::Separator();
 
-	if(bNeedScan || g_assetFolderDirty)
+	if(bNeedScan)
 	{
 		scanFolder();
 		bNeedScan = false;
-		g_assetFolderDirty = false;
 	}
 
 	uint32 displayCount = 0;
@@ -490,7 +494,7 @@ void WidgetAsset::onVisibleTick(size_t)
 
 WidgetAsset::~WidgetAsset()
 {
-
+	m_assetSystem->unregisterOnAssetFolderDirtyCallBack(g_flushCallbackName);
 }
 
 void WidgetAsset::emptyAreaClickPopupMenu()
@@ -505,10 +509,9 @@ void WidgetAsset::emptyAreaClickPopupMenu()
 
 	if(ImGui::MenuItem(u8"ÐÂ½¨²ÄÖÊ"))
 	{
-		MaterialShaderInfo::createEmptyMaterialAsset(m_projectDirectory.string() + "/newMaterial");
+		MaterialLibrary::get()->createEmptyMaterialAsset(m_projectDirectory.string() + "/newMaterial");
 		bNeedScan = true;
 	}
-
 
 	ImGui::EndPopup();
 }

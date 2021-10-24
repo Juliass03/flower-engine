@@ -1,8 +1,10 @@
 #pragma once
 #include "../core/core.h"
 #include "../vk/vk_rhi.h"
-
+#include <unordered_set>
 namespace engine{
+
+struct Material;
 
 struct RenderBounds
 {
@@ -15,16 +17,22 @@ struct RenderBounds
     static RenderBounds combine(const RenderBounds& b0,const RenderBounds& b1);
 };
 
-class Material;
-
 struct SubMesh
 {
     RenderBounds renderBounds;
-    
     uint32 indexStartPosition;
     uint32 indexCount;
     Ref<Material> cacheMaterial = nullptr;
     std::string materialInfoPath;
+};
+
+struct RenderSubMesh
+{
+    RenderBounds renderBounds;
+    uint32 indexStartPosition;
+    uint32 indexCount;
+    Ref<Material> cacheMaterial = nullptr;
+    bool bCullingResult = true;
 };
 
 inline std::vector<EVertexAttribute> getStandardMeshAttributes()
@@ -44,6 +52,7 @@ enum class EPrimitiveMesh
     Quad,
     Box,
     Custom,
+
     Max,
 };
 
@@ -58,7 +67,6 @@ inline std::string toString(EPrimitiveMesh type)
     case engine::EPrimitiveMesh::Custom:
         return "Custom";
     }
-
 
     LOG_FATAL("Unknow type!");
     return "";
@@ -89,9 +97,13 @@ struct Mesh
 
 struct RenderMesh
 {
-    Ref<Mesh> mesh;
+    std::vector<RenderSubMesh> submesh;
+
+    Ref<VulkanIndexBuffer> indexBuffer;
+    Ref<VulkanVertexBuffer> vertexBuffer;
 
     glm::mat4 modelMatrix;
+    bool bMeshVisible = true;
 };
 
 // NOTE: MeshLibrary负责管理所有的静态网格加载。
@@ -100,6 +112,10 @@ struct RenderMesh
 class MeshLibrary
 {
     using MeshContainer = std::unordered_map<std::string,Mesh*>;
+private:
+    static MeshLibrary* s_meshLibrary;
+    std::unordered_set<std::string> m_staticMeshList;
+    MeshContainer m_meshContainer;
 
 public:
     Mesh& getUnitQuad();
@@ -109,9 +125,8 @@ public:
     void release();
     static MeshLibrary* get() { return s_meshLibrary; }
 
-private:
-    static MeshLibrary* s_meshLibrary;
-    MeshContainer m_meshContainer;
+    const std::unordered_set<std::string>& getStaticMeshList() const;
+    void emplaceStaticeMeshList(const std::string& name);
 };
 
 }

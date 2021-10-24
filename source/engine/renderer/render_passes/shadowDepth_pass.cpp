@@ -60,68 +60,9 @@ void engine::ShadowDepthPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBuff
     vkCmdSetViewport(cmd,0,1,&viewport);
     vkCmdSetDepthBias(cmd,0,0,0);
 
-    uint32 drawIndex = 0;
-    auto& cacheStaticMesh = m_renderScene->m_cacheStaticMeshRenderMesh;
-    VkPipelineLayout activeLayout = VK_NULL_HANDLE;
-    VkPipeline activePipeline = VK_NULL_HANDLE;
-    for (auto& renderMesh : cacheStaticMesh)
-    {
-        renderMesh.mesh->indexBuffer->bind(cmd);
-        renderMesh.mesh->vertexBuffer->bind(cmd);
+    { // TODO:
 
-        for(auto& subMesh : renderMesh.mesh->subMeshes)
-        {
-            Material* activeMaterial = nullptr;
-            if(subMesh.cacheMaterial)
-            {
-                activeMaterial = subMesh.cacheMaterial;
-            }
-            else
-            {
-                activeMaterial = m_renderer->getMaterialLibrary()->getFallback(m_renderer->getMeshpassLayout(),shaderCompiler::EShaderPass::ShadowDepth);
-            }
-
-            auto depthShaderInfo = m_shaderCompiler->getMeshPassShaderInfo(s_shader_depth,shaderCompiler::EShaderPass::ShadowDepth);
-            const auto& loopLayout = depthShaderInfo->effect->builtLayout;
-            const auto& loopPipeline = activeMaterial->getDepthPipeline();
-
-            // 检查是否需要切换pipeline
-            if(activePipeline != loopPipeline)
-            {
-                activePipeline = loopPipeline;
-                activeLayout = loopLayout;
-
-                auto& activeFrameData = m_renderer->getFrameData();
-
-                vkCmdBindDescriptorSets(
-                    cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    activeLayout,
-                    0, // PassSet #0
-                    1,
-                    &activeFrameData.m_frameDataDescriptorSets[backBufferIndex].set,0,nullptr
-                );
-
-                vkCmdBindDescriptorSets(
-                    cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    activeLayout,
-                    1, // PassSet #1
-                    1,
-                    &activeFrameData.m_viewDataDescriptorSets[backBufferIndex].set,0,nullptr
-                );
-
-                // PassSet #2
-                m_renderScene->m_gbufferSSBO->bindDescriptorSet(cmd,activeLayout);
-                vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,activePipeline);
-            }
-
-            // PassSet #3
-            activeMaterial->bindDepth(cmd);
-
-            vkCmdDrawIndexed(cmd, subMesh.indexCount,1,subMesh.indexStartPosition,0,drawIndex);
-            drawIndex ++;
-        }
     }
-
     vkCmdEndRenderPass(cmd);
 }
 

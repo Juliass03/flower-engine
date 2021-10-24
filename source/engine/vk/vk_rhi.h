@@ -68,6 +68,8 @@ private:
     std::vector<VkSemaphore> m_semaphoresRenderFinished;
     std::vector<VkFence> m_inFlightFences;
     std::vector<VkFence> m_imagesInFlight;
+    VkPhysicalDeviceDescriptorIndexingFeaturesEXT m_physicalDeviceDescriptorIndexingFeatures{};
+    VkPhysicalDeviceDescriptorIndexingPropertiesEXT m_descriptorIndexingProperties{};
 
     std::unordered_map<std::string,std::function<RegisterFuncBeforeSwapchainRecreate>> m_callbackBeforeSwapchainRebuild = {};
     std::unordered_map<std::string,std::function<RegisterFuncBeforeSwapchainRecreate>> m_callbackAfterSwapchainRebuild = {};
@@ -101,7 +103,8 @@ public:
     VmaAllocator& getVmaAllocator() { return m_vmaAllocator; }
     VkQueue& getGraphicsQueue() { return m_device.graphicsQueue; }
     VkQueue& getComputeQueue() { return m_device.computeQueue; }
-    VkQueue& getCopyQueue();
+
+    AsyncQueue* getAsyncCopyQueue();
 
     const VkDevice& getDevice() const { return m_device.device; }
     VulkanDevice* getVulkanDevice() { return &m_device; }
@@ -153,6 +156,7 @@ public:
     VkSampler getPointRepeatSampler();
     VkSampler getLinearClampSampler();
     VkSampler getLinearRepeatSampler();
+    VkPhysicalDeviceDescriptorIndexingPropertiesEXT getPhysicalDeviceDescriptorIndexingProperties() const { return m_descriptorIndexingProperties; }
 
 public:
     void addBeforeSwapchainRebuildCallback(std::string name,const std::function<RegisterFuncAfterSwapchainRecreate>& func)

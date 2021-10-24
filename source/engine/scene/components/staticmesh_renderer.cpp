@@ -28,41 +28,54 @@ Mesh& engine::StaticMeshComponent::getMesh()
 	return *mesh;
 }
 
-RenderMesh engine::StaticMeshComponent::getRenderMesh(Ref<shaderCompiler::ShaderCompiler> shaderCompiler,Ref<Renderer> renderer,bool bRebuildMaterial)
+RenderMesh engine::StaticMeshComponent::getRenderMesh(Ref<shaderCompiler::ShaderCompiler> shaderCompiler,Ref<Renderer> renderer)
 {
 	if(auto node = m_node.lock())
 	{
 		Mesh& mesh = getMesh();
 
 		auto transform = node->getComponent<Transform>();
+
 		RenderMesh ret {};
 
-		// NOTE: 我们在SceneManager Tick中对已经所有脏掉的Transform刷新坐标
+		CHECK(mesh.indexBuffer);
+		CHECK(mesh.vertexBuffer);
+
+		ret.indexBuffer = mesh.indexBuffer;
+		ret.vertexBuffer = mesh.vertexBuffer;
+
+		// TODO: 我们在SceneManager Tick中对已经所有脏掉的Transform刷新坐标
 		//       因此此时可以多线程的更新Mesh收集
 		ret.modelMatrix = transform->getWorldMatrix();
-		ret.mesh = &mesh;
 
 		if(m_materials.size() != mesh.subMeshes.size())
 		{
+			// 若还没有反射材质先反射一次
 			reflectMaterials();
 		}
 
-		auto* materialLib = renderer->getMaterialLibrary();
 		uint32 index = 0;
 		for(auto& subMesh : mesh.subMeshes)
 		{
+			RenderSubMesh renderSubMesh{};
+
+			renderSubMesh.bCullingResult = true;
+			renderSubMesh.indexCount = subMesh.indexCount;
+			renderSubMesh.indexStartPosition = subMesh.indexStartPosition;
+			renderSubMesh.renderBounds = subMesh.renderBounds;
 			if(m_materials[index] != "")
 			{
-				// 注册材质
-				subMesh.cacheMaterial = materialLib->registerMaterial(
-					shaderCompiler,
-					m_materials[index]
-				);
-
-				subMesh.cacheMaterial->getMaterialDescriptorSet(renderer->getMeshpassLayout(),bRebuildMaterial);
+				renderSubMesh.cacheMaterial = MaterialLibrary::get()->getMaterial(m_materials[index]);
 			}
+			else
+			{
+				renderSubMesh.cacheMaterial = &MaterialLibrary::get()->getCallbackMaterial();
+			}
+
 			index++;
+			ret.submesh.push_back(renderSubMesh);
 		}
+
 		return ret;
 	}
 	else
@@ -72,6 +85,7 @@ RenderMesh engine::StaticMeshComponent::getRenderMesh(Ref<shaderCompiler::Shader
 	}
 }
 
+// NOTE: 从资产中读取材质数据并反射
 void engine::StaticMeshComponent::reflectMaterials()
 {
 	Mesh& mesh = getMesh();

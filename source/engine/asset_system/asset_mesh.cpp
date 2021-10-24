@@ -369,44 +369,31 @@ struct AssimpModelProcess
             // ÃÓ»ÎµΩsubmesh info÷–
             subMeshInfo.materialPath = materialPath;
 
-            std::ofstream os(materialPath);
+            
 
-            MaterialShaderInfo newInfo{};
-            newInfo.passType = shaderCompiler::EShaderPass::GBuffer;
-            newInfo.shaderName = "Engine/GBuffer";
+            Material newInfo{};
 
             // map_kd
-            newInfo.textures["BaseColorTexture"] = {
-                0 , 
-                baseColorTextures.size() <= 0 ?
+            newInfo.baseColorTexture =  baseColorTextures.size() <= 0 ?
                 s_defaultWhiteTextureName : 
-                FileSystem::getFileRawName(baseColorTextures[0]) + ".texture"
-            };
+                FileSystem::getFileRawName(baseColorTextures[0]) + ".texture";
 
             // map_bump
-            newInfo.textures["NormalTexture"]  = { 
-                1 , 
-                normalTextures.size() <= 0 ?
+            newInfo.normalTexture  = normalTextures.size() <= 0 ?
                 s_defaultNormalTextureName :
-                FileSystem::getFileRawName(normalTextures[0])  + ".texture"
-            };
+                FileSystem::getFileRawName(normalTextures[0])  + ".texture";
 
             // map_ks
-            newInfo.textures["SpecularTexture"]  = { 
-                2 , 
-                specularTextures.size() <= 0 ?
+            newInfo.specularTexture  = specularTextures.size() <= 0 ?
                 s_defaultBlackTextureName :
-                FileSystem::getFileRawName(specularTextures[0]) + ".texture"
-            };
+                FileSystem::getFileRawName(specularTextures[0]) + ".texture";
 
             // map_ke
-			newInfo.textures["EmissiveTexture"] = {
-				3 ,
-				emissiveTextures.size() <= 0 ?
+			newInfo.emissiveTexture = emissiveTextures.size() <= 0 ?
 				s_defaultBlackTextureName :
-				FileSystem::getFileRawName(emissiveTextures[0]) + ".texture"
-			};
+				FileSystem::getFileRawName(emissiveTextures[0]) + ".texture";
 
+            std::ofstream os(materialPath);
             cereal::JSONOutputArchive archive(os);
             archive(newInfo);
         }

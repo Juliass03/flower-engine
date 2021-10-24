@@ -8,19 +8,12 @@
 
 namespace engine{
 
-extern bool reverseZOpen();
+extern bool  reverseZOpen();
 extern float getEngineClearZFar();
 extern float getEngineClearZNear();
 extern VkCompareOp getEngineZTestFunc();
 
 class GraphicsPass;
-class MaterialLibrary;
-
-struct MeshPassLayout
-{
-	VkRenderPass gBufferPass;
-	VkRenderPass shadowDepth = VK_NULL_HANDLE;
-};
 
 class Renderer : public IRuntimeModule
 {
@@ -55,7 +48,6 @@ private:
 
 	// 动态描述符申请，每次ScreenSize改变时重置。
 	std::vector<VulkanDescriptorAllocator*> m_dynamicDescriptorAllocator{};
-	void updateRenderpassLayout();
 
 private:
 	void uiRecord(size_t i);
@@ -68,20 +60,11 @@ private:
 	uint32 m_screenViewportHeight = ScreenTextureInitSize;
 
 	GPUFrameData m_gpuFrameData { };
-	GPUViewData m_gpuViewData { };
-
 	void updateGPUData(float dt);
 
-	MaterialLibrary* m_materialLibrary;
-	MeshPassLayout m_renderpassLayout;
 public:
-	MeshPassLayout getMeshpassLayout() const;
-	MaterialLibrary* getMaterialLibrary() { return m_materialLibrary; }
-	VulkanDescriptorAllocator& getDynamicDescriptorAllocator(uint32 i) { return *m_dynamicDescriptorAllocator[i]; }
-	VulkanDescriptorFactory vkDynamicDescriptorFactoryBegin(uint32 i) 
-	{ 
-		return VulkanDescriptorFactory::begin(&VulkanRHI::get()->getDescriptorLayoutCache(), m_dynamicDescriptorAllocator[i]); 
-	}
+	VulkanDescriptorAllocator& getDynamicDescriptorAllocator(uint32 i);
+	VulkanDescriptorFactory vkDynamicDescriptorFactoryBegin(uint32 i);
 };
 
 }

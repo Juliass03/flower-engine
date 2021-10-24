@@ -35,6 +35,7 @@ static const char* s_engineMeshBox  = "./media/engine_mesh/box.mesh";
 static const char* s_shader_tonemapper = "Engine/Tonemapper";
 static const char* s_shader_lighting   = "Engine/Lighting";
 static const char* s_shader_depth      = "Engine/Depth";
+static const char* s_shader_gbuffer    = "Engine/GBuffer";
 
 class FileSystem
 {

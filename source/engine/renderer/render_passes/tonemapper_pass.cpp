@@ -84,14 +84,6 @@ void engine::TonemapperPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBuffe
         m_pipelineLayouts[backBufferIndex],
         1, // PassSet #1
         1,
-        &m_renderer->getFrameData().m_viewDataDescriptorSets[backBufferIndex].set,0,nullptr
-    );
-
-    vkCmdBindDescriptorSets(
-        cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
-        m_pipelineLayouts[backBufferIndex],
-        2, // PassSet #2
-        1,
         &m_tonemapperPassDescriptorSets[backBufferIndex].set,0,nullptr
     );
     vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,m_pipelines[backBufferIndex]);
@@ -206,7 +198,7 @@ void engine::TonemapperPass::createPipeline()
         sceneColorImage.sampler = VulkanRHI::get()->getPointClampSampler();
 
         m_renderer->vkDynamicDescriptorFactoryBegin(index)
-            .bindImage(0,&sceneColorImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+            .bindImage(0,&sceneColorImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build(m_tonemapperPassDescriptorSets[index],m_tonemapperPassDescriptorSetLayouts[index]);
     }
 
@@ -222,9 +214,8 @@ void engine::TonemapperPass::createPipeline()
         plci.pPushConstantRanges = nullptr;
 
         std::vector<VkDescriptorSetLayout> setLayouts = {
-            m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout,
-            m_renderer->getFrameData().m_viewDataDescriptorSetLayouts[index].layout,
-            m_tonemapperPassDescriptorSetLayouts[index].layout 
+              m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout
+            , m_tonemapperPassDescriptorSetLayouts[index].layout 
         };
 
         plci.setLayoutCount = (uint32)setLayouts.size();

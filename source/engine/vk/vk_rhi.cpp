@@ -7,7 +7,7 @@ static AutoCVarInt32 cVarReverseZ(
 	"r.Shading.ReverseZ",
 	"Enable reverse z. 0 is off, others are on.",
 	"Shading",
-	0,
+	1,
 	CVarFlags::InitOnce | CVarFlags::ReadOnly
 );
 
@@ -27,10 +27,22 @@ void VulkanRHI::init(GLFWwindow* window,
     m_instanceLayerNames = instanceLayerNames;
     m_deviceExtensionNames = deviceExtensionNames;
     m_deviceExtensionNames.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+    m_deviceExtensionNames.push_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME); // 用于bindless
+    m_deviceExtensionNames.push_back(VK_KHR_MAINTENANCE3_EXTENSION_NAME);
+    m_deviceExtensionNames.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
 
     // Enable gpu features here.
     m_enableGpuFeatures.samplerAnisotropy = true; // Enable sampler anisotropy.
     m_enableGpuFeatures.depthClamp = true;        // Depth clamp to avoid near plane clipping.
+    m_enableGpuFeatures.shaderSampledImageArrayDynamicIndexing = true;
+
+	m_physicalDeviceDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
+    m_physicalDeviceDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    m_physicalDeviceDescriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
+    m_physicalDeviceDescriptorIndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
+    m_physicalDeviceDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+    m_physicalDeviceDescriptorIndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+    m_physicalDeviceDescriptorIndexingFeatures.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
 
     m_window = window;
     m_instance.init(m_instanceExtensionNames,m_instanceLayerNames);
@@ -52,9 +64,17 @@ void VulkanRHI::init(GLFWwindow* window,
     });
 
     m_deviceExtensionNames.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    m_device.init(m_instance,m_surface,m_enableGpuFeatures,m_deviceExtensionNames);
+    m_device.init(m_instance,m_surface,m_enableGpuFeatures,m_deviceExtensionNames, &m_physicalDeviceDescriptorIndexingFeatures);
     vkGetPhysicalDeviceProperties(m_device.physicalDevice, &m_physicalDeviceProperties);
     LOG_GRAPHICS_INFO("Gpu min align memory size：{0}.",m_physicalDeviceProperties.limits.minUniformBufferOffsetAlignment);
+
+	auto vkGetPhysicalDeviceProperties2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(vkGetInstanceProcAddr(m_instance,"vkGetPhysicalDeviceProperties2KHR"));
+	assert(vkGetPhysicalDeviceProperties2KHR);
+    VkPhysicalDeviceProperties2KHR deviceProperties{};
+    m_descriptorIndexingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES_EXT;
+    deviceProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
+    deviceProperties.pNext = &m_descriptorIndexingProperties;
+	vkGetPhysicalDeviceProperties2KHR(m_device.physicalDevice,&deviceProperties);
 
     m_swapchain.init(&m_device,&m_surface,window);
     createCommandPool();
@@ -219,24 +239,24 @@ void VulkanRHI::resetFence()
     vkCheck(vkResetFences(m_device,1,&m_inFlightFences[m_currentFrame]));
 }
 
-VkQueue& VulkanRHI::getCopyQueue()
+AsyncQueue* VulkanRHI::getAsyncCopyQueue()
 {
-    if(m_device.availableTransferQueues.size() > 1)
+    if(m_device.asyncTransferQueues.size() > 1)
     {
-        return m_device.availableTransferQueues[1];
+        return &m_device.asyncTransferQueues[1];
     }
-    else if(m_device.availableTransferQueues.size()==1)
+    else if(m_device.asyncTransferQueues.size()==1)
     {
-        return m_device.availableTransferQueues[0];
+        return &m_device.asyncTransferQueues[0];
     }
-    else if( m_device.availableGraphicsQueues.size() > 0)
+    else if( m_device.asyncGraphicsQueues.size() > 0)
     {
         // 否则用倒数第一个闲置的图形队列
-        return m_device.availableGraphicsQueues[m_device.availableGraphicsQueues.size() - 1];
+        return &m_device.asyncGraphicsQueues[m_device.asyncGraphicsQueues.size() - 1];
     }
     else
     {
-        return m_device.graphicsQueue;
+        return nullptr;
     }
 }
 
@@ -575,7 +595,7 @@ VulkanCommandBuffer* VulkanRHI::createCopyCommandBuffer(VkCommandBufferLevel lev
         &m_device,
         m_copyCommandPool,
         level,
-        getCopyQueue()
+        getAsyncCopyQueue()->queue
     );
 }
 

@@ -212,6 +212,8 @@ bool EngineLoop::init()
     VulkanRHI::get()->init(g_windowData.window);
     asset_system::EngineAsset::get()->init();
 
+    TextureLibrary::get()->init();
+
     // ÒıÇæ³õÊ¼»¯
     m_engine.init();
 

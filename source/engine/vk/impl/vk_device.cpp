@@ -7,10 +7,12 @@ void VulkanDevice::init(
 	VkInstance instance,
 	VkSurfaceKHR surface,
 	VkPhysicalDeviceFeatures features,
-	const std::vector<const char*>& device_request_extens)
+	const std::vector<const char*>& device_request_extens,
+	void* nextChain)
 {
 	this->m_instance = instance;
 	this->m_surface = surface;
+	this->m_deviceCreateNextChain = nextChain;
 
 	// 1. 选择合适的Gpu
 	pickupSuitableGpu(instance,device_request_extens);
@@ -86,6 +88,16 @@ void VulkanDevice::createLogicDevice()
 	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 	createInfo.pEnabledFeatures = &m_openFeatures;
 
+	VkPhysicalDeviceFeatures2 physicalDeviceFeatures2{};
+	if(m_deviceCreateNextChain)
+	{
+		physicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		physicalDeviceFeatures2.features = m_openFeatures;
+		physicalDeviceFeatures2.pNext = m_deviceCreateNextChain;
+		createInfo.pEnabledFeatures = nullptr;
+		createInfo.pNext = &physicalDeviceFeatures2;
+	}
+
 	// 3. 开启设备需要的扩展
 	createInfo.enabledExtensionCount = static_cast<uint32_t>(m_deviceExtensions.size());
 	createInfo.ppEnabledExtensionNames = m_deviceExtensions.data();
@@ -117,12 +129,13 @@ void VulkanDevice::createLogicDevice()
 		else if(indices.graphicsQueueCount > 2)
 		{
 			vkGetDeviceQueue(device,indices.graphicsFamily,1,&presentQueue);
-			availableGraphicsQueues.resize(indices.graphicsQueueCount - 2);
-			for(size_t index = 0; index < availableGraphicsQueues.size(); index++)
+			std::vector<AsyncQueue> tmpQueues (indices.graphicsQueueCount - 2);
+			for(size_t index = 0; index < tmpQueues.size(); index++)
 			{
-				availableGraphicsQueues[index] = VK_NULL_HANDLE;
-				vkGetDeviceQueue(device, indices.graphicsFamily, (uint32_t)index + 2, &availableGraphicsQueues[index]);
+				tmpQueues[index].queue = VK_NULL_HANDLE;
+				vkGetDeviceQueue(device, indices.graphicsFamily, (uint32_t)index + 2, &tmpQueues[index].queue);
 			}
+			asyncGraphicsQueues.swap(tmpQueues);
 		}
 	}
 	else
@@ -132,33 +145,36 @@ void VulkanDevice::createLogicDevice()
 
 		if(indices.graphicsQueueCount>1)
 		{
-			availableGraphicsQueues.resize(indices.graphicsQueueCount-1);
-			for(size_t index = 0; index<availableGraphicsQueues.size(); index++)
+			std::vector<AsyncQueue> tmpQueues (indices.graphicsQueueCount-1);
+			for(size_t index = 0; index<tmpQueues.size(); index++)
 			{
-				availableGraphicsQueues[index] = VK_NULL_HANDLE;
-				vkGetDeviceQueue(device,indices.graphicsFamily,(uint32_t)index + 1,&availableGraphicsQueues[index]);
+				tmpQueues[index].queue = VK_NULL_HANDLE;
+				vkGetDeviceQueue(device,indices.graphicsFamily,(uint32_t)index + 1,&tmpQueues[index].queue);
 			}
+			asyncGraphicsQueues.swap(tmpQueues);
 		}
 	}
 
 	if(indices.computeQueueCount > 0 && indices.bSoloComputeQueueFamily)
 	{
-		availableComputeQueues.resize(indices.computeQueueCount);
-		for(size_t index = 0; index < availableComputeQueues.size(); index++)
+		std::vector<AsyncQueue> tmpQueues (indices.computeQueueCount);
+		for(size_t index = 0; index < tmpQueues.size(); index++)
 		{
-			availableComputeQueues[index] = VK_NULL_HANDLE;
-			vkGetDeviceQueue(device,indices.computeFaimly,(uint32_t)index, &availableComputeQueues[index]);
+			tmpQueues[index].queue = VK_NULL_HANDLE;
+			vkGetDeviceQueue(device,indices.computeFaimly,(uint32_t)index, &tmpQueues[index].queue);
 		}
+		asyncComputeQueues.swap(tmpQueues);
 	}
 
 	if(indices.transferQueueCount > 0 && indices.bSoloTransferFamily)
 	{
-		availableTransferQueues.resize(indices.transferQueueCount);
-		for(size_t index = 0; index < availableTransferQueues.size(); index++)
+		std::vector<AsyncQueue> tmpQueues (indices.transferQueueCount);
+		for(size_t index = 0; index < tmpQueues.size(); index++)
 		{
-			availableTransferQueues[index] = VK_NULL_HANDLE;
-			vkGetDeviceQueue(device,indices.computeFaimly,(uint32_t)index,&availableTransferQueues[index]);
+			tmpQueues[index].queue = VK_NULL_HANDLE;
+			vkGetDeviceQueue(device,indices.computeFaimly,(uint32_t)index,&tmpQueues[index].queue);
 		}
+		asyncTransferQueues.swap(tmpQueues);
 	}
 }
 

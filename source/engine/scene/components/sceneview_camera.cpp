@@ -129,6 +129,11 @@ namespace engine
             return ret;
         }
 
+        float GetFovY() const
+        {
+            return glm::radians(Zoom);
+        }
+
     public:
         // Ïà»úÊôÐÔ
         glm::vec3 Position;
@@ -243,6 +248,8 @@ void engine::SceneViewCamera::tick(float dt,uint32 viewWidth,uint32 viewHeight)
     m_position = m_cameraImpl->GetPosition();
     setZNear(m_cameraImpl->zNear);
     setZFar(m_cameraImpl->zFar);
+
+    m_fovY = m_cameraImpl->GetFovY();
 }
 
 engine::SceneViewCamera::SceneViewCamera()

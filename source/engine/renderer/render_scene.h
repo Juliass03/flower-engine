@@ -9,17 +9,18 @@
 **/
 namespace engine{
 
+template<typename SSBOType>
 struct SceneUploadSSBO;
 
-struct GPUObjectData
-{
-	__declspec(align(16)) glm::mat4 model;
-};
+struct GPUFrameData;
+struct GPUObjectData;
+struct GPUMaterialData;
 
 class RenderScene
 {
 public:
 	void initFrame(uint32 width,uint32 height,bool forceAllocateTextures = false);
+	void renderPrepare(const GPUFrameData& view);
 
 	void init(class Renderer* renderer);
 	void release();
@@ -29,17 +30,21 @@ public:
 
 	SceneTextures& getSceneTextures() { return *m_sceneTextures; }
 
-	void uploadGbufferSSBO();
+	void uploadMeshSSBO();
 
 	std::vector<struct RenderMesh> m_cacheStaticMeshRenderMesh;
-	SceneUploadSSBO* m_gbufferSSBO;
-	std::vector<GPUObjectData> m_cacheGBufferObjectSSBOData {};
+
+	SceneUploadSSBO<GPUObjectData>* m_meshObjectSSBO;
+	std::vector<GPUObjectData>   m_cacheMeshObjectSSBOData {};
+
+	SceneUploadSSBO<GPUMaterialData>* m_meshMaterialSSBO;
+	std::vector<GPUMaterialData> m_cacheMeshMaterialSSBOData {};
 
 	Scene& getActiveScene();
 
 private:
 	void allocateSceneTextures(uint32 width,uint32 height,bool forceAllocate = false);
-	void meshCollect(bool bRebuildMaterial);
+	void meshCollect();
 
 private:
 	SceneTextures* m_sceneTextures;

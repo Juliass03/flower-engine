@@ -68,7 +68,7 @@
     </Link>
     <Lib>
       <AdditionalLibraryDirectories>$(SolutionDir)external\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;lz4.lib;spirv_reflectd.lib;assimp-vc142-mt.lib</AdditionalDependencies>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;lz4.lib;assimp-vc142-mt.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -90,7 +90,7 @@
     </Link>
     <Lib>
       <AdditionalLibraryDirectories>$(SolutionDir)external\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;lz4.lib;spirv_reflect.lib;assimp-vc142-mt.lib</AdditionalDependencies>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;lz4.lib;assimp-vc142-mt.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -99,7 +99,6 @@
     <ClCompile Include="asset_system\asset_mmd.cpp" />
     <ClCompile Include="asset_system\asset_system.cpp" />
     <ClCompile Include="asset_system\asset_texture.cpp" />
-    <ClCompile Include="asset_system\texture_compress.cpp" />
     <ClCompile Include="core\crc.cpp" />
     <ClCompile Include="core\input.cpp" />
     <ClCompile Include="core\job_system.cpp" />
@@ -121,6 +120,7 @@
     <ClCompile Include="renderer\imgui_pass.cpp" />
     <ClCompile Include="renderer\renderer.cpp" />
     <ClCompile Include="renderer\render_scene.cpp" />
+    <ClCompile Include="renderer\render_prepare.cpp" />
     <ClCompile Include="renderer\scene_textures.cpp" />
     <ClCompile Include="renderer\texture.cpp" />
     <ClCompile Include="scene\components\directionalLight.cpp" />
@@ -130,7 +130,6 @@
     <ClCompile Include="scene\components\transform.cpp" />
     <ClCompile Include="scene\scene.cpp" />
     <ClCompile Include="shader_compiler\shader_compiler.cpp" />
-    <ClCompile Include="shader_compiler\shader_effect.cpp" />
     <ClCompile Include="vk\impl\vk_buffer.cpp" />
     <ClCompile Include="vk\impl\vk_cmdbuffer.cpp" />
     <ClCompile Include="vk\impl\vk_descriptor.cpp" />
@@ -149,7 +148,6 @@
     <ClInclude Include="asset_system\asset_mmd.h" />
     <ClInclude Include="asset_system\asset_system.h" />
     <ClInclude Include="asset_system\asset_texture.h" />
-    <ClInclude Include="asset_system\texture_compress.h" />
     <ClInclude Include="async\book_cpp_concurrency_action.h" />
     <ClInclude Include="core\crc.h" />
     <ClInclude Include="core\deletion_queue.h" />
@@ -178,6 +176,7 @@
     <ClInclude Include="renderer\render_passes\shadowDepth_pass.h" />
     <ClInclude Include="renderer\render_passes\tonemapper_pass.h" />
     <ClInclude Include="renderer\render_scene.h" />
+    <ClInclude Include="renderer\render_prepare.h" />
     <ClInclude Include="renderer\scene_textures.h" />
     <ClInclude Include="renderer\texture.h" />
     <ClInclude Include="scene\component.h" />
@@ -190,7 +189,6 @@
     <ClInclude Include="scene\scene.h" />
     <ClInclude Include="scene\scene_node.h" />
     <ClInclude Include="shader_compiler\shader_compiler.h" />
-    <ClInclude Include="shader_compiler\shader_effect.h" />
     <ClInclude Include="vk\impl\vk_buffer.h" />
     <ClInclude Include="vk\impl\vk_cmdbuffer.h" />
     <ClInclude Include="vk\impl\vk_common.h" />

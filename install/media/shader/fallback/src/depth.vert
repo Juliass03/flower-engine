@@ -1,19 +1,25 @@
 #version 460
-#define VERTEX_SHADER
+#extension GL_EXT_nonuniform_qualifier : require
 
 #include "../../glsl/common.glsl"
-#include "../../glsl/frame_data.glsl"
-#include "../../glsl/view_data.glsl"
-#include "../../glsl/pass_depth.glsl"
+#include "../../glsl/common_mesh.glsl"
+
+layout (location = 0) in vec3 inPosition;
+layout (location = 1) in vec2 inUV0;
+layout (location = 2) in vec3 inNormal;
+layout (location = 3) in vec4 inTangent;
+
+layout (location = 0) out flat uint outInstanceIndex;
+layout (location = 1) out vec2 outUV0;
 
 void main()
 {
-    mat4 modelMatrix  = objectBuffer.objects[gl_BaseInstance].model;
-	mat3 normalMatrix = transpose(inverse(mat3(modelMatrix)));
-	mat4 transformMatrix = viewData.camViewProj * modelMatrix;
-	gl_Position = transformMatrix * vec4(inPosition, 1.0f);
-	vec4 worldPos = modelMatrix * vec4(inPosition,1.0f);
-	outWorldPos = vec3(worldPos);
-	outWorldNormal = normalMatrix * normalize(inNormal);
 	outUV0 = inUV0;
+
+	mat4 modelMatrix  = perObjectBuffer.objects[gl_InstanceIndex].model;
+	mat4 mvp = frameData.camViewProj * modelMatrix;
+
+	gl_Position = mvp * vec4(inPosition, 1.0f);
+
+	outInstanceIndex = gl_InstanceIndex;
 }

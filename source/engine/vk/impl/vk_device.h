@@ -2,6 +2,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include "vk_common.h"
+#include <mutex>
 
 namespace engine{
 
@@ -43,6 +44,12 @@ struct VulkanSwapchainSupportDetails
 	std::vector<VkPresentModeKHR> presentModes;
 };
 
+struct AsyncQueue
+{
+	VkQueue queue;
+	std::mutex mutex;
+};
+
 class VulkanDevice
 {
 public:
@@ -55,15 +62,16 @@ public:
 	VkQueue computeQueue = VK_NULL_HANDLE;  // 主计算队列（用于辅助主图形队列的异步计算）
 
 	// 剩余的队列
-	std::vector<VkQueue> availableTransferQueues;    // 所有可用的传输队列 
-	std::vector<VkQueue> availableComputeQueues;     // 所有可用的计算队列
-	std::vector<VkQueue> availableGraphicsQueues;    // 所有可用的图形队列
+	std::vector<AsyncQueue> asyncTransferQueues;    // 所有可用的传输队列 
+	std::vector<AsyncQueue> asyncComputeQueues;     // 所有可用的计算队列
+	std::vector<AsyncQueue> asyncGraphicsQueues;    // 所有可用的图形队列
 
 private:
 	VkInstance m_instance = VK_NULL_HANDLE;
 	VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 	std::vector<const char*> m_deviceExtensions = {};
 	VkPhysicalDeviceFeatures m_openFeatures = {};
+	void* m_deviceCreateNextChain = nullptr;
 
 public:
 	operator VkDevice() { return device; }
@@ -74,7 +82,8 @@ public:
 		VkInstance instance,
 		VkSurfaceKHR surface,
 		VkPhysicalDeviceFeatures features = {},
-		const std::vector<const char*>& device_request_extens= {}
+		const std::vector<const char*>& device_request_extens= {},
+		void* nextChain = nullptr
 	);
 
 	void destroy();
