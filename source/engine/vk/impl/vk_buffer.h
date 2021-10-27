@@ -14,6 +14,7 @@ class VulkanBuffer
 private:
 	VulkanDevice* m_device = nullptr;
 	VkCommandPool m_commandPool = VK_NULL_HANDLE;
+	bool m_isHeap = false;
 
 	VkDescriptorBufferInfo m_descriptor = {};
 	VkDeviceSize m_size = 0;
@@ -31,12 +32,14 @@ private:
 private:
 	VulkanBuffer() = default;
 	void destroy();
+	bool isHeap();
 	bool CreateBuffer(
 		VkBufferUsageFlags usageFlags, 
 		const VmaMemoryUsage memoryUsage,
 		VkMemoryPropertyFlags memoryPropertyFlags, 
 		VkDeviceSize size, 
-		void *data
+		void *data,
+		bool bHeapMemory
 	);
 
 public:
@@ -53,9 +56,11 @@ public:
 		const VmaMemoryUsage memoryUsage,
 		VkMemoryPropertyFlags memoryPropertyFlags, 
 		VkDeviceSize size, 
-		void *data
+		void *data,
+		bool bHeapMemory = false
 	);
 
+	VkDeviceSize getSize() { return m_size; }
 	VkResult map(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
 	void unmap();
 	VkResult bind(VkDeviceSize offset = 0);
@@ -89,6 +94,8 @@ public:
 		return *m_buffer;
 	}
 
+	VulkanBuffer* getVulkanBuffer() { return m_buffer; }
+
 	inline void bind(VkCommandBuffer cmd_buf)
 	{
 		vkCmdBindIndexBuffer(cmd_buf, *m_buffer, 0, m_indexType);
@@ -103,13 +110,15 @@ public:
 	static VulkanIndexBuffer* create(
 		VulkanDevice* vulkanDevice,
 		VkCommandPool pool,
-		const std::vector<uint16_t>& indices
+		const std::vector<uint32_t>& indices
 	);
 
 	static VulkanIndexBuffer* create(
 		VulkanDevice* vulkanDevice,
+		VkDeviceSize bufferSize,
 		VkCommandPool pool,
-		const std::vector<uint32_t>& indices
+		bool bHeapMemory,
+		bool bSSBO
 	);
 
 private:
@@ -144,6 +153,8 @@ public:
 		return *m_buffer;
 	}
 
+	VulkanBuffer* getVulkanBuffer() { return m_buffer; }
+
 	inline void bind(VkCommandBuffer cmdBuffer)
 	{
 		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &(m_buffer->m_buffer), &m_offset);
@@ -160,6 +171,14 @@ public:
 		VkCommandPool pool,
 		const std::vector<float>& vertices,
 		const std::vector<EVertexAttribute>& attributes
+	);
+
+	static VulkanVertexBuffer* create(
+		VulkanDevice* in_device,
+		VkCommandPool pool,
+		VkDeviceSize size,
+		bool bHeapMemory,
+		bool bSSBO
 	);
 
 private:

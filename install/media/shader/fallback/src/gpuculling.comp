@@ -1,0 +1,63 @@
+#version 460
+
+layout (local_size_x = 256) in;
+
+// set = 0 在common.glsl中使用掉了
+#include "../../glsl/common.glsl"
+
+layout(set = 1, binding = 0) readonly buffer PerObjectBuffer
+{
+	PerObjectData objects[];
+} perObjectBuffer;
+
+layout (set = 2, binding = 0, std430) writeonly buffer IndirectDraws
+{
+	IndexedIndirectCommand gbufferIndirectDraws[];
+};
+
+struct GPUCullingPushConstants
+{
+	uint drawCount;
+};	
+
+layout(push_constant) uniform constants{   
+   GPUCullingPushConstants cullData;
+};
+
+void gbufferVisibileCulling(uint id)
+{
+	PerObjectData objectData = perObjectBuffer.objects[id];
+
+	vec4  sphereBounds = objectData.sphereBounds;
+	vec3  center = sphereBounds.xyz;
+	float radius = sphereBounds.w;
+	vec4 pos = vec4(center,1.0f);
+	pos = objectData.model * pos;
+
+	// Sphere Frustum Culling
+	for (int i = 0; i < 6; i++) 
+	{
+		if (dot(pos, frameData.camFrustumPlanes[i]) + radius < 0.0)
+		{
+			gbufferIndirectDraws[id].instanceCount = 0;
+			return;
+		}
+	}
+
+	gbufferIndirectDraws[id].indexCount    = objectData.indexCount;
+	gbufferIndirectDraws[id].firstIndex    = objectData.firstIndex;
+	gbufferIndirectDraws[id].vertexOffset  = objectData.vertexOffset;
+	gbufferIndirectDraws[id].firstInstance = objectData.firstInstance;
+	gbufferIndirectDraws[id].instanceCount = 1;
+}
+
+void main()
+{
+    uint idx = gl_GlobalInvocationID.x + 
+               gl_GlobalInvocationID.y * gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+    
+    if(idx < cullData.drawCount)
+	{
+		gbufferVisibileCulling(idx);
+    }
+}

@@ -36,6 +36,10 @@ void VulkanDevice::createLogicDevice()
 	// 1. 指定要创建的队列
 	auto indices = findQueueFamilies();
 
+	graphicsFamily = indices.graphicsFamily;
+	computeFamily  = indices.computeFaimly;
+	copyFamily = indices.graphicsFamily;
+
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 
 	// 我们首先确定Present队列位于哪一个队列族

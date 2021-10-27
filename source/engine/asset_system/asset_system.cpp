@@ -43,6 +43,7 @@ void AssetSystem::tick(float dt)
 
 	prepareTextureLoad();
 	checkTextureUploadStateAsync();
+	MeshLibrary::get()->uploadAppendBuffer();
 
 	broadcastCallbackOnAssetFolderDirty();
 }
@@ -70,7 +71,7 @@ void AssetSystem::prepareTextureLoad()
 	m_perScanAdditionalTextures.resize(0);
 
 	// NOTE: 我们现在引入了异步上传纹理的队列，因此可以在单独的线程中加载了。
-	constexpr auto perTickLoadNum = 100;
+	constexpr auto perTickLoadNum = 50;
 	for(auto i = 0; i < perTickLoadNum; i++)
 	{
 		if(m_loadingTextureTasks.size()==0)

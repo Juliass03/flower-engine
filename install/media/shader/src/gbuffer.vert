@@ -20,7 +20,7 @@ void main()
 {
 	outUV0 = inUV0;
 
-    mat4 modelMatrix  = perObjectBuffer.objects[gl_InstanceIndex].model;
+    mat4 modelMatrix  = perObjectBuffer.objects[gl_DrawID].model;
 	vec4 worldPos = modelMatrix * vec4(inPosition,1.0f);
 
 	outWorldPos = vec3(worldPos);
@@ -33,5 +33,5 @@ void main()
 	outWorldNormal = normalMatrix * normalize(inNormal);
 	outTangent =  vec4(normalMatrix * normalize(inTangent.xyz),inTangent.w);
 
-	outInstanceIndex = gl_InstanceIndex;
+	outInstanceIndex = gl_DrawID;
 }

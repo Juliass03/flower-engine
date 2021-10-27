@@ -130,6 +130,7 @@ public:
     void addShaderModule(const std::string& path);
     const uint32 getCurrentFrameIndex() { return m_currentFrame; }
     VkSemaphore* getCurrentFrameWaitSemaphore() { return &m_semaphoresImageAvailable[m_currentFrame]; }
+    VkSemaphore getCurrentFrameWaitSemaphoreRef() { return m_semaphoresImageAvailable[m_currentFrame]; }
     VkSemaphore* getCurrentFrameFinishSemaphore() { return &m_semaphoresRenderFinished[m_currentFrame]; }
     VulkanSwapchain& getSwapchain() { return m_swapchain; }
     std::vector<VkImageView>& getSwapchainImageViews() { return m_swapchain.getImageViews(); }

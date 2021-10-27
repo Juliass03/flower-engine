@@ -228,6 +228,7 @@ void unpackMesh(MeshInfo* info,const char* sourcebuffer,size_t sourceSize,std::v
 
 struct AssimpModelProcess
 {
+    // NOTE: 和getStandardMeshAttributesVertexCount保持一致
     struct StandardVertex
     {
         glm::vec3 pos = glm::vec3(0.0f);

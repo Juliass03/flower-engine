@@ -5,6 +5,8 @@
 #include "render_prepare.h"
 #include "material.h"
 
+constexpr uint32_t SSBO_BINDING_POS = 0;
+
 namespace engine{
 
 RenderScene::RenderScene(Ref<SceneManager> sceneManager,Ref<shaderCompiler::ShaderCompiler> shaderCompiler)
@@ -15,6 +17,7 @@ RenderScene::RenderScene(Ref<SceneManager> sceneManager,Ref<shaderCompiler::Shad
 	m_sceneTextures = new SceneTextures();
 	m_meshObjectSSBO = new SceneUploadSSBO<GPUObjectData>();
 	m_meshMaterialSSBO = new SceneUploadSSBO<GPUMaterialData>();
+	m_drawIndirectSSBOGbuffer = {};
 }
 
 RenderScene::~RenderScene()
@@ -86,8 +89,9 @@ void RenderScene::init(Renderer* renderer)
 	// 无论如何首先初始化能用的RenderScene
 	initFrame(ScreenTextureInitSize,ScreenTextureInitSize);
 
-	m_meshObjectSSBO->init();
-	m_meshMaterialSSBO->init();
+	m_meshObjectSSBO->init(SSBO_BINDING_POS);
+	m_meshMaterialSSBO->init(SSBO_BINDING_POS);
+	m_drawIndirectSSBOGbuffer.init(SSBO_BINDING_POS);
 }
 
 void RenderScene::release()
@@ -96,11 +100,11 @@ void RenderScene::release()
 
 	m_meshObjectSSBO->release();
 	m_meshMaterialSSBO->release();
+	m_drawIndirectSSBOGbuffer.release();
 }
 
 // NOTE: 在这里收集场景中的静态网格
 // TODO: 静态网格收集进行一遍即可，没必要每帧更新。
-// TODO: 合并静态网格
 void RenderScene::meshCollect()
 {
 	m_cacheMeshObjectSSBOData.clear();
@@ -109,35 +113,103 @@ void RenderScene::meshCollect()
 	m_cacheMeshMaterialSSBOData.clear();
 	m_cacheMeshMaterialSSBOData.resize(0);
 
-	m_cacheStaticMeshRenderMesh.clear();
-	m_cacheStaticMeshRenderMesh.resize(0);
+	m_cacheStaticMeshRenderMesh.submesh.clear();
+	m_cacheStaticMeshRenderMesh.submesh.resize(0);
+
+	m_cacheIndirectCommands.clear();
+	m_cacheIndirectCommands.resize(0);
 
 	auto& activeScene = m_sceneManager->getActiveScene();
 	auto staticMeshComponents = activeScene.getComponents<StaticMeshComponent>();
 
+	// TODO: Parallel For
 	for(auto& componentWeakPtr : staticMeshComponents)
 	{
 		if(auto component = componentWeakPtr.lock()) // NOTE: 获取网格Component
 		{
-			auto renderMesh = component->getRenderMesh(m_shaderCompiler,m_renderer);
-			renderMesh.bMeshVisible = true;
-			m_cacheStaticMeshRenderMesh.push_back(renderMesh);
+			std::vector<RenderSubMesh> renderMeshes = component->getRenderMesh(m_renderer);
 
-			for(auto& subMesh : renderMesh.submesh)
+			// TODO: Parallel For
+			for(auto& subMesh : renderMeshes)
 			{
 				// NOTE: 无论可见与否都创建对应的SSBO
 				GPUObjectData objData{};
-				objData.model = renderMesh.modelMatrix;
+				objData.model = subMesh.modelMatrix;
+				objData.sphereBounds = glm::vec4(subMesh.renderBounds.origin,subMesh.renderBounds.radius);
+				objData.extents = glm::vec4(subMesh.renderBounds.extents,1.0f);
+				objData.firstInstance = 0;
+				objData.vertexOffset = 0; // 我们已经在cpu那里做好了vertexOffset故这里填零
+										  
+				objData.indexCount = subMesh.indexCount;
+				objData.firstIndex = subMesh.indexStartPosition;
+
 				m_cacheMeshObjectSSBOData.push_back(objData);
 
 				// NOTE: 材质添加
 				GPUMaterialData matData{};
 				matData = subMesh.cacheMaterial->getGPUMaterialData();
-				
 				m_cacheMeshMaterialSSBOData.push_back(matData);
+
+				m_cacheStaticMeshRenderMesh.submesh.push_back(subMesh);
 			}
 		}
 	}
+}
+
+void RenderScene::DrawIndirectBuffer::init(uint32 bindingPos)
+{
+	auto bufferSize = sizeof(VkDrawIndexedIndirectCommand) * MAX_SSBO_OBJECTS;
+	this->size = bufferSize;
+
+	drawIndirectSSBO = VulkanBuffer::create(
+		VulkanRHI::get()->getVulkanDevice(),
+		VulkanRHI::get()->getGraphicsCommandPool(),
+		VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		VMA_MEMORY_USAGE_GPU_ONLY,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		bufferSize,
+		nullptr
+	);
+
+	VkDescriptorBufferInfo bufInfo = {};
+	bufInfo.buffer = *drawIndirectSSBO;
+	bufInfo.offset = 0;
+	bufInfo.range = bufferSize;
+
+	VulkanRHI::get()->vkDescriptorFactoryBegin()
+		.bindBuffer(bindingPos,&bufInfo,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,VK_SHADER_STAGE_COMPUTE_BIT)
+		.build(descriptorSets,descriptorSetLayout);
+
+	executeImmediately(
+		VulkanRHI::get()->getDevice(),
+		VulkanRHI::get()->getGraphicsCommandPool(),
+		VulkanRHI::get()->getGraphicsQueue(),[&](VkCommandBuffer cmd)
+	{
+		VkBufferMemoryBarrier bufferBarrier{};
+		bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		bufferBarrier.buffer = *drawIndirectSSBO;
+		bufferBarrier.size = VK_WHOLE_SIZE;
+
+		bufferBarrier.srcAccessMask = VK_ACCESS_NONE_KHR;
+		bufferBarrier.dstAccessMask = VK_ACCESS_NONE_KHR;
+		bufferBarrier.srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
+		bufferBarrier.dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
+
+		vkCmdPipelineBarrier(
+			cmd,
+			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+			0,
+			0,nullptr,
+			1,&bufferBarrier,
+			0,nullptr);
+	});
+	
+}
+
+void RenderScene::DrawIndirectBuffer::release()
+{
+	delete drawIndirectSSBO;
 }
 
 }

@@ -28,25 +28,20 @@ Mesh& engine::StaticMeshComponent::getMesh()
 	return *mesh;
 }
 
-RenderMesh engine::StaticMeshComponent::getRenderMesh(Ref<shaderCompiler::ShaderCompiler> shaderCompiler,Ref<Renderer> renderer)
+std::vector<RenderSubMesh> engine::StaticMeshComponent::getRenderMesh(Ref<Renderer> renderer)
 {
 	if(auto node = m_node.lock())
 	{
+		std::vector<RenderSubMesh> ret {};
+
 		Mesh& mesh = getMesh();
 
 		auto transform = node->getComponent<Transform>();
 
-		RenderMesh ret {};
+		CHECK(mesh.indexCount > 0 && mesh.indexStartPosition >= 0);
+		CHECK(mesh.vertexCount > 0 && mesh.vertexStartPosition >= 0);
 
-		CHECK(mesh.indexBuffer);
-		CHECK(mesh.vertexBuffer);
-
-		ret.indexBuffer = mesh.indexBuffer;
-		ret.vertexBuffer = mesh.vertexBuffer;
-
-		// TODO: 我们在SceneManager Tick中对已经所有脏掉的Transform刷新坐标
-		//       因此此时可以多线程的更新Mesh收集
-		ret.modelMatrix = transform->getWorldMatrix();
+		glm::mat4 modelMatrix = transform->getWorldMatrix();
 
 		if(m_materials.size() != mesh.subMeshes.size())
 		{
@@ -54,26 +49,32 @@ RenderMesh engine::StaticMeshComponent::getRenderMesh(Ref<shaderCompiler::Shader
 			reflectMaterials();
 		}
 
+		// TODO: Parallel for
 		uint32 index = 0;
-		for(auto& subMesh : mesh.subMeshes)
+		if(MeshLibrary::get()->MeshReady(mesh))
 		{
-			RenderSubMesh renderSubMesh{};
-
-			renderSubMesh.bCullingResult = true;
-			renderSubMesh.indexCount = subMesh.indexCount;
-			renderSubMesh.indexStartPosition = subMesh.indexStartPosition;
-			renderSubMesh.renderBounds = subMesh.renderBounds;
-			if(m_materials[index] != "")
+			for(auto& subMesh : mesh.subMeshes)
 			{
-				renderSubMesh.cacheMaterial = MaterialLibrary::get()->getMaterial(m_materials[index]);
-			}
-			else
-			{
-				renderSubMesh.cacheMaterial = &MaterialLibrary::get()->getCallbackMaterial();
-			}
+				RenderSubMesh renderSubMesh{};
 
-			index++;
-			ret.submesh.push_back(renderSubMesh);
+				renderSubMesh.bCullingResult = true;
+				renderSubMesh.indexCount = subMesh.indexCount;
+				renderSubMesh.indexStartPosition = subMesh.indexStartPosition;
+				renderSubMesh.renderBounds = subMesh.renderBounds;
+				renderSubMesh.modelMatrix = modelMatrix;
+
+				if(m_materials[index] != "")
+				{
+					renderSubMesh.cacheMaterial = MaterialLibrary::get()->getMaterial(m_materials[index]);
+				}
+				else
+				{
+					renderSubMesh.cacheMaterial = &MaterialLibrary::get()->getCallbackMaterial();
+				}
+
+				index++;
+				ret.push_back(renderSubMesh);
+			}
 		}
 
 		return ret;
@@ -81,7 +82,7 @@ RenderMesh engine::StaticMeshComponent::getRenderMesh(Ref<shaderCompiler::Shader
 	else
 	{
 		LOG_FATAL("Miss node!");
-		return RenderMesh();
+		return {};
 	}
 }
 

@@ -307,7 +307,7 @@ bool test_using_separating_axis_theorem(const CullingFrustum& frustum, const glm
 };
 
 
-static void singleThreadCulling(std::vector<RenderMesh>& inMeshes,const GPUFrameData& inView)
+static void singleThreadCulling(RenderMeshPack& inMeshes,const GPUFrameData& inView)
 {
     float tan_fov = tan(0.5f * inView.cameraInfo.x);
     CullingFrustum frustum;
@@ -316,28 +316,20 @@ static void singleThreadCulling(std::vector<RenderMesh>& inMeshes,const GPUFrame
     frustum.near_plane = -inView.cameraInfo.z;
     frustum.far_plane = -inView.cameraInfo.w;
 
-	for(auto& mesh : inMeshes)
+	for(auto& mesh : inMeshes.submesh)
 	{
-		bool bMeshVisible = false;
 		const glm::mat4& MV = inView.camView * mesh.modelMatrix;
 
-		for(auto& subMesh : mesh.submesh)
-		{
-            AABB aabb;
-            aabb.max = subMesh.renderBounds.origin + subMesh.renderBounds.extents;
-            aabb.min = subMesh.renderBounds.origin - subMesh.renderBounds.extents;
+        AABB aabb;
+        aabb.max = mesh.renderBounds.origin + mesh.renderBounds.extents;
+        aabb.min = mesh.renderBounds.origin - mesh.renderBounds.extents;
 
-			bool bSubMeshVisible = test_using_separating_axis_theorem(frustum,MV,aabb);
-            subMesh.bCullingResult = bSubMeshVisible;
-			bMeshVisible |= bSubMeshVisible;
-		}
-
-		mesh.bMeshVisible = bMeshVisible;
+        mesh.bCullingResult = test_using_separating_axis_theorem(frustum,MV,aabb);
 	}
 
 }
 
-static void mutliThreadCulling(std::vector<RenderMesh>& inMeshes,const GPUFrameData& inView)
+static void mutliThreadCulling(RenderMeshPack& inMeshes,const GPUFrameData& inView)
 {
     float tan_fov = tan(0.5f * inView.cameraInfo.x);
     CullingFrustum frustum;
@@ -347,30 +339,19 @@ static void mutliThreadCulling(std::vector<RenderMesh>& inMeshes,const GPUFrameD
     frustum.far_plane = -inView.cameraInfo.w;
 
     std::for_each(std::execution::par_unseq,
-        inMeshes.begin(),
-        inMeshes.end(),
+        inMeshes.submesh.begin(),
+        inMeshes.submesh.end(),
         [inView,frustum](auto&& mesh)
     {
-        mesh.bMeshVisible = false;
         const glm::mat4& MV = inView.camView * mesh.modelMatrix;
-
-        std::for_each(std::execution::par_unseq,
-            mesh.submesh.begin(),
-            mesh.submesh.end(),
-            [inView,frustum,MV,&mesh](auto&& subMesh)
-        {
-            AABB aabb;
-            aabb.max = subMesh.renderBounds.origin + subMesh.renderBounds.extents;
-            aabb.min = subMesh.renderBounds.origin - subMesh.renderBounds.extents;
-
-            bool bSubMeshVisible = test_using_separating_axis_theorem(frustum,MV,aabb);
-            subMesh.bCullingResult = bSubMeshVisible;
-            mesh.bMeshVisible |= bSubMeshVisible;
-        });
+        AABB aabb;
+        aabb.max = mesh.renderBounds.origin + mesh.renderBounds.extents;
+        aabb.min = mesh.renderBounds.origin - mesh.renderBounds.extents;
+        mesh.bCullingResult = test_using_separating_axis_theorem(frustum,MV,aabb);
     });
 }
 
-void engine::frustumCulling(std::vector<RenderMesh>& inMeshes,const GPUFrameData& inView)
+void engine::frustumCulling(RenderMeshPack& inMeshes,const GPUFrameData& inView)
 {
 	if(cVarCulling.get() == 0) return;
 

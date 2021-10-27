@@ -61,6 +61,10 @@ public:
 	VkQueue presentQueue = VK_NULL_HANDLE;  // 主显示队列
 	VkQueue computeQueue = VK_NULL_HANDLE;  // 主计算队列（用于辅助主图形队列的异步计算）
 
+	uint32_t graphicsFamily;
+	uint32_t copyFamily;
+	uint32_t computeFamily;
+
 	// 剩余的队列
 	std::vector<AsyncQueue> asyncTransferQueues;    // 所有可用的传输队列 
 	std::vector<AsyncQueue> asyncComputeQueues;     // 所有可用的计算队列

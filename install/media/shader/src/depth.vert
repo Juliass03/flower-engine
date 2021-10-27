@@ -17,11 +17,11 @@ void main()
 {
 	outUV0 = inUV0;
 
-	mat4 modelMatrix  = perObjectBuffer.objects[gl_InstanceIndex].model;
+	mat4 modelMatrix  = perObjectBuffer.objects[gl_DrawID].model;
 	mat4 mvp = frameData.camViewProj * modelMatrix;
 
 	gl_Position = mvp * vec4(inPosition, 1.0f);
 
-	PerObjectMaterialData matData = perObjectMaterial.materials[gl_InstanceIndex];
+	PerObjectMaterialData matData = perObjectMaterial.materials[gl_DrawID];
 	outBaseColorTexId = matData.baseColorTexId;
 }

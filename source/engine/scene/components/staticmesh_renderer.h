@@ -10,8 +10,8 @@ namespace shaderCompiler
 }
 
 class Transform;
-struct RenderMesh;
 struct Mesh;
+struct RenderSubMesh;
 class Renderer;
 
 class StaticMeshComponent : public Component
@@ -42,7 +42,7 @@ public:
 	StaticMeshComponent();
 	virtual ~StaticMeshComponent(){ };
 	virtual size_t getType() override { return EComponentType::StaticMeshComponent; }
-	RenderMesh getRenderMesh(Ref<shaderCompiler::ShaderCompiler> shaderCompiler,Ref<Renderer> renderer);
+	std::vector<RenderSubMesh> getRenderMesh(Ref<Renderer> renderer);
 	void reflectMaterials();
 	Mesh& getMesh();
 };

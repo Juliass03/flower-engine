@@ -16,10 +16,10 @@ void main()
 {
 	outUV0 = inUV0;
 
-	mat4 modelMatrix  = perObjectBuffer.objects[gl_InstanceIndex].model;
+	mat4 modelMatrix  = perObjectBuffer.objects[gl_DrawID].model;
 	mat4 mvp = frameData.camViewProj * modelMatrix;
 
 	gl_Position = mvp * vec4(inPosition, 1.0f);
 
-	outInstanceIndex = gl_InstanceIndex;
+	outInstanceIndex = gl_DrawID;
 }

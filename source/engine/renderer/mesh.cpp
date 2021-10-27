@@ -1,12 +1,46 @@
 #include "mesh.h"
 #include "../asset_system/asset_system.h"
 #include "../asset_system/asset_mesh.h"
-#include "mesh/primitive.h"
 #include "../core/file_system.h"
 #include "material.h"
 #include "../launch/launch_engine_loop.h"
+#include <execution>
+#include "../core/job_system.h"
+#include "../vk/vk_rhi.h"
 
 using namespace engine;
+
+static AutoCVarInt32 cVarBaseVRamForVertexBuffer(
+    "r.Vram.BaseVertexBuffer",
+    "Persistent vram for vertex buffer(mb).",
+    "Vram",
+    128,
+    CVarFlags::InitOnce | CVarFlags::ReadOnly
+);
+
+static AutoCVarInt32 cVarBaseVRamForIndexBuffer(
+    "r.Vram.BaseIndexBuffer",
+    "Persistent vram for index buffer(mb).",
+    "Vram",
+    128,
+    CVarFlags::InitOnce | CVarFlags::ReadOnly
+);
+
+static AutoCVarInt32 cVarVertexBufferIncrementSize(
+    "r.Vram.VertexBufferIncrementSize",
+    "Increment vram size for vertex buffer(mb) when base vertex buffer no fit.",
+    "Vram",
+    16,
+    CVarFlags::InitOnce | CVarFlags::ReadOnly
+);
+
+static AutoCVarInt32 cVarIndexBufferIncrementSize(
+    "r.Vram.IndexBufferIncrementSize",
+    "Increment vram size for index buffer(mb) when base index buffer no fit.",
+    "Vram",
+    16,
+    CVarFlags::InitOnce | CVarFlags::ReadOnly
+);
 
 MeshLibrary* MeshLibrary::s_meshLibrary = new MeshLibrary();
 
@@ -54,33 +88,17 @@ RenderBounds RenderBounds::combine(const RenderBounds& b0,const RenderBounds& b1
     return ret;
 }
 
-void engine::Mesh::release()
-{
-    if(indexBuffer)
-    {
-        delete indexBuffer;
-        indexBuffer = nullptr;
-    }
-
-    if(vertexBuffer)
-    {
-        delete vertexBuffer;
-        vertexBuffer = nullptr;
-    }
-}
-
-void engine::Mesh::buildFromGameAsset(const std::string& gameName)
+void engine::MeshLibrary::buildFromGameAsset(Mesh& inout,const std::string& gameName)
 {
     using namespace asset_system;
-    // AssetSystem* assetSystem = g_engineLoop.getEngine()->getRuntimeModule<AssetSystem>();
 
     AssetFile asset {};
     loadBinFile(gameName.c_str(),asset);
     CHECK(asset.type[0] == 'M' && 
-          asset.type[1] == 'E' && 
-          asset.type[2] == 'S' && 
-          asset.type[3] == 'H');
-    
+        asset.type[1] == 'E' && 
+        asset.type[2] == 'S' && 
+        asset.type[3] == 'H');
+
     std::vector<VertexIndexType> indicesData = {};
     std::vector<float> verticesData = {};
 
@@ -89,15 +107,13 @@ void engine::Mesh::buildFromGameAsset(const std::string& gameName)
     // 1. 填充indicesData和verticesData
     unpackMesh(&info,asset.binBlob.data(),asset.binBlob.size(),verticesData,indicesData);
 
-    layout = info.attributeLayout;
-    subMeshes.resize(info.subMeshCount);
+    inout.layout = info.attributeLayout;
+    inout.subMeshes.resize(info.subMeshCount);
 
-    uint32 index_startPoint = 0;
-    uint32 vertex_startPoint = 0;
     for (uint32 i = 0; i < info.subMeshCount; i++)
     {
         const auto& subMeshInfo = info.subMeshInfos[i];
-        auto& subMesh = subMeshes[i];
+        auto& subMesh = inout.subMeshes[i];
 
         subMesh.indexCount = subMeshInfo.indexCount;
         subMesh.indexStartPosition = subMeshInfo.indexStartPosition;
@@ -128,24 +144,25 @@ void engine::Mesh::buildFromGameAsset(const std::string& gameName)
         }
     }
 
-    indexBuffer = VulkanRHI::get()->createIndexBuffer(indicesData);
-    vertexBuffer = VulkanRHI::get()->createVertexBuffer(verticesData,layout);
-}
+    // 2. 对顶点位置做处理
+    uint32 lastMeshVerticesPos = (uint32)m_cacheVerticesData.size();
+    uint32 lastMeshIndexPos = (uint32)m_cacheIndicesData.size();
 
-Mesh& engine::MeshLibrary::getUnitQuad()
-{
-    auto quadName = toString(EPrimitiveMesh::Quad);
-    if(m_meshContainer.find(quadName) != m_meshContainer.end())
+    inout.vertexStartPosition = lastMeshVerticesPos;
+    inout.vertexCount = (uint32)verticesData.size();
+
+    inout.indexStartPosition = lastMeshIndexPos;
+    inout.indexCount = (uint32)indicesData.size();
+
+    uint32 lastMeshVertexIndex = lastMeshVerticesPos / getStandardMeshAttributesVertexCount();
+    std::for_each(std::execution::par_unseq,indicesData.begin(),indicesData.end(), [lastMeshVertexIndex](auto&& index)
     {
-        return *m_meshContainer[quadName];
-    }
-    else
-    {
-        Mesh* newMesh = new Mesh();
-        m_meshContainer[quadName] = newMesh;
-        buildQuad(*newMesh);
-        return *newMesh;
-    }
+        index = index + lastMeshVertexIndex;
+    });
+
+    // 3. 拼接到原本的网格上
+    m_cacheVerticesData.insert(m_cacheVerticesData.end(),verticesData.begin(),verticesData.end());
+    m_cacheIndicesData.insert(m_cacheIndicesData.end(),indicesData.begin(),indicesData.end());
 }
 
 Mesh& engine::MeshLibrary::getUnitBox()
@@ -158,7 +175,7 @@ Mesh& engine::MeshLibrary::getUnitBox()
     {
         Mesh* newMesh = new Mesh();
         m_meshContainer[s_engineMeshBox] = newMesh;
-        newMesh->buildFromGameAsset(s_engineMeshBox);
+        buildFromGameAsset(*newMesh,s_engineMeshBox);
         return *newMesh;
     }
 }
@@ -168,10 +185,6 @@ Mesh& engine::MeshLibrary::getMeshByName(const std::string& gameName)
     if(m_meshContainer.find(gameName) != m_meshContainer.end())
     {
         return *m_meshContainer[gameName];
-    }
-    else if(gameName==toString(EPrimitiveMesh::Quad))
-    {
-        return getUnitQuad();
     }
     else if(gameName=="" || gameName == toString(EPrimitiveMesh::Box))
     {
@@ -183,21 +196,74 @@ Mesh& engine::MeshLibrary::getMeshByName(const std::string& gameName)
 
         Mesh* newMesh = new Mesh();
         m_meshContainer[gameName] = newMesh;
-        newMesh->buildFromGameAsset(gameName);
+        buildFromGameAsset(*newMesh,gameName);
 
         return *newMesh;
     }
+}
+
+void engine::MeshLibrary::init()
+{
+    CHECK(m_indexBuffer == nullptr);
+    CHECK(m_vertexBuffer == nullptr);
+
+    VkDeviceSize baseVertexBufferSize = static_cast<VkDeviceSize>(cVarBaseVRamForVertexBuffer.get()) * 1024 * 1024;
+    VkDeviceSize baseIndexBufferSize  = static_cast<VkDeviceSize>(cVarBaseVRamForIndexBuffer.get())  * 1024 * 1024;
+
+    // NOTE: 实际上1024 * 1024 根本不够用
+    m_cacheVerticesData.reserve(1024 * 1024);
+    m_cacheIndicesData.reserve(1024 * 1024);
+
+    m_indexBuffer = VulkanIndexBuffer::create(
+        VulkanRHI::get()->getVulkanDevice(),
+        baseIndexBufferSize,
+        VulkanRHI::get()->getGraphicsCommandPool(),
+        true,
+        true
+    );
+
+    m_vertexBuffer = VulkanVertexBuffer::create(
+        VulkanRHI::get()->getVulkanDevice(),
+        VulkanRHI::get()->getGraphicsCommandPool(),
+        baseVertexBufferSize,
+		true,
+		true
+    );
+
+    // NOTE: 先加载Box作为回滚网格
+    getUnitBox();
 }
 
 void engine::MeshLibrary::release()
 {
     for (auto& meshPair : m_meshContainer)
     {
-        meshPair.second->release();
         delete meshPair.second;
     }
 
     m_meshContainer.clear();
+
+    if(m_indexBuffer)
+    {
+        delete m_indexBuffer;
+        m_indexBuffer = nullptr;
+    }
+   
+    if(m_vertexBuffer)
+    {
+        delete m_vertexBuffer;
+        m_vertexBuffer = nullptr;
+    }
+}
+
+void engine::MeshLibrary::bindVertexBuffer(VkCommandBuffer cmd)
+{
+    m_vertexBuffer->bind(cmd);
+}
+
+void engine::MeshLibrary::bindIndexBuffer(VkCommandBuffer cmd)
+{
+    m_indexBuffer->bind(cmd);
 }
 
 const std::unordered_set<std::string>& engine::MeshLibrary::getStaticMeshList() const
@@ -208,4 +274,117 @@ const std::unordered_set<std::string>& engine::MeshLibrary::getStaticMeshList() 
 void engine::MeshLibrary::emplaceStaticeMeshList(const std::string& name)
 {
     m_staticMeshList.emplace(name); 
+}
+
+bool engine::MeshLibrary::MeshReady(const Mesh& in) const
+{
+    if(in.vertexCount <= 0) return false;
+    if(in.indexCount <= 0) return false;
+
+    if(in.vertexStartPosition < m_lastUploadVertexBufferPos &&
+        in.indexStartPosition < m_lastUploadIndexBufferPos)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+void engine::MeshLibrary::uploadAppendBuffer()
+{
+    VkDeviceSize incrementVertexBufferSize = static_cast<VkDeviceSize>(cVarVertexBufferIncrementSize.get()) * 1024 * 1024;
+    VkDeviceSize incrementIndexBufferSize  = static_cast<VkDeviceSize>(cVarIndexBufferIncrementSize.get())  * 1024 * 1024;
+
+    if(m_lastUploadVertexBufferPos != (uint32)m_cacheVerticesData.size())
+    {
+        uint32 upLoadStartPos = m_lastUploadVertexBufferPos;
+        uint32 upLoadEndPos = (uint32)m_cacheVerticesData.size();
+        m_lastUploadVertexBufferPos = upLoadEndPos;
+
+        VkDeviceSize currentVertexDataDeviceSize = VkDeviceSize(sizeof(m_cacheVerticesData[0]) * m_cacheVerticesData.size());
+        VkDeviceSize lastDeviceSize = m_vertexBuffer->getVulkanBuffer()->getSize();
+
+        // NOTE: 若超出了范围需要重新申请并刷新
+        if(currentVertexDataDeviceSize >= lastDeviceSize)
+        {
+            VkDeviceSize newDeviceSize = lastDeviceSize + ((currentVertexDataDeviceSize / incrementVertexBufferSize) + 1) * incrementVertexBufferSize;
+
+
+            LOG_INFO("Reallocate {0} mb local vram for vertex buffer!", newDeviceSize / (1024 * 1024));
+           
+            vkQueueWaitIdle(VulkanRHI::get()->getVulkanDevice()->graphicsQueue);
+            delete m_vertexBuffer;
+
+            m_vertexBuffer = VulkanVertexBuffer::create(
+                VulkanRHI::get()->getVulkanDevice(),
+                VulkanRHI::get()->getGraphicsCommandPool(),
+                newDeviceSize,
+                true,
+                true // TODO: 未来我们将在ComputeShader中剔除每一个三角形！
+            );
+
+            upLoadStartPos = 0; // NOTE: 需要全部上传一次
+        }
+
+        CHECK(upLoadEndPos > upLoadStartPos);
+        VkDeviceSize uploadDeviceSize = VkDeviceSize(sizeof(m_cacheVerticesData[0]) * (upLoadEndPos - upLoadStartPos));
+
+        VulkanBuffer* stageBuffer = VulkanBuffer::create(
+            VulkanRHI::get()->getVulkanDevice(),
+            VulkanRHI::get()->getGraphicsCommandPool(),
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+            VMA_MEMORY_USAGE_CPU_TO_GPU,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            uploadDeviceSize,
+            (void *)(m_cacheVerticesData.data() + upLoadStartPos)
+        );
+
+        m_vertexBuffer->getVulkanBuffer()->stageCopyFrom(*stageBuffer, uploadDeviceSize,VulkanRHI::get()->getVulkanDevice()->graphicsQueue);
+        delete stageBuffer;
+    }
+
+    if(m_lastUploadIndexBufferPos != (uint32)m_cacheIndicesData.size())
+    {
+        uint32 upLoadStartPos = m_lastUploadIndexBufferPos;
+        uint32 upLoadEndPos = (uint32)m_cacheIndicesData.size();
+        m_lastUploadIndexBufferPos = upLoadEndPos;
+
+        VkDeviceSize currentIndexDataDeviceSize = VkDeviceSize(sizeof(m_cacheIndicesData[0]) * m_cacheIndicesData.size());
+        VkDeviceSize lastDeviceSize = m_indexBuffer->getVulkanBuffer()->getSize();
+
+        // NOTE: 若超出了范围需要重新申请并刷新
+        if(currentIndexDataDeviceSize >= lastDeviceSize)
+        {
+            VkDeviceSize newDeviceSize = lastDeviceSize + ((currentIndexDataDeviceSize / incrementIndexBufferSize) + 1) * incrementIndexBufferSize;
+            delete m_indexBuffer;
+
+            LOG_INFO("Reallocate {0} mb local vram for index buffer!", newDeviceSize / (1024 * 1024));
+            vkQueueWaitIdle(VulkanRHI::get()->getVulkanDevice()->graphicsQueue);
+            m_indexBuffer = VulkanIndexBuffer::create(
+                VulkanRHI::get()->getVulkanDevice(),
+                newDeviceSize,
+                VulkanRHI::get()->getGraphicsCommandPool(),
+				true,
+				false // TODO: 未来我们将在ComputeShader中剔除每一个三角形！
+            );
+
+            upLoadStartPos = 0; // NOTE: 需要全部上传一次
+        }
+
+        CHECK(upLoadEndPos > upLoadStartPos);
+        VkDeviceSize uploadDeviceSize = VkDeviceSize(sizeof(m_cacheIndicesData[0]) * (upLoadEndPos - upLoadStartPos));
+
+        VulkanBuffer* stageBuffer = VulkanBuffer::create(
+            VulkanRHI::get()->getVulkanDevice(),
+            VulkanRHI::get()->getGraphicsCommandPool(),
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+            VMA_MEMORY_USAGE_CPU_TO_GPU,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            uploadDeviceSize,
+            (void *)(m_cacheIndicesData.data() + upLoadStartPos)
+        );
+
+        m_indexBuffer->getVulkanBuffer()->stageCopyFrom(*stageBuffer, uploadDeviceSize,VulkanRHI::get()->getVulkanDevice()->graphicsQueue);
+        delete stageBuffer;
+    }
 }

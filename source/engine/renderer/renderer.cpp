@@ -10,6 +10,9 @@
 #include "render_passes/lighting_pass.h"
 #include "render_passes/shadowDepth_pass.h"
 #include "render_prepare.h"
+#include "mesh.h"
+#include "compute_passes/gpu_culling.h"
+#include "frustum.h"
 
 using namespace engine;
 
@@ -65,6 +68,8 @@ bool Renderer::init()
 	m_renderScene->init(this);
 	m_uiPass->initImgui();
 
+	m_gpuCullingPass = new GpuCullingPass(this,m_renderScene,shader_compiler, "GpuCulling");
+
 	// 注册RenderPasses
 	// m_renderpasses.push_back(new ShadowDepthPass(this,m_renderScene,shader_compiler,"ShadowDepth"));
 	m_renderpasses.push_back(new GBufferPass(this,m_renderScene,shader_compiler,"GBuffer"));
@@ -80,6 +85,8 @@ bool Renderer::init()
 	{
 		pass->init();
 	}
+
+	m_gpuCullingPass->init();
 
 	return true;
 }
@@ -117,12 +124,18 @@ void Renderer::tick(float dt)
 	m_frameData.updateFrameData(m_gpuFrameData);
 	m_renderScene->renderPrepare(m_gpuFrameData);
 
+	// 首先进行gpu剔除
+	m_gpuCullingPass->record(backBufferIndex);
+
 	// 开始动态记录
 	VkCommandBuffer dynamicBuf = *VulkanRHI::get()->getDynamicGraphicsCmdBuf(backBufferIndex);
 
 	vkCheck(vkResetCommandBuffer(dynamicBuf,0));
 	VkCommandBufferBeginInfo cmdBeginInfo = vkCommandbufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	vkCheck(vkBeginCommandBuffer(dynamicBuf,&cmdBeginInfo));
+
+	MeshLibrary::get()->bindIndexBuffer(dynamicBuf);
+	MeshLibrary::get()->bindVertexBuffer(dynamicBuf);
 
 	for(auto* pass : m_renderpasses)
 	{
@@ -134,15 +147,31 @@ void Renderer::tick(float dt)
 	uiRecord(backBufferIndex);
 	m_uiPass->renderFrame(backBufferIndex);
 
-	auto frameStartSemaphore = VulkanRHI::get()->getCurrentFrameWaitSemaphore();
+	auto frameStartSemaphore = VulkanRHI::get()->getCurrentFrameWaitSemaphoreRef();
 	auto frameEndSemaphore = VulkanRHI::get()->getCurrentFrameFinishSemaphore();
 	auto dynamicCmdBufSemaphore = VulkanRHI::get()->getDynamicGraphicsCmdBufSemaphore(backBufferIndex);
 
-	std::vector<VkPipelineStageFlags> waitFlags = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	VkSubmitInfo gpuCullingSubmitInfo{};
+	gpuCullingSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	gpuCullingSubmitInfo.commandBufferCount = 1;
+	gpuCullingSubmitInfo.pCommandBuffers = &m_gpuCullingPass->m_cmdbufs[backBufferIndex]->getInstance();
+	gpuCullingSubmitInfo.signalSemaphoreCount = 1;
+	gpuCullingSubmitInfo.pSignalSemaphores = &m_gpuCullingPass->m_semaphores[backBufferIndex];
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getComputeQueue(), 1, &gpuCullingSubmitInfo, VK_NULL_HANDLE));
+
+	std::vector<VkPipelineStageFlags> waitFlags = { 
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+	};
+
+	std::vector<VkSemaphore> waitSemaphores = {
+		frameStartSemaphore,	
+		m_gpuCullingPass->m_semaphores[backBufferIndex]		
+	};
 
 	VulkanSubmitInfo dynamicBufSubmitInfo{};
 	dynamicBufSubmitInfo.setWaitStage(waitFlags)
-		.setWaitSemaphore(frameStartSemaphore,1)
+		.setWaitSemaphore(waitSemaphores.data(),(uint32)waitSemaphores.size())
 		.setSignalSemaphore(&dynamicCmdBufSemaphore,1)
 		.setCommandBuffer(&dynamicBuf,1);
 
@@ -171,11 +200,13 @@ void Renderer::release()
 	m_uiPass->release();
 	m_renderScene->release();
 	m_frameData.release();
+	m_gpuCullingPass->release();
 
+	delete m_gpuCullingPass;
 	delete m_uiPass;
 	delete m_renderScene;
 
-	for(size_t i = 0; i<m_dynamicDescriptorAllocator.size(); i++)
+	for(size_t i = 0; i < m_dynamicDescriptorAllocator.size(); i++)
 	{
 		m_dynamicDescriptorAllocator[i]->cleanup();
 		delete m_dynamicDescriptorAllocator[i];
@@ -252,6 +283,16 @@ void Renderer::updateGPUData(float dt)
 		sceneViewCameraComponent->getZNear(),
 		sceneViewCameraComponent->getZFar()
 	);
+
+	Frustum camFrusum{};
+	camFrusum.update(m_gpuFrameData.camViewProj);
+
+	m_gpuFrameData.camFrustumPlanes[0] = camFrusum.planes[0];
+	m_gpuFrameData.camFrustumPlanes[1] = camFrusum.planes[1];
+	m_gpuFrameData.camFrustumPlanes[2] = camFrusum.planes[2];
+	m_gpuFrameData.camFrustumPlanes[3] = camFrusum.planes[3];
+	m_gpuFrameData.camFrustumPlanes[4] = camFrusum.planes[4];
+	m_gpuFrameData.camFrustumPlanes[5] = camFrusum.planes[5];
 }
 
 

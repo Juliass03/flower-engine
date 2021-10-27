@@ -14,6 +14,7 @@ extern float getEngineClearZNear();
 extern VkCompareOp getEngineZTestFunc();
 
 class GraphicsPass;
+class GpuCullingPass;
 
 class Renderer : public IRuntimeModule
 {
@@ -65,6 +66,9 @@ private:
 public:
 	VulkanDescriptorAllocator& getDynamicDescriptorAllocator(uint32 i);
 	VulkanDescriptorFactory vkDynamicDescriptorFactoryBegin(uint32 i);
+
+public:
+	GpuCullingPass* m_gpuCullingPass;
 };
 
 }

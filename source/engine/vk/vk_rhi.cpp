@@ -35,6 +35,7 @@ void VulkanRHI::init(GLFWwindow* window,
     m_enableGpuFeatures.samplerAnisotropy = true; // Enable sampler anisotropy.
     m_enableGpuFeatures.depthClamp = true;        // Depth clamp to avoid near plane clipping.
     m_enableGpuFeatures.shaderSampledImageArrayDynamicIndexing = true;
+    m_enableGpuFeatures.multiDrawIndirect = VK_TRUE; // GPU Driven && Draw Indirect.
 
 	m_physicalDeviceDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
     m_physicalDeviceDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;

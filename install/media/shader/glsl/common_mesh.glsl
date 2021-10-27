@@ -13,23 +13,10 @@ vec4 tex(uint id,vec2 uv)
     return texture(BindlessSampler2D[nonuniformEXT(id)],uv);
 }
 
-struct PerObjectData
-{
-	mat4 model;
-};
-
-layout(std140, set = 2, binding = 0) readonly buffer PerObjectBuffer
+layout(set = 2, binding = 0) readonly buffer PerObjectBuffer
 {
 	PerObjectData objects[];
 } perObjectBuffer;
-
-struct PerObjectMaterialData
-{
-    uint baseColorTexId;
-    uint normalTexId;
-    uint specularTexId;
-    uint emissiveTexId;
-};
 
 layout(set = 3, binding = 0) readonly buffer PerObjectMaterial
 {

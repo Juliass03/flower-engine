@@ -30,7 +30,7 @@
     <ClCompile Include="vk\impl\vk_sampler.cpp" />
     <ClCompile Include="core\crc.cpp" />
     <ClCompile Include="renderer\render_passes\tonemapper_pass.cpp" />
-    <ClCompile Include="renderer\render_passes\pass_interface.cpp" />
+    <ClCompile Include="renderer\pass_interface.cpp" />
     <ClCompile Include="vk\impl\vk_factory.cpp" />
     <ClCompile Include="scene\components\staticmesh_renderer.cpp" />
     <ClCompile Include="renderer\mesh.cpp" />
@@ -38,7 +38,6 @@
     <ClCompile Include="core\job_system.cpp" />
     <ClCompile Include="asset_system\asset_mesh.cpp" />
     <ClCompile Include="shader_compiler\shader_compiler.cpp" />
-    <ClCompile Include="renderer\mesh\primitive.cpp" />
     <ClCompile Include="renderer\frame_data.cpp" />
     <ClCompile Include="renderer\texture.cpp" />
     <ClCompile Include="scene\components\script_component.cpp" />
@@ -48,6 +47,7 @@
     <ClCompile Include="asset_system\asset_mmd.cpp" />
     <ClCompile Include="vk\impl\vk_fence.cpp" />
     <ClCompile Include="renderer\render_prepare.cpp" />
+    <ClCompile Include="renderer\compute_passes\gpu_culling.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\cvar.h" />
@@ -91,14 +91,13 @@
     <ClInclude Include="asset_system\asset_system.h" />
     <ClInclude Include="core\crc.h" />
     <ClInclude Include="renderer\render_passes\tonemapper_pass.h" />
-    <ClInclude Include="renderer\render_passes\pass_interface.h" />
+    <ClInclude Include="renderer\pass_interface.h" />
     <ClInclude Include="scene\components\staticmesh_renderer.h" />
     <ClInclude Include="renderer\mesh.h" />
     <ClInclude Include="renderer\material.h" />
     <ClInclude Include="core\job_system.h" />
     <ClInclude Include="asset_system\asset_mesh.h" />
     <ClInclude Include="shader_compiler\shader_compiler.h" />
-    <ClInclude Include="renderer\mesh\primitive.h" />
     <ClInclude Include="renderer\frame_data.h" />
     <ClInclude Include="renderer\texture.h" />
     <ClInclude Include="scene\components\script_component.h" />
@@ -109,5 +108,7 @@
     <ClInclude Include="asset_system\asset_mmd.h" />
     <ClInclude Include="vk\impl\vk_fence.h" />
     <ClInclude Include="renderer\render_prepare.h" />
+    <ClInclude Include="renderer\compute_passes\gpu_culling.h" />
+    <ClInclude Include="renderer\frustum.h" />
   </ItemGroup>
 </Project>

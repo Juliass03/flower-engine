@@ -10,7 +10,7 @@ static AutoCVarInt32 cVarEnableVma(
 	"r.RHI.EnableVma",
 	"Enable vma allocator to manage vkBuffer create and destroy. 0 is off, others are on.",
 	"RHI",
-	1,
+	1, // VMA在低端机器上会有过大的VRAM报错
 	CVarFlags::ReadOnly | CVarFlags::InitOnce
 );
 
@@ -21,15 +21,18 @@ VulkanBuffer* VulkanBuffer::create(
 	const VmaMemoryUsage memoryUsage,
 	VkMemoryPropertyFlags memoryPropertyFlags, 
 	VkDeviceSize size, 
-	void *data)
+	void *data,
+	bool bHeapMemory)
 {
 	auto ret_buffer = new VulkanBuffer();
 
 	ret_buffer->m_device = in_device;
 	ret_buffer->m_commandPool = in_commandpool;
 
-	ret_buffer->CreateBuffer(usageFlags,memoryUsage,memoryPropertyFlags, size,data);
+	ret_buffer->CreateBuffer(usageFlags,memoryUsage,memoryPropertyFlags, size,data,bHeapMemory);
 	ret_buffer->setupDescriptor();
+
+	ret_buffer->m_size = size;
 
 	return ret_buffer;
 }
@@ -136,8 +139,10 @@ bool VulkanBuffer::CreateBuffer(
 	VkBufferUsageFlags usageFlags,
 	const VmaMemoryUsage memoryUsage,
 	VkMemoryPropertyFlags memoryPropertyFlags,
-	VkDeviceSize size,void* data) 
+	VkDeviceSize size,void* data,bool bHeapMemory) 
 {
+	m_isHeap = bHeapMemory;
+
 	//1. 创建 buffer 句柄
 	VkBufferCreateInfo bufferInfo{};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -145,7 +150,7 @@ bool VulkanBuffer::CreateBuffer(
 	bufferInfo.usage = usageFlags;
 	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	if(cVarEnableVma.get())
+	if(!isHeap())
 	{
 		VmaAllocationCreateInfo vmaallocInfo = {};
 		vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
@@ -221,7 +226,7 @@ void VulkanBuffer::stageCopyFrom(VulkanBuffer& inBuffer,VkDeviceSize size,VkQueu
 
 void VulkanBuffer::destroy()
 {
-	if(cVarEnableVma.get())
+	if(!isHeap())
 	{
 		vmaDestroyBuffer(VulkanRHI::get()->getVmaAllocator(), m_buffer, m_allocation);
 	}
@@ -236,6 +241,11 @@ void VulkanBuffer::destroy()
 			vkFreeMemory(*m_device, m_memory, nullptr);
 		}
 	}
+}
+
+bool VulkanBuffer::isHeap()
+{
+	return (cVarEnableVma.get() == 0) || m_isHeap;
 }
 
 VulkanIndexBuffer* VulkanIndexBuffer::create(
@@ -277,40 +287,32 @@ VulkanIndexBuffer* VulkanIndexBuffer::create(
 }
 
 VulkanIndexBuffer* VulkanIndexBuffer::create(
-	VulkanDevice* in_device,
+	VulkanDevice* vulkanDevice,
+	VkDeviceSize bufferSize,
 	VkCommandPool pool,
-	const std::vector<uint16_t>& indices)
+	bool bHeapMemory,
+	bool bSSBO)
 {
 	VulkanIndexBuffer* ret = new VulkanIndexBuffer();
-	ret->m_device = in_device;
-	ret->m_indexCount = (int32_t)indices.size();
-	ret->m_indexType = VK_INDEX_TYPE_UINT16;
 
-	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+	CHECK(bufferSize > 0);
 
-	VulkanBuffer* stageBuffer = VulkanBuffer::create(
-		in_device,
-		pool,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-		VMA_MEMORY_USAGE_CPU_TO_GPU,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		bufferSize,
-		(void *)(indices.data())
-	);
+	ret->m_device = vulkanDevice;
+	ret->m_indexCount = (uint32)bufferSize / (uint32)sizeof(uint32);
+	ret->m_indexType = VK_INDEX_TYPE_UINT32;
 
 	ret->m_buffer = VulkanBuffer::create(
-		in_device,
+		vulkanDevice,
 		pool,  
-		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
+		bSSBO ? VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT :
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
 		VMA_MEMORY_USAGE_GPU_ONLY,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		bufferSize,
-		nullptr
+		nullptr,
+		bHeapMemory
 	);
 
-	ret->m_buffer->stageCopyFrom(*stageBuffer, bufferSize,in_device->graphicsQueue);
-
-	delete stageBuffer;
 	return ret;
 }
 
@@ -393,6 +395,30 @@ VulkanVertexBuffer* VulkanVertexBuffer::create(
 	ret->m_buffer->stageCopyFrom(*stageBuffer, bufferSize,in_device->graphicsQueue);
 
 	delete stageBuffer;
+	return ret;
+}
+
+VulkanVertexBuffer* VulkanVertexBuffer::create(
+	VulkanDevice* in_device,
+	VkCommandPool pool,
+	VkDeviceSize size,
+	bool bHeapMemory,
+	bool bSSBO)
+{
+	VulkanVertexBuffer* ret = new VulkanVertexBuffer();
+
+	ret->m_device = in_device;
+	ret->m_buffer = VulkanBuffer::create(
+		in_device,
+		pool,  
+		bSSBO ? VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_VERTEX_BUFFER_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT :
+			    VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VMA_MEMORY_USAGE_GPU_ONLY,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		size,
+		nullptr,
+		bHeapMemory
+	);
 	return ret;
 }
 

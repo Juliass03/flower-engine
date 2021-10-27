@@ -4,6 +4,11 @@
 #include <unordered_set>
 namespace engine{
 
+namespace asset_system
+{
+    class AssetSystem;
+}
+
 struct Material;
 
 struct RenderBounds
@@ -20,8 +25,10 @@ struct RenderBounds
 struct SubMesh
 {
     RenderBounds renderBounds;
+
     uint32 indexStartPosition;
     uint32 indexCount;
+
     Ref<Material> cacheMaterial = nullptr;
     std::string materialInfoPath;
 };
@@ -29,10 +36,14 @@ struct SubMesh
 struct RenderSubMesh
 {
     RenderBounds renderBounds;
+
     uint32 indexStartPosition;
     uint32 indexCount;
+
     Ref<Material> cacheMaterial = nullptr;
     bool bCullingResult = true;
+
+    glm::mat4 modelMatrix;
 };
 
 inline std::vector<EVertexAttribute> getStandardMeshAttributes()
@@ -45,11 +56,15 @@ inline std::vector<EVertexAttribute> getStandardMeshAttributes()
     };
 }
 
+inline uint32 getStandardMeshAttributesVertexCount()
+{
+    return 3 + 2 + 3 + 4;
+}
+
 enum class EPrimitiveMesh
 {
     Min = 0,
 
-    Quad,
     Box,
     Custom,
 
@@ -60,8 +75,6 @@ inline std::string toString(EPrimitiveMesh type)
 {
     switch(type)
     {
-    case engine::EPrimitiveMesh::Quad:
-        return "Quad";
     case engine::EPrimitiveMesh::Box:
         return "Box";
     case engine::EPrimitiveMesh::Custom:
@@ -88,45 +101,65 @@ struct Mesh
     std::vector<SubMesh> subMeshes;
     std::vector<EVertexAttribute> layout;
 
-    VulkanIndexBuffer* indexBuffer = nullptr;
-    VulkanVertexBuffer* vertexBuffer = nullptr;
+    uint32 vertexStartPosition;
+    uint32 vertexCount;
 
-    void release();
-    void buildFromGameAsset(const std::string& gameName);
+    uint32 indexStartPosition;
+    uint32 indexCount;
 };
 
-struct RenderMesh
+struct RenderMeshPack
 {
     std::vector<RenderSubMesh> submesh;
-
-    Ref<VulkanIndexBuffer> indexBuffer;
-    Ref<VulkanVertexBuffer> vertexBuffer;
-
-    glm::mat4 modelMatrix;
-    bool bMeshVisible = true;
 };
 
-// NOTE: MeshLibrary负责管理所有的静态网格加载。
-//       当前的策略为一旦加载就不再释放直到引擎明确退出。
-// TODO: 增加引用计数，在没有引用且显存占用达到一定阈值时销毁Mesh
 class MeshLibrary
 {
+    // TODO: 缓存Memory Allocation + Placement New的方式增加内存连续性
     using MeshContainer = std::unordered_map<std::string,Mesh*>;
+    friend asset_system::AssetSystem;
+
 private:
     static MeshLibrary* s_meshLibrary;
+
     std::unordered_set<std::string> m_staticMeshList;
     MeshContainer m_meshContainer;
 
+    // NOTE: 缓存了所有的网格顶点数据
+    //       当前的策略为一旦加载就不再释放直到引擎明确退出。
+    // TODO: 如果有需要时再换成流式加载
+    std::vector<VertexIndexType> m_cacheIndicesData = {};
+    std::vector<float> m_cacheVerticesData = {};
+
+    VulkanIndexBuffer* m_indexBuffer = nullptr;
+    VulkanVertexBuffer* m_vertexBuffer = nullptr;
+
+private:
+    void buildFromGameAsset(Mesh& inout,const std::string& gameName);
+
+private: // upload gpu
+    uint32 m_lastUploadVertexBufferPos = 0;
+    uint32 m_lastUploadIndexBufferPos = 0;
+
+    // 每帧Tick时在AssetSystem调用
+    void uploadAppendBuffer();
+
 public:
-    Mesh& getUnitQuad();
     Mesh& getUnitBox();
 
     Mesh& getMeshByName(const std::string& gameName);
+
+    void init();
     void release();
+
     static MeshLibrary* get() { return s_meshLibrary; }
+    void bindVertexBuffer(VkCommandBuffer cmd);
+    void bindIndexBuffer(VkCommandBuffer cmd);
 
     const std::unordered_set<std::string>& getStaticMeshList() const;
     void emplaceStaticeMeshList(const std::string& name);
+
+    bool MeshReady(const Mesh& in) const;
 };
 
 }

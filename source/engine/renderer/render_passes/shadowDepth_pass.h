@@ -1,5 +1,5 @@
 #pragma once
-#include "pass_interface.h"
+#include "../pass_interface.h"
 
 namespace engine
 {

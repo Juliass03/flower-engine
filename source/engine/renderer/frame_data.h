@@ -7,15 +7,18 @@
 namespace engine{
 
 constexpr int32 MAX_SSBO_OBJECTS      = 50000;
-constexpr uint32 SSBO_BINDING_POS     = 0;
-
-template<typename T> inline uint32 getSSBOIndex(){ CHECK(0); return 0; }
 
 struct GPUObjectData
 {
-    __declspec(align(16)) glm::mat4 model;
+    glm::mat4 model;
+    glm::vec4 sphereBounds;
+    glm::vec4 extents;
+
+    uint32 indexCount; // pad 4 uint32
+    uint32 firstIndex;
+    uint32 vertexOffset;
+    uint32 firstInstance;
 };
-template<> inline uint32 getSSBOIndex<GPUObjectData>(){ return 2; }
 
 struct GPUMaterialData
 {
@@ -24,19 +27,19 @@ struct GPUMaterialData
     uint32 specularTexId;
     uint32 emissiveTexId;
 };
-template<> inline uint32 getSSBOIndex<GPUMaterialData>(){ return 3; }
 
 struct GPUFrameData
 {
-	__declspec(align(16)) glm::vec4 appTime;
-    __declspec(align(16)) glm::vec4 sunLightDir;
-    __declspec(align(16)) glm::vec4 sunLightColor;
+	glm::vec4 appTime;
+    glm::vec4 sunLightDir;
+    glm::vec4 sunLightColor;
 
-	__declspec(align(16)) glm::mat4 camView;
-	__declspec(align(16)) glm::mat4 camProj;
-	__declspec(align(16)) glm::mat4 camViewProj;
-	__declspec(align(16)) glm::vec4 camWorldPos;
-	__declspec(align(16)) glm::vec4 cameraInfo; // .x fovy .y aspect_ratio .z nearZ .w farZ
+	glm::mat4 camView;
+	glm::mat4 camProj;
+	glm::mat4 camViewProj;
+    glm::vec4 camWorldPos;
+	glm::vec4 cameraInfo; // .x fovy .y aspect_ratio .z nearZ .w farZ
+    glm::vec4 camFrustumPlanes[6];
 };
 
 class Renderer;
@@ -85,12 +88,7 @@ struct SceneUploadSSBO
         return bufferSize;
     }
 
-    void bindDescriptorSet(VkCommandBuffer cmd, VkPipelineLayout layout,VkPipelineBindPoint pt = VK_PIPELINE_BIND_POINT_GRAPHICS)
-    {
-        vkCmdBindDescriptorSets(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,layout,getSSBOIndex<SSBOType>(),1,&descriptorSets.set,0,nullptr);
-    }
-
-    void init()
+    void init(uint32 bindingPos)
     {
         auto bufferSize = getSSBOSize();
 
@@ -110,7 +108,7 @@ struct SceneUploadSSBO
         bufInfo.range = bufferSize;
 
         VulkanRHI::get()->vkDescriptorFactoryBegin()
-            .bindBuffer(SSBO_BINDING_POS,&bufInfo,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+            .bindBuffer(bindingPos,&bufInfo,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT )
             .build(descriptorSets,descriptorSetLayout);
     }
 

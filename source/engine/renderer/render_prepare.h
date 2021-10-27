@@ -4,9 +4,9 @@
 
 namespace engine{
 
-struct RenderMesh;
+struct RenderMeshPack;
 struct GPUFrameData;
 
-extern void frustumCulling(std::vector<RenderMesh>& inMeshes,const GPUFrameData& view);
+extern void frustumCulling(RenderMeshPack& inMeshes,const GPUFrameData& view);
 
 }

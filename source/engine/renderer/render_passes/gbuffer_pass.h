@@ -1,5 +1,5 @@
 #pragma once
-#include "pass_interface.h"
+#include "../pass_interface.h"
 
 namespace engine
 {
@@ -19,7 +19,6 @@ public:
 	virtual void dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIndex) override;
 private:
 	std::vector<VkFramebuffer> m_framebuffers = {};
-	VkQueryPool m_queryPool;
 
 private:
 	bool bInitPipeline = false;

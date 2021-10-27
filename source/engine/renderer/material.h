@@ -49,11 +49,13 @@ private:
 class MaterialLibrary
 {
 private:
+	// TODO: 换成Memory Allocation + Placement New的做法
 	std::unordered_map<std::string/*file path*/,Material*> m_materialContainer;
 	static MaterialLibrary* s_materialLibrary;
 	Material m_callBackMaterial;
 	MaterialLibrary();
 	~MaterialLibrary();
+
 public:
 	std::unordered_map<std::string,Material*>& getContainer();
 	static MaterialLibrary* get();
