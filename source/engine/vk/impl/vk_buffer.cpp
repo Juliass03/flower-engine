@@ -207,15 +207,14 @@ bool VulkanBuffer::CreateBuffer(
 }
 
 
-void VulkanBuffer::stageCopyFrom(VulkanBuffer& inBuffer,VkDeviceSize size,VkQueue execute_queue)
+void VulkanBuffer::stageCopyFrom(VulkanBuffer& inBuffer,VkDeviceSize size,VkQueue execute_queue, VkDeviceSize srcOffset, VkDeviceSize destOffset)
 {
 	auto cmd_buf = VulkanCommandBuffer::create(m_device,m_commandPool,VK_COMMAND_BUFFER_LEVEL_PRIMARY,execute_queue);
 	cmd_buf->begin();
 	VkBufferCopy copyRegion{};
 
-	// 偏移，目前设为0
-	copyRegion.srcOffset = 0; 
-	copyRegion.dstOffset = 0; 
+	copyRegion.srcOffset = srcOffset; 
+	copyRegion.dstOffset = destOffset; 
 	copyRegion.size = size;
 	vkCmdCopyBuffer(*cmd_buf, inBuffer.m_buffer, this->m_buffer, 1, &copyRegion);
 

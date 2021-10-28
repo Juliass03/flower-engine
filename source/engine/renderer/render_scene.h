@@ -32,6 +32,7 @@ public:
 	SceneTextures& getSceneTextures() { return *m_sceneTextures; }
 
 	void uploadMeshSSBO();
+	bool isSceneEmpty();
 
 	RenderMeshPack m_cacheStaticMeshRenderMesh;
 
@@ -48,6 +49,8 @@ public:
 		VulkanDescriptorSetReference descriptorSets = {};
 		VulkanDescriptorLayoutReference descriptorSetLayout = {};
 		VkDeviceSize size;
+
+		bool bFirstInit = false;
 		void init(uint32 bindingPos);
 		void release();
 	};

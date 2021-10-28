@@ -68,7 +68,7 @@ public:
 	void copyTo(void* data, VkDeviceSize size);
 	VkResult flush(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
 	VkResult invalidate(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
-	void stageCopyFrom(VulkanBuffer& inBuffer,VkDeviceSize size,VkQueue execute_queue);
+	void stageCopyFrom(VulkanBuffer& inBuffer,VkDeviceSize size,VkQueue execute_queue, VkDeviceSize srcOffset = 0, VkDeviceSize destOffset = 0);
 };
 
 class VulkanIndexBuffer

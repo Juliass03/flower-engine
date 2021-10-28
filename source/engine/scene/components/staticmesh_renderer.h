@@ -23,6 +23,8 @@ public:
 	std::string m_customMeshName = "";
 	std::vector<std::string /*material path*/> m_materials{};
 
+	int m_selectMesh = 0;
+
 private:
 	friend class cereal::access;
 

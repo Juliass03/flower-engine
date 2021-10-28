@@ -53,28 +53,27 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
     rpInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     rpInfo.pClearValues = &clearValues[0];
 
-
 	VkDeviceSize asyncRange = (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size()*sizeof(VkDrawIndexedIndirectCommand);
-	asyncRange = asyncRange>0 ? asyncRange : 256;
-
 	VkBufferMemoryBarrier bufferBarrier{};
 	bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	bufferBarrier.buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
-	bufferBarrier.size = asyncRange;
-	bufferBarrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-	bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	bufferBarrier.srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
-	bufferBarrier.dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
+	if(!m_renderScene->isSceneEmpty())
+	{
+		bufferBarrier.buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
+		bufferBarrier.size = asyncRange;
+		bufferBarrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+		bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		bufferBarrier.srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
+		bufferBarrier.dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
 
-	vkCmdPipelineBarrier(
-		cmd,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-		0,
-		0,nullptr,
-		1,&bufferBarrier,
-		0,nullptr);
-
+		vkCmdPipelineBarrier(
+			cmd,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+			0,
+			0,nullptr,
+			1,&bufferBarrier,
+			0,nullptr);
+    }
 
     vkCmdBeginRenderPass(cmd,&rpInfo,VK_SUBPASS_CONTENTS_INLINE);
 
@@ -113,32 +112,37 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
     );
     vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,m_pipelines[backBufferIndex]);
 
-	
-    vkCmdDrawIndexedIndirect(
-        cmd, 
-        m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer(), 
-        0, 
-        (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size(), 
-        sizeof(VkDrawIndexedIndirectCommand)
-    );
+	if(!m_renderScene->isSceneEmpty())
+	{
+		vkCmdDrawIndexedIndirect(
+			cmd,
+			m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer(),
+			0,
+			(uint32)m_renderScene->m_cacheMeshObjectSSBOData.size(),
+			sizeof(VkDrawIndexedIndirectCommand)
+		);
+    }
 
     vkCmdEndRenderPass(cmd);
 
-	bufferBarrier.srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-	bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	bufferBarrier.buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
-	bufferBarrier.size = asyncRange;
-    bufferBarrier.srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
-	bufferBarrier.dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
+	if(!m_renderScene->isSceneEmpty())
+	{
+	    bufferBarrier.srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+	    bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+	    bufferBarrier.buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
+	    bufferBarrier.size = asyncRange;
+        bufferBarrier.srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
+	    bufferBarrier.dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
 	
-	vkCmdPipelineBarrier(
-		cmd,
-        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		0,
-		0,nullptr,
-		1,&bufferBarrier,
-		0,nullptr);
+	    vkCmdPipelineBarrier(
+		    cmd,
+            VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+		    0,
+		    0,nullptr,
+		    1,&bufferBarrier,
+		    0,nullptr);
+    }
 }
 
 void engine::GBufferPass::createRenderpass()

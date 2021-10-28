@@ -299,9 +299,10 @@ void engine::MeshLibrary::uploadAppendBuffer()
     {
         uint32 upLoadStartPos = m_lastUploadVertexBufferPos;
         uint32 upLoadEndPos = (uint32)m_cacheVerticesData.size();
+        uint64 perElemtSize = sizeof(m_cacheVerticesData[0]);
         m_lastUploadVertexBufferPos = upLoadEndPos;
 
-        VkDeviceSize currentVertexDataDeviceSize = VkDeviceSize(sizeof(m_cacheVerticesData[0]) * m_cacheVerticesData.size());
+        VkDeviceSize currentVertexDataDeviceSize = VkDeviceSize(perElemtSize * m_cacheVerticesData.size());
         VkDeviceSize lastDeviceSize = m_vertexBuffer->getVulkanBuffer()->getSize();
 
         // NOTE: 若超出了范围需要重新申请并刷新
@@ -327,7 +328,8 @@ void engine::MeshLibrary::uploadAppendBuffer()
         }
 
         CHECK(upLoadEndPos > upLoadStartPos);
-        VkDeviceSize uploadDeviceSize = VkDeviceSize(sizeof(m_cacheVerticesData[0]) * (upLoadEndPos - upLoadStartPos));
+        VkDeviceSize uploadDeviceSize = VkDeviceSize(perElemtSize * (upLoadEndPos - upLoadStartPos));
+        VkDeviceSize offsetDeviceSize = VkDeviceSize(perElemtSize * upLoadStartPos);
 
         VulkanBuffer* stageBuffer = VulkanBuffer::create(
             VulkanRHI::get()->getVulkanDevice(),
@@ -339,7 +341,7 @@ void engine::MeshLibrary::uploadAppendBuffer()
             (void *)(m_cacheVerticesData.data() + upLoadStartPos)
         );
 
-        m_vertexBuffer->getVulkanBuffer()->stageCopyFrom(*stageBuffer, uploadDeviceSize,VulkanRHI::get()->getVulkanDevice()->graphicsQueue);
+        m_vertexBuffer->getVulkanBuffer()->stageCopyFrom(*stageBuffer, uploadDeviceSize,VulkanRHI::get()->getVulkanDevice()->graphicsQueue, 0, offsetDeviceSize);
         delete stageBuffer;
     }
 
@@ -348,8 +350,9 @@ void engine::MeshLibrary::uploadAppendBuffer()
         uint32 upLoadStartPos = m_lastUploadIndexBufferPos;
         uint32 upLoadEndPos = (uint32)m_cacheIndicesData.size();
         m_lastUploadIndexBufferPos = upLoadEndPos;
+        uint64 perElemtSize = sizeof(m_cacheIndicesData[0]);
 
-        VkDeviceSize currentIndexDataDeviceSize = VkDeviceSize(sizeof(m_cacheIndicesData[0]) * m_cacheIndicesData.size());
+        VkDeviceSize currentIndexDataDeviceSize = VkDeviceSize(perElemtSize * m_cacheIndicesData.size());
         VkDeviceSize lastDeviceSize = m_indexBuffer->getVulkanBuffer()->getSize();
 
         // NOTE: 若超出了范围需要重新申请并刷新
@@ -365,14 +368,15 @@ void engine::MeshLibrary::uploadAppendBuffer()
                 newDeviceSize,
                 VulkanRHI::get()->getGraphicsCommandPool(),
 				true,
-				false // TODO: 未来我们将在ComputeShader中剔除每一个三角形！
+                true // TODO: 未来我们将在ComputeShader中剔除每一个三角形！
             );
 
             upLoadStartPos = 0; // NOTE: 需要全部上传一次
         }
 
         CHECK(upLoadEndPos > upLoadStartPos);
-        VkDeviceSize uploadDeviceSize = VkDeviceSize(sizeof(m_cacheIndicesData[0]) * (upLoadEndPos - upLoadStartPos));
+        VkDeviceSize uploadDeviceSize = VkDeviceSize(perElemtSize * (upLoadEndPos - upLoadStartPos));
+        VkDeviceSize offsetDeviceSize = VkDeviceSize(perElemtSize * upLoadStartPos);
 
         VulkanBuffer* stageBuffer = VulkanBuffer::create(
             VulkanRHI::get()->getVulkanDevice(),
@@ -384,7 +388,7 @@ void engine::MeshLibrary::uploadAppendBuffer()
             (void *)(m_cacheIndicesData.data() + upLoadStartPos)
         );
 
-        m_indexBuffer->getVulkanBuffer()->stageCopyFrom(*stageBuffer, uploadDeviceSize,VulkanRHI::get()->getVulkanDevice()->graphicsQueue);
+        m_indexBuffer->getVulkanBuffer()->stageCopyFrom(*stageBuffer, uploadDeviceSize,VulkanRHI::get()->getVulkanDevice()->graphicsQueue, 0, offsetDeviceSize);
         delete stageBuffer;
     }
 }

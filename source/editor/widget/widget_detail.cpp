@@ -260,7 +260,6 @@ void WidgetDetail::drawStaticMesh(std::shared_ptr<engine::SceneNode> node)
 				if(component->m_customMesh)
 				{
 					const auto& meshes = MeshLibrary::get()->getStaticMeshList();
-					static int index = 0;
 					static int lastTimeSize = -1;
 
 					// TODO: This is slow and need optimization.
@@ -272,7 +271,7 @@ void WidgetDetail::drawStaticMesh(std::shared_ptr<engine::SceneNode> node)
 					{
 						if(component->m_customMeshName == elem && lastTimeSize != int(meshes.size() + 1)) // 防止队列刷新后出现错误的选择
 						{
-							index = loopIndex + 1; // 注意处理插入的第0个box
+							component->m_selectMesh = loopIndex + 1; // 注意处理插入的第0个box
 						}
 						cacheName.push_back(elem.c_str());
 						loopIndex++;
@@ -280,18 +279,18 @@ void WidgetDetail::drawStaticMesh(std::shared_ptr<engine::SceneNode> node)
 
 					if(cacheName.size()>0)
 					{
-						if(index < cacheName.size())
+						if(component->m_selectMesh < cacheName.size())
 						{
-							ImGui::Combo(u8"网格选择",&index,cacheName.data(),int(cacheName.size()),-1);
+							ImGui::Combo(u8"网格选择",&component->m_selectMesh,cacheName.data(),int(cacheName.size()),-1);
 
-							if(lastTimeSize != int(cacheName.size()) && component->m_customMeshName != cacheName[index])
+							if(lastTimeSize != int(cacheName.size()) && component->m_customMeshName != cacheName[component->m_selectMesh])
 							{
 								component->m_customMeshName = boxName; // 删除选择的物体后使用引擎Box作为回滚
-								index = 0;
+								component->m_selectMesh = 0;
 							}
 							else
 							{
-								component->m_customMeshName = cacheName[index];
+								component->m_customMeshName = cacheName[component->m_selectMesh];
 							}
 						}
 					}

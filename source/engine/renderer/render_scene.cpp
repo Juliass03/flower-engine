@@ -42,8 +42,8 @@ void RenderScene::renderPrepare(const GPUFrameData& view)
 	// 2. ¸üÐÂssbo
 	uploadMeshSSBO();
 
-	// 3. ÊÓ×¶ÌÞ³ý
-	frustumCulling(m_cacheStaticMeshRenderMesh,view);
+	// 3. cpuÊÓ×¶ÌÞ³ý(ÒÑ·ÏÆú)
+	// frustumCulling(m_cacheStaticMeshRenderMesh,view);
 }
 
 void RenderScene::uploadMeshSSBO()
@@ -70,6 +70,11 @@ void RenderScene::uploadMeshSSBO()
 		);
 		m_meshMaterialSSBO->buffers->unmap();
 	}
+}
+
+bool RenderScene::isSceneEmpty()
+{
+	return m_cacheMeshObjectSSBOData.size() == 0;
 }
 
 Scene& RenderScene::getActiveScene()
@@ -180,36 +185,13 @@ void RenderScene::DrawIndirectBuffer::init(uint32 bindingPos)
 		.bindBuffer(bindingPos,&bufInfo,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,VK_SHADER_STAGE_COMPUTE_BIT)
 		.build(descriptorSets,descriptorSetLayout);
 
-	executeImmediately(
-		VulkanRHI::get()->getDevice(),
-		VulkanRHI::get()->getGraphicsCommandPool(),
-		VulkanRHI::get()->getGraphicsQueue(),[&](VkCommandBuffer cmd)
-	{
-		VkBufferMemoryBarrier bufferBarrier{};
-		bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-		bufferBarrier.buffer = *drawIndirectSSBO;
-		bufferBarrier.size = VK_WHOLE_SIZE;
-
-		bufferBarrier.srcAccessMask = VK_ACCESS_NONE_KHR;
-		bufferBarrier.dstAccessMask = VK_ACCESS_NONE_KHR;
-		bufferBarrier.srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
-		bufferBarrier.dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
-
-		vkCmdPipelineBarrier(
-			cmd,
-			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-			0,
-			0,nullptr,
-			1,&bufferBarrier,
-			0,nullptr);
-	});
-	
+	bFirstInit = true;
 }
 
 void RenderScene::DrawIndirectBuffer::release()
 {
 	delete drawIndirectSSBO;
+	bFirstInit = false;
 }
 
 }

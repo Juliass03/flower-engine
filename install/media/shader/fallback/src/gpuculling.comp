@@ -34,21 +34,25 @@ void gbufferVisibileCulling(uint id)
 	vec4 pos = vec4(center,1.0f);
 	pos = objectData.model * pos;
 
+	gbufferIndirectDraws[id].indexCount    = objectData.indexCount;
+	gbufferIndirectDraws[id].firstIndex    = objectData.firstIndex;
+	gbufferIndirectDraws[id].vertexOffset  = objectData.vertexOffset;
+	gbufferIndirectDraws[id].firstInstance = objectData.firstInstance;
+	gbufferIndirectDraws[id].instanceCount = 1;
+
 	// Sphere Frustum Culling
 	for (int i = 0; i < 6; i++) 
 	{
 		if (dot(pos, frameData.camFrustumPlanes[i]) + radius < 0.0)
 		{
 			gbufferIndirectDraws[id].instanceCount = 0;
-			return;
+			gbufferIndirectDraws[id].indexCount    = 0;
+			gbufferIndirectDraws[id].firstIndex    = 0;
+			gbufferIndirectDraws[id].vertexOffset  = 0;
+			gbufferIndirectDraws[id].firstInstance = 0;
+			break;
 		}
 	}
-
-	gbufferIndirectDraws[id].indexCount    = objectData.indexCount;
-	gbufferIndirectDraws[id].firstIndex    = objectData.firstIndex;
-	gbufferIndirectDraws[id].vertexOffset  = objectData.vertexOffset;
-	gbufferIndirectDraws[id].firstInstance = objectData.firstInstance;
-	gbufferIndirectDraws[id].instanceCount = 1;
 }
 
 void main()

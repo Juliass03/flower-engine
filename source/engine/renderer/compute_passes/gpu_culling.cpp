@@ -28,33 +28,43 @@ void engine::GpuCullingPass::afterSceneTextureRecreate()
 
 void engine::GpuCullingPass::record(uint32 index)
 {
+	if(m_renderScene->isSceneEmpty())
+	{
+		return;
+	}
+
     m_cmdbufs[index]->begin();
 
     VkCommandBuffer cmd = *m_cmdbufs[index];
+	VkBufferMemoryBarrier bufferBarrier{};
+	bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 
-    GPUCullingPushConstants gpuPushConstant = {};
-    gpuPushConstant.drawCount = (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size();
+	GPUCullingPushConstants gpuPushConstant = {};
+	gpuPushConstant.drawCount = (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size();
+	VkDeviceSize asyncRange = gpuPushConstant.drawCount*sizeof(VkDrawIndexedIndirectCommand);
 
-    VkDeviceSize asyncRange =  gpuPushConstant.drawCount * sizeof(VkDrawIndexedIndirectCommand);
-    asyncRange = asyncRange > 0 ? asyncRange : 256;
+    if(m_renderScene->m_drawIndirectSSBOGbuffer.bFirstInit)
+    {
+        m_renderScene->m_drawIndirectSSBOGbuffer.bFirstInit = false;
+    }
+    else
+    {
+		bufferBarrier.buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
+		bufferBarrier.size = asyncRange;
+		bufferBarrier.srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+		bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		bufferBarrier.srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
+		bufferBarrier.dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
 
-    VkBufferMemoryBarrier bufferBarrier{};
-    bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    bufferBarrier.buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
-    bufferBarrier.size = asyncRange;
-    bufferBarrier.srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    bufferBarrier.srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
-    bufferBarrier.dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
-
-    vkCmdPipelineBarrier(
-        cmd,
-        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0,
-        0, nullptr,
-        1, &bufferBarrier,
-        0, nullptr);
+		vkCmdPipelineBarrier(
+			cmd,
+			VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			0,
+			0,nullptr,
+			1,&bufferBarrier,
+			0,nullptr);
+    }
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelines[index]);
 

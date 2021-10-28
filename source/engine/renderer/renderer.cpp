@@ -151,23 +151,41 @@ void Renderer::tick(float dt)
 	auto frameEndSemaphore = VulkanRHI::get()->getCurrentFrameFinishSemaphore();
 	auto dynamicCmdBufSemaphore = VulkanRHI::get()->getDynamicGraphicsCmdBufSemaphore(backBufferIndex);
 
-	VkSubmitInfo gpuCullingSubmitInfo{};
-	gpuCullingSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	gpuCullingSubmitInfo.commandBufferCount = 1;
-	gpuCullingSubmitInfo.pCommandBuffers = &m_gpuCullingPass->m_cmdbufs[backBufferIndex]->getInstance();
-	gpuCullingSubmitInfo.signalSemaphoreCount = 1;
-	gpuCullingSubmitInfo.pSignalSemaphores = &m_gpuCullingPass->m_semaphores[backBufferIndex];
-	vkCheck(vkQueueSubmit(VulkanRHI::get()->getComputeQueue(), 1, &gpuCullingSubmitInfo, VK_NULL_HANDLE));
+	const bool bSceneEmpty = m_renderScene->isSceneEmpty();
 
-	std::vector<VkPipelineStageFlags> waitFlags = { 
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-	};
+	std::vector<VkPipelineStageFlags> waitFlags;
+	std::vector<VkSemaphore> waitSemaphores;
 
-	std::vector<VkSemaphore> waitSemaphores = {
-		frameStartSemaphore,	
-		m_gpuCullingPass->m_semaphores[backBufferIndex]		
-	};
+	if(!bSceneEmpty)
+	{
+		VkSubmitInfo gpuCullingSubmitInfo{};
+		gpuCullingSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		gpuCullingSubmitInfo.commandBufferCount = 1;
+		gpuCullingSubmitInfo.pCommandBuffers = &m_gpuCullingPass->m_cmdbufs[backBufferIndex]->getInstance();
+		gpuCullingSubmitInfo.signalSemaphoreCount = 1;
+		gpuCullingSubmitInfo.pSignalSemaphores = &m_gpuCullingPass->m_semaphores[backBufferIndex];
+		vkCheck(vkQueueSubmit(VulkanRHI::get()->getComputeQueue(), 1, &gpuCullingSubmitInfo, VK_NULL_HANDLE));
+
+		waitFlags = { 
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+		};
+
+		waitSemaphores = {
+			frameStartSemaphore,	
+			m_gpuCullingPass->m_semaphores[backBufferIndex]		
+		};
+	}
+	else
+	{
+		waitFlags = { 
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+		};
+
+		waitSemaphores = {
+			frameStartSemaphore
+		};
+	}
 
 	VulkanSubmitInfo dynamicBufSubmitInfo{};
 	dynamicBufSubmitInfo.setWaitStage(waitFlags)
