@@ -43,9 +43,10 @@ void engine::GpuCullingPass::record(uint32 index)
 	gpuPushConstant.drawCount = (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size();
 	VkDeviceSize asyncRange = gpuPushConstant.drawCount*sizeof(VkDrawIndexedIndirectCommand);
 
-    if(m_renderScene->m_drawIndirectSSBOGbuffer.bFirstInit)
+    if(m_renderScene->m_drawIndirectSSBOGbuffer.bFirstInit || MeshLibrary::get()->bMeshReload)
     {
         m_renderScene->m_drawIndirectSSBOGbuffer.bFirstInit = false;
+        MeshLibrary::get()->bMeshReload = false;
     }
     else
     {

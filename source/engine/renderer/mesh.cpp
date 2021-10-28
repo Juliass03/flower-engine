@@ -110,13 +110,16 @@ void engine::MeshLibrary::buildFromGameAsset(Mesh& inout,const std::string& game
     inout.layout = info.attributeLayout;
     inout.subMeshes.resize(info.subMeshCount);
 
+    uint32 lastMeshVerticesPos = (uint32)m_cacheVerticesData.size();
+    uint32 lastMeshIndexPos = (uint32)m_cacheIndicesData.size();
+
     for (uint32 i = 0; i < info.subMeshCount; i++)
     {
         const auto& subMeshInfo = info.subMeshInfos[i];
         auto& subMesh = inout.subMeshes[i];
 
         subMesh.indexCount = subMeshInfo.indexCount;
-        subMesh.indexStartPosition = subMeshInfo.indexStartPosition;
+        subMesh.indexStartPosition = subMeshInfo.indexStartPosition + lastMeshIndexPos;
         subMesh.renderBounds.extents = glm::vec3(
             subMeshInfo.bounds.extents[0],
             subMeshInfo.bounds.extents[1],
@@ -145,9 +148,6 @@ void engine::MeshLibrary::buildFromGameAsset(Mesh& inout,const std::string& game
     }
 
     // 2. 对顶点位置做处理
-    uint32 lastMeshVerticesPos = (uint32)m_cacheVerticesData.size();
-    uint32 lastMeshIndexPos = (uint32)m_cacheIndicesData.size();
-
     inout.vertexStartPosition = lastMeshVerticesPos;
     inout.vertexCount = (uint32)verticesData.size();
 
@@ -308,7 +308,7 @@ void engine::MeshLibrary::uploadAppendBuffer()
         // NOTE: 若超出了范围需要重新申请并刷新
         if(currentVertexDataDeviceSize >= lastDeviceSize)
         {
-            VkDeviceSize newDeviceSize = lastDeviceSize + ((currentVertexDataDeviceSize / incrementVertexBufferSize) + 1) * incrementVertexBufferSize;
+            VkDeviceSize newDeviceSize = ((currentVertexDataDeviceSize / incrementVertexBufferSize) + 2) * incrementVertexBufferSize;
 
 
             LOG_INFO("Reallocate {0} mb local vram for vertex buffer!", newDeviceSize / (1024 * 1024));
@@ -343,6 +343,8 @@ void engine::MeshLibrary::uploadAppendBuffer()
 
         m_vertexBuffer->getVulkanBuffer()->stageCopyFrom(*stageBuffer, uploadDeviceSize,VulkanRHI::get()->getVulkanDevice()->graphicsQueue, 0, offsetDeviceSize);
         delete stageBuffer;
+
+        bMeshReload = true;
     }
 
     if(m_lastUploadIndexBufferPos != (uint32)m_cacheIndicesData.size())
@@ -358,11 +360,14 @@ void engine::MeshLibrary::uploadAppendBuffer()
         // NOTE: 若超出了范围需要重新申请并刷新
         if(currentIndexDataDeviceSize >= lastDeviceSize)
         {
-            VkDeviceSize newDeviceSize = lastDeviceSize + ((currentIndexDataDeviceSize / incrementIndexBufferSize) + 1) * incrementIndexBufferSize;
+            VkDeviceSize newDeviceSize = ((currentIndexDataDeviceSize / incrementIndexBufferSize) + 2) * incrementIndexBufferSize;
             delete m_indexBuffer;
 
             LOG_INFO("Reallocate {0} mb local vram for index buffer!", newDeviceSize / (1024 * 1024));
             vkQueueWaitIdle(VulkanRHI::get()->getVulkanDevice()->graphicsQueue);
+
+
+
             m_indexBuffer = VulkanIndexBuffer::create(
                 VulkanRHI::get()->getVulkanDevice(),
                 newDeviceSize,
@@ -390,5 +395,7 @@ void engine::MeshLibrary::uploadAppendBuffer()
 
         m_indexBuffer->getVulkanBuffer()->stageCopyFrom(*stageBuffer, uploadDeviceSize,VulkanRHI::get()->getVulkanDevice()->graphicsQueue, 0, offsetDeviceSize);
         delete stageBuffer;
+
+        bMeshReload = true;
     }
 }
