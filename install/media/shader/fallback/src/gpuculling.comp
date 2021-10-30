@@ -15,6 +15,11 @@ layout (set = 2, binding = 0, std430) writeonly buffer IndirectDraws
 	IndexedIndirectCommand gbufferIndirectDraws[];
 };
 
+layout (set = 3, binding = 0, std430) writeonly buffer IndirectDrawCount
+{
+	OutIndirectDrawCount indirectDrawCount;
+};
+
 struct GPUCullingPushConstants
 {
 	uint drawCount;
@@ -27,6 +32,7 @@ layout(push_constant) uniform constants{
 void gbufferVisibileCulling(uint id)
 {
 	PerObjectData objectData = perObjectBuffer.objects[id];
+	bool bVisibile = true;
 
 	vec4  sphereBounds = objectData.sphereBounds;
 	vec3  center = sphereBounds.xyz;
@@ -34,24 +40,29 @@ void gbufferVisibileCulling(uint id)
 	vec4 pos = vec4(center,1.0f);
 	pos = objectData.model * pos;
 
-	gbufferIndirectDraws[id].indexCount    = objectData.indexCount;
-	gbufferIndirectDraws[id].firstIndex    = objectData.firstIndex;
-	gbufferIndirectDraws[id].vertexOffset  = objectData.vertexOffset;
-	gbufferIndirectDraws[id].firstInstance = objectData.firstInstance;
-	gbufferIndirectDraws[id].instanceCount = 1;
-
 	// Sphere Frustum Culling
 	for (int i = 0; i < 6; i++) 
 	{
 		if (dot(pos, frameData.camFrustumPlanes[i]) + radius < 0.0)
 		{
-			gbufferIndirectDraws[id].instanceCount = 0;
-			gbufferIndirectDraws[id].indexCount    = 0;
-			gbufferIndirectDraws[id].firstIndex    = 0;
-			gbufferIndirectDraws[id].vertexOffset  = 0;
-			gbufferIndirectDraws[id].firstInstance = 0;
+			bVisibile = false;
 			break;
 		}
+	}
+
+	// Sotre in buffer if visible
+	if(bVisibile)
+	{
+		uint index = atomicAdd(indirectDrawCount.outGbufferDrawCount, 1);
+
+		gbufferIndirectDraws[index].indexCount    = objectData.indexCount;
+		gbufferIndirectDraws[index].firstIndex    = objectData.firstIndex;
+		gbufferIndirectDraws[index].vertexOffset  = objectData.vertexOffset;
+		gbufferIndirectDraws[index].firstInstance = objectData.firstInstance;
+		gbufferIndirectDraws[index].instanceCount = 1;
+
+		gbufferIndirectDraws[index].objectId = id;
+		gbufferIndirectDraws[index].materialId = id;
 	}
 }
 
@@ -59,6 +70,13 @@ void main()
 {
     uint idx = gl_GlobalInvocationID.x + 
                gl_GlobalInvocationID.y * gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+
+	if (idx == 0)
+	{
+		atomicExchange(indirectDrawCount.outGbufferDrawCount, 0);
+	}
+
+	barrier();
     
     if(idx < cullData.drawCount)
 	{

@@ -36,14 +36,22 @@ void VulkanRHI::init(GLFWwindow* window,
     m_enableGpuFeatures.depthClamp = true;        // Depth clamp to avoid near plane clipping.
     m_enableGpuFeatures.shaderSampledImageArrayDynamicIndexing = true;
     m_enableGpuFeatures.multiDrawIndirect = VK_TRUE; // GPU Driven && Draw Indirect.
+    m_enableGpuFeatures.drawIndirectFirstInstance = VK_TRUE;
 
-	m_physicalDeviceDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
-    m_physicalDeviceDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-    m_physicalDeviceDescriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
-    m_physicalDeviceDescriptorIndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
-    m_physicalDeviceDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-    m_physicalDeviceDescriptorIndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
-    m_physicalDeviceDescriptorIndexingFeatures.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+    m_enable12GpuFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    m_enable12GpuFeatures.drawIndirectCount = VK_TRUE;
+    m_enable12GpuFeatures.drawIndirectCount = VK_TRUE;
+    m_enable12GpuFeatures.imagelessFramebuffer = VK_TRUE;
+    m_enable12GpuFeatures.separateDepthStencilLayouts = VK_TRUE;
+    m_enable12GpuFeatures.descriptorIndexing = VK_TRUE;
+    m_enable12GpuFeatures.runtimeDescriptorArray = VK_TRUE;
+    m_enable12GpuFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+    m_enable12GpuFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
+    m_enable12GpuFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    m_enable12GpuFeatures.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+    m_enable12GpuFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+    m_enable12GpuFeatures.timelineSemaphore = VK_TRUE;
+    m_enable12GpuFeatures.pNext = nullptr;
 
     m_window = window;
     m_instance.init(m_instanceExtensionNames,m_instanceLayerNames);
@@ -65,7 +73,7 @@ void VulkanRHI::init(GLFWwindow* window,
     });
 
     m_deviceExtensionNames.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    m_device.init(m_instance,m_surface,m_enableGpuFeatures,m_deviceExtensionNames, &m_physicalDeviceDescriptorIndexingFeatures);
+    m_device.init(m_instance,m_surface,m_enableGpuFeatures,m_deviceExtensionNames, &m_enable12GpuFeatures);
     vkGetPhysicalDeviceProperties(m_device.physicalDevice, &m_physicalDeviceProperties);
     LOG_GRAPHICS_INFO("Gpu min align memory size£º{0}.",m_physicalDeviceProperties.limits.minUniformBufferOffsetAlignment);
 

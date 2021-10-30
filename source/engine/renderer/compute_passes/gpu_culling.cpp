@@ -36,12 +36,13 @@ void engine::GpuCullingPass::record(uint32 index)
     m_cmdbufs[index]->begin();
 
     VkCommandBuffer cmd = *m_cmdbufs[index];
-	VkBufferMemoryBarrier bufferBarrier{};
-	bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    std::array<VkBufferMemoryBarrier,2> bufferBarriers {};
+	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    bufferBarriers[1].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 
 	GPUCullingPushConstants gpuPushConstant = {};
 	gpuPushConstant.drawCount = (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size();
-	VkDeviceSize asyncRange = gpuPushConstant.drawCount*sizeof(VkDrawIndexedIndirectCommand);
+	VkDeviceSize asyncRange = gpuPushConstant.drawCount*sizeof(GPUDrawCallData);
 
     if(m_renderScene->m_drawIndirectSSBOGbuffer.bFirstInit || MeshLibrary::get()->bMeshReload)
     {
@@ -50,12 +51,19 @@ void engine::GpuCullingPass::record(uint32 index)
     }
     else
     {
-		bufferBarrier.buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
-		bufferBarrier.size = asyncRange;
-		bufferBarrier.srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-		bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-		bufferBarrier.srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
-		bufferBarrier.dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
+        bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
+        bufferBarriers[0].size = asyncRange;
+        bufferBarriers[0].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+        bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        bufferBarriers[0].srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
+        bufferBarriers[0].dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
+
+		bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.countBuffer->GetVkBuffer();
+		bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOGbuffer.countSize;
+		bufferBarriers[1].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+		bufferBarriers[1].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		bufferBarriers[1].srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
+		bufferBarriers[1].dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
 
 		vkCmdPipelineBarrier(
 			cmd,
@@ -63,7 +71,7 @@ void engine::GpuCullingPass::record(uint32 index)
 			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 			0,
 			0,nullptr,
-			1,&bufferBarrier,
+            (uint32)bufferBarriers.size(),bufferBarriers.data(),
 			0,nullptr);
     }
 
@@ -75,6 +83,7 @@ void engine::GpuCullingPass::record(uint32 index)
         m_renderer->getFrameData().m_frameDataDescriptorSets[index].set
         , m_renderer->getRenderScene().m_meshObjectSSBO->descriptorSets.set
         , m_renderer->getRenderScene().m_drawIndirectSSBOGbuffer.descriptorSets.set
+        , m_renderer->getRenderScene().m_drawIndirectSSBOGbuffer.countDescriptorSets.set
     };
 
     vkCmdBindDescriptorSets(
@@ -90,12 +99,19 @@ void engine::GpuCullingPass::record(uint32 index)
 
     vkCmdDispatch(cmd, (gpuPushConstant.drawCount / 256) + 1, 1, 1);
 
-    bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    bufferBarrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    bufferBarrier.buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
-    bufferBarrier.size = asyncRange;
-    bufferBarrier.srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
-    bufferBarrier.dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
+    bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    bufferBarriers[0].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
+    bufferBarriers[0].size = asyncRange;
+    bufferBarriers[0].srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
+    bufferBarriers[0].dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
+
+	bufferBarriers[1].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+	bufferBarriers[1].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+	bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.countBuffer->GetVkBuffer();
+	bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOGbuffer.countSize;
+	bufferBarriers[1].srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
+	bufferBarriers[1].dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
 
     vkCmdPipelineBarrier(
         cmd,
@@ -103,7 +119,7 @@ void engine::GpuCullingPass::record(uint32 index)
         VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
         0,
         0, nullptr,
-        1, &bufferBarrier,
+        (uint32)bufferBarriers.size(),bufferBarriers.data(),
         0, nullptr);
 
     m_cmdbufs[index]->end();
@@ -132,6 +148,7 @@ void engine::GpuCullingPass::createPipeline()
             m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout
             , m_renderer->getRenderScene().m_meshObjectSSBO->descriptorSetLayout.layout
             , m_renderer->getRenderScene().m_drawIndirectSSBOGbuffer.descriptorSetLayout.layout
+            , m_renderer->getRenderScene().m_drawIndirectSSBOGbuffer.countDescriptorSetLayout.layout
         };
 
         plci.setLayoutCount = (uint32)setLayouts.size();

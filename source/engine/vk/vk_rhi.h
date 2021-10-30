@@ -31,6 +31,7 @@ private:
     std::vector<const char*> m_instanceExtensionNames = {};
     std::vector<const char*> m_deviceExtensionNames = {};
     VkPhysicalDeviceFeatures m_enableGpuFeatures = {};
+    VkPhysicalDeviceVulkan12Features m_enable12GpuFeatures = {};
     VkPhysicalDeviceProperties m_physicalDeviceProperties = {};
 
 private:

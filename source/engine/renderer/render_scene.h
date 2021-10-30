@@ -42,7 +42,6 @@ public:
 	SceneUploadSSBO<GPUMaterialData>* m_meshMaterialSSBO;
 	std::vector<GPUMaterialData> m_cacheMeshMaterialSSBOData {};
 
-	std::vector<VkDrawIndexedIndirectCommand> m_cacheIndirectCommands {};
 	struct DrawIndirectBuffer
 	{
 		VulkanBuffer* drawIndirectSSBO;
@@ -51,12 +50,17 @@ public:
 		VkDeviceSize size;
 
 		bool bFirstInit = false;
-		void init(uint32 bindingPos);
+		void init(uint32 bindingPos,uint32 countBindingPos);
 		void release();
+
+		// Count Buffer
+		VulkanBuffer* countBuffer;
+		VulkanDescriptorSetReference countDescriptorSets = {};
+		VulkanDescriptorLayoutReference countDescriptorSetLayout = {};
+		VkDeviceSize countSize;
 	};
 	
 	DrawIndirectBuffer m_drawIndirectSSBOGbuffer;
-	
 
 	Scene& getActiveScene();
 

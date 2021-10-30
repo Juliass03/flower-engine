@@ -58,4 +58,5 @@ void main()
 
     outHdrSceneColor.rgb = vec3(NoLSafe + 0.05f) * gData.baseColor;
     outHdrSceneColor.a = 1.0f;
+
 }

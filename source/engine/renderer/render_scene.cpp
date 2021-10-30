@@ -6,6 +6,7 @@
 #include "material.h"
 
 constexpr uint32_t SSBO_BINDING_POS = 0;
+constexpr uint32_t SSBO_COUNT_BUFFER_BINDING_POS = 0;
 
 namespace engine{
 
@@ -96,7 +97,7 @@ void RenderScene::init(Renderer* renderer)
 
 	m_meshObjectSSBO->init(SSBO_BINDING_POS);
 	m_meshMaterialSSBO->init(SSBO_BINDING_POS);
-	m_drawIndirectSSBOGbuffer.init(SSBO_BINDING_POS);
+	m_drawIndirectSSBOGbuffer.init(SSBO_BINDING_POS,SSBO_COUNT_BUFFER_BINDING_POS);
 }
 
 void RenderScene::release()
@@ -120,9 +121,6 @@ void RenderScene::meshCollect()
 
 	m_cacheStaticMeshRenderMesh.submesh.clear();
 	m_cacheStaticMeshRenderMesh.submesh.resize(0);
-
-	m_cacheIndirectCommands.clear();
-	m_cacheIndirectCommands.resize(0);
 
 	auto& activeScene = m_sceneManager->getActiveScene();
 	auto staticMeshComponents = activeScene.getComponents<StaticMeshComponent>();
@@ -161,9 +159,9 @@ void RenderScene::meshCollect()
 	}
 }
 
-void RenderScene::DrawIndirectBuffer::init(uint32 bindingPos)
+void RenderScene::DrawIndirectBuffer::init(uint32 bindingPos,uint32 countBindingPos)
 {
-	auto bufferSize = sizeof(VkDrawIndexedIndirectCommand) * MAX_SSBO_OBJECTS;
+	auto bufferSize = sizeof(GPUDrawCallData) * MAX_SSBO_OBJECTS;
 	this->size = bufferSize;
 
 	drawIndirectSSBO = VulkanBuffer::create(
@@ -182,8 +180,27 @@ void RenderScene::DrawIndirectBuffer::init(uint32 bindingPos)
 	bufInfo.range = bufferSize;
 
 	VulkanRHI::get()->vkDescriptorFactoryBegin()
-		.bindBuffer(bindingPos,&bufInfo,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,VK_SHADER_STAGE_COMPUTE_BIT)
+		.bindBuffer(bindingPos,&bufInfo,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT)
 		.build(descriptorSets,descriptorSetLayout);
+
+	// Count buffer
+	countSize = sizeof(GPUOutIndirectDrawCount);
+	countBuffer = VulkanBuffer::create(
+		VulkanRHI::get()->getVulkanDevice(),
+		VulkanRHI::get()->getGraphicsCommandPool(),
+		VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		VMA_MEMORY_USAGE_GPU_ONLY,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		countSize,
+		nullptr
+	);
+	VkDescriptorBufferInfo countBufInfo = {};
+	countBufInfo.buffer = *countBuffer;
+	countBufInfo.offset = 0;
+	countBufInfo.range = countSize;
+	VulkanRHI::get()->vkDescriptorFactoryBegin()
+		.bindBuffer(countBindingPos,&countBufInfo,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT)
+		.build(countDescriptorSets,countDescriptorSetLayout);
 
 	bFirstInit = true;
 }
@@ -191,6 +208,7 @@ void RenderScene::DrawIndirectBuffer::init(uint32 bindingPos)
 void RenderScene::DrawIndirectBuffer::release()
 {
 	delete drawIndirectSSBO;
+	delete countBuffer;
 	bFirstInit = false;
 }
 

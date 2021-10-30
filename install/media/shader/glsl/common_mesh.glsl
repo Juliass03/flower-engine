@@ -23,4 +23,9 @@ layout(set = 3, binding = 0) readonly buffer PerObjectMaterial
 	PerObjectMaterialData materials[];
 } perObjectMaterial;
 
+layout(set = 4, binding = 0, std430) readonly buffer DrawIndirectBuffer
+{
+	IndexedIndirectCommand gbufferIndirectDraws[];
+} drawIndirectBuffer;
+
 #endif

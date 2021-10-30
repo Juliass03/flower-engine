@@ -36,6 +36,14 @@ struct IndexedIndirectCommand // Gpu culling result
 	uint firstIndex;
 	uint vertexOffset;
 	uint firstInstance;
+
+    uint objectId;
+    uint materialId;
+};
+
+struct OutIndirectDrawCount
+{
+    uint outGbufferDrawCount;
 };
 
 // 当前帧公用的数据

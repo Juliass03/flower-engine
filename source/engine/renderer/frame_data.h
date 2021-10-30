@@ -42,6 +42,23 @@ struct GPUFrameData
     glm::vec4 camFrustumPlanes[6];
 };
 
+struct GPUDrawCallData
+{
+	uint32 indexCount;
+    uint32 instanceCount;
+    uint32 firstIndex;
+    uint32 vertexOffset;
+    uint32 firstInstance;
+
+    uint32 objectId;
+    uint32 materialId;
+};
+
+struct GPUOutIndirectDrawCount
+{
+    uint32 outGbufferDrawCount;
+};
+
 class Renderer;
 class PerFrameData
 {

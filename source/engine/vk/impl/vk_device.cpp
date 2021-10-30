@@ -87,19 +87,18 @@ void VulkanDevice::createLogicDevice()
 
 	// 2. 开始填写创建结构体信息
 	VkDeviceCreateInfo createInfo{};
+	VkPhysicalDeviceFeatures2 physicalDeviceFeatures2{};
+
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	createInfo.pQueueCreateInfos = queueCreateInfos.data(); // 创建多个队列
 	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-	createInfo.pEnabledFeatures = &m_openFeatures;
-
-	VkPhysicalDeviceFeatures2 physicalDeviceFeatures2{};
-	if(m_deviceCreateNextChain)
+	createInfo.pEnabledFeatures = nullptr;
+	createInfo.pNext = &physicalDeviceFeatures2;
 	{
 		physicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 		physicalDeviceFeatures2.features = m_openFeatures;
 		physicalDeviceFeatures2.pNext = m_deviceCreateNextChain;
 		createInfo.pEnabledFeatures = nullptr;
-		createInfo.pNext = &physicalDeviceFeatures2;
 	}
 
 	// 3. 开启设备需要的扩展
