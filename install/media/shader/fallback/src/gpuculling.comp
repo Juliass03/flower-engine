@@ -40,8 +40,6 @@ void gbufferVisibileCulling(uint id)
 	gbufferIndirectDraws[id].firstInstance = objectData.firstInstance;
 	gbufferIndirectDraws[id].instanceCount = 1;
 
-	return;
-	
 	// Sphere Frustum Culling
 	for (int i = 0; i < 6; i++) 
 	{
