@@ -98,6 +98,11 @@ void RenderScene::init(Renderer* renderer)
 	m_meshObjectSSBO->init(SSBO_BINDING_POS);
 	m_meshMaterialSSBO->init(SSBO_BINDING_POS);
 	m_drawIndirectSSBOGbuffer.init(SSBO_BINDING_POS,SSBO_COUNT_BUFFER_BINDING_POS);
+
+	for(auto& drawIndirectSSBOShadowDepth : m_drawIndirectSSBOShadowDepths)
+	{
+		drawIndirectSSBOShadowDepth.init(SSBO_BINDING_POS,SSBO_COUNT_BUFFER_BINDING_POS);
+	}
 }
 
 void RenderScene::release()
@@ -106,7 +111,14 @@ void RenderScene::release()
 
 	m_meshObjectSSBO->release();
 	m_meshMaterialSSBO->release();
+
 	m_drawIndirectSSBOGbuffer.release();
+
+	// NOTE: 为每一级的CascadeShadowMap都准备一份剔除数据
+	for(auto& drawIndirectSSBOShadowDepth:m_drawIndirectSSBOShadowDepths)
+	{
+		drawIndirectSSBOShadowDepth.release();
+	}
 }
 
 // NOTE: 在这里收集场景中的静态网格
@@ -201,15 +213,12 @@ void RenderScene::DrawIndirectBuffer::init(uint32 bindingPos,uint32 countBinding
 	VulkanRHI::get()->vkDescriptorFactoryBegin()
 		.bindBuffer(countBindingPos,&countBufInfo,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT)
 		.build(countDescriptorSets,countDescriptorSetLayout);
-
-	bFirstInit = true;
 }
 
 void RenderScene::DrawIndirectBuffer::release()
 {
 	delete drawIndirectSSBO;
 	delete countBuffer;
-	bFirstInit = false;
 }
 
 }

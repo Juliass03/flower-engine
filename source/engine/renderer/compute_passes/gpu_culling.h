@@ -3,10 +3,28 @@
 
 namespace engine{
 
+enum class ECullIndex
+{
+	GBUFFER   = 0,
+	CASCADE_0 = 1,
+	CASCADE_1 = 2,
+	CASCADE_2 = 3,
+	CASCADE_3 = 4,
+};
+
+inline uint32 cullingIndexToCasacdeIndex(ECullIndex e)
+{
+	return static_cast<uint32>(e) - 1;
+}
+
 struct GPUCullingPushConstants 
 {
 	uint32 drawCount;
+
+	uint32 cullIndex;
 };
+
+
 
 class GpuCullingPass : public ComputePass
 {
@@ -21,23 +39,17 @@ public:
 	virtual void beforeSceneTextureRecreate() override;
 	virtual void afterSceneTextureRecreate() override;
 
-	void record(uint32 index);
+	void gbuffer_record(VkCommandBuffer& cmd,uint32 backBufferIndex);
+	void cascade_record(VkCommandBuffer& cmd,uint32 backBufferIndex,ECullIndex cullIndex);
 
 private:
 	bool bInitPipeline = false;
 
 	void createPipeline();
 	void destroyPipeline();
-
-	void createAsyncObjects();
-	void destroyAsyncObjects();
-
 public:
 	std::vector<VkPipeline> m_pipelines = {};
 	std::vector<VkPipelineLayout> m_pipelineLayouts = {};
-
-	std::vector<VulkanCommandBuffer*> m_cmdbufs = {};
-	std::vector<VkSemaphore> m_semaphores = {};
 };
 
 }

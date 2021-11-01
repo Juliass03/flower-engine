@@ -160,12 +160,6 @@ public:
     void emplaceStaticeMeshList(const std::string& name);
 
     bool MeshReady(const Mesh& in) const;
-
-    // NOTE: 网格重新上传需要vkwaitQueueIdle
-    //       这似乎会导致Graphics队列族的Memory所有权丢失掉，成为默认的内存状态
-    //       该变量指示了下次异步队列获取所有权是否需要屏障
-    // TODO: 使用一个全局的状态
-    bool bMeshReload = false;
 };
 
 }

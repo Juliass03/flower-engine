@@ -20,8 +20,8 @@ void main()
 {
 	outUV0 = inUV0;
 
-	uint objId = drawIndirectBuffer.gbufferIndirectDraws[gl_DrawID].objectId;
-	uint materialId = drawIndirectBuffer.gbufferIndirectDraws[gl_DrawID].materialId;
+	uint objId = drawIndirectBuffer.indirectDraws[gl_DrawID].objectId;
+	uint materialId = drawIndirectBuffer.indirectDraws[gl_DrawID].materialId;
 
     mat4 modelMatrix  = perObjectBuffer.objects[objId].model;
 	vec4 worldPos = modelMatrix * vec4(inPosition,1.0f);

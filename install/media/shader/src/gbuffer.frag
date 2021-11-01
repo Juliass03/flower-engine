@@ -46,7 +46,7 @@ void main()
     normalTangentSpace.z = sqrt(max(0.0f,1.0f - dot(normalTangentSpace.xy,normalTangentSpace.xy)));
     vec3 worldSpaceNormal = getNormalFromVertexAttribute(normalTangentSpace);
 
-    outGbufferBaseColorMetal.rgb = baseColorTex.rgb;
+    outGbufferBaseColorMetal.rgb = baseColorTex.rgb * baseColorTex.a;
     outGbufferNormalRoughness.rgb = packGBufferNormal(worldSpaceNormal);
     outGbufferEmissiveAo.rgb = emissiveTex.rgb; 
 

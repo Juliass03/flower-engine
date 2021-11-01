@@ -3,14 +3,6 @@
 
 namespace engine{
 
-static AutoCVarInt32 cVarReverseZ(
-	"r.Shading.ReverseZ",
-	"Enable reverse z. 0 is off, others are on.",
-	"Shading",
-	1,
-	CVarFlags::InitOnce | CVarFlags::ReadOnly
-);
-
 constexpr auto MAX_TEXTURE_LOD = 24;
 
 VulkanRHI* VulkanRHI::s_RHI = new VulkanRHI();

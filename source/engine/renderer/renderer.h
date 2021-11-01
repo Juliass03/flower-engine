@@ -15,6 +15,7 @@ extern VkCompareOp getEngineZTestFunc();
 
 class GraphicsPass;
 class GpuCullingPass;
+class ShadowDepthPass;
 
 class Renderer : public IRuntimeModule
 {
@@ -45,7 +46,6 @@ private:
 	ImguiPass* m_uiPass;
 	RenderScene* m_renderScene;
 	PerFrameData m_frameData { };
-	std::vector<GraphicsPass*> m_renderpasses {};
 
 	// 动态描述符申请，每次ScreenSize改变时重置。
 	std::vector<VulkanDescriptorAllocator*> m_dynamicDescriptorAllocator{};
@@ -69,6 +69,11 @@ public:
 
 public:
 	GpuCullingPass* m_gpuCullingPass;
+
+	ShadowDepthPass*   m_shadowdepthPass;
+	GraphicsPass*   m_gbufferPass;
+	GraphicsPass*   m_lightingPass;
+	GraphicsPass*   m_tonemapperPass;
 };
 
 }

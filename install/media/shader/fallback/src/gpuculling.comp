@@ -12,7 +12,7 @@ layout(set = 1, binding = 0) readonly buffer PerObjectBuffer
 
 layout (set = 2, binding = 0, std430) writeonly buffer IndirectDraws
 {
-	IndexedIndirectCommand gbufferIndirectDraws[];
+	IndexedIndirectCommand indirectDraws[];
 };
 
 layout (set = 3, binding = 0, std430) writeonly buffer IndirectDrawCount
@@ -23,6 +23,13 @@ layout (set = 3, binding = 0, std430) writeonly buffer IndirectDrawCount
 struct GPUCullingPushConstants
 {
 	uint drawCount;
+
+	uint cullIndex; 
+		// 0 is gbuffer culling
+		// 1 is cascade #0 culling
+		// 2 is cascade #1 culling
+		// 3 is cascade #2 culling
+		// 4 is cascade #3 culling
 };	
 
 layout(push_constant) uniform constants{   
@@ -37,8 +44,8 @@ void gbufferVisibileCulling(uint id)
 	vec4  sphereBounds = objectData.sphereBounds;
 	vec3  center = sphereBounds.xyz;
 	float radius = sphereBounds.w;
-	vec4 pos = vec4(center,1.0f);
-	pos = objectData.model * pos;
+
+	vec4 pos = vec4(center,1.0f); pos = objectData.model * pos; // world space pos
 
 	// Sphere Frustum Culling
 	for (int i = 0; i < 6; i++) 
@@ -53,16 +60,60 @@ void gbufferVisibileCulling(uint id)
 	// Sotre in buffer if visible
 	if(bVisibile)
 	{
-		uint index = atomicAdd(indirectDrawCount.outGbufferDrawCount, 1);
+		uint index = atomicAdd(indirectDrawCount.outDrawCount, 1);
 
-		gbufferIndirectDraws[index].indexCount    = objectData.indexCount;
-		gbufferIndirectDraws[index].firstIndex    = objectData.firstIndex;
-		gbufferIndirectDraws[index].vertexOffset  = objectData.vertexOffset;
-		gbufferIndirectDraws[index].firstInstance = objectData.firstInstance;
-		gbufferIndirectDraws[index].instanceCount = 1;
+		indirectDraws[index].indexCount    = objectData.indexCount;
+		indirectDraws[index].firstIndex    = objectData.firstIndex;
+		indirectDraws[index].vertexOffset  = objectData.vertexOffset;
+		indirectDraws[index].firstInstance = objectData.firstInstance;
+		indirectDraws[index].instanceCount = 1;
 
-		gbufferIndirectDraws[index].objectId = id;
-		gbufferIndirectDraws[index].materialId = id;
+		indirectDraws[index].objectId = id;
+		indirectDraws[index].materialId = id;
+	}
+}
+
+
+// Cascade 可见性剔除
+void cascadeVisibileCulling(uint id,uint cascadeId)
+{
+	PerObjectData objectData = perObjectBuffer.objects[id];
+	bool bVisibile = true;
+
+	vec4  sphereBounds = objectData.sphereBounds;
+	vec3  center = sphereBounds.xyz;
+	float radius = sphereBounds.w;
+
+	vec4 pos = vec4(center,1.0f); pos = objectData.model * pos; // world space pos
+
+	// Sphere Frustum Culling
+	for (int i = 0; i < 6; i++) 
+	{
+		if(i == 5)
+		{
+			continue;
+		}
+
+		if (dot(pos, frameData.cascadeFrustumPlanes[cascadeId * 4 + i]) + radius < 0.0)
+		{
+			bVisibile = false;
+			break;
+		}
+	}
+
+	// Sotre in buffer if visible
+	if(bVisibile)
+	{
+		uint index = atomicAdd(indirectDrawCount.outDrawCount, 1);
+
+		indirectDraws[index].indexCount    = objectData.indexCount;
+		indirectDraws[index].firstIndex    = objectData.firstIndex;
+		indirectDraws[index].vertexOffset  = objectData.vertexOffset;
+		indirectDraws[index].firstInstance = objectData.firstInstance;
+		indirectDraws[index].instanceCount = 1;
+
+		indirectDraws[index].objectId = id;
+		indirectDraws[index].materialId = id;
 	}
 }
 
@@ -73,13 +124,20 @@ void main()
 
 	if (idx == 0)
 	{
-		atomicExchange(indirectDrawCount.outGbufferDrawCount, 0);
+		atomicExchange(indirectDrawCount.outDrawCount, 0);
 	}
 
 	barrier();
     
     if(idx < cullData.drawCount)
 	{
-		gbufferVisibileCulling(idx);
+		if(cullData.cullIndex == 0)
+		{
+			gbufferVisibileCulling(idx);
+		}
+		else if(cullData.cullIndex >= 1 && cullData.cullIndex <= 4)
+		{
+			cascadeVisibileCulling(idx,cullData.cullIndex - 1);
+		}
     }
 }

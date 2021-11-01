@@ -4,8 +4,8 @@
 #include "../glsl/common.glsl"
 #include "../glsl/common_mesh.glsl"
 
-layout (location = 0) in  flat uint inBaseColorTexId;
-layout (location = 1) in  vec2 inUV0;
+layout (location = 0) in  vec2 inUV0;
+layout (location = 1) in  flat uint inBaseColorTexId;
 
 layout (location = 0) out vec4 outColor;
 

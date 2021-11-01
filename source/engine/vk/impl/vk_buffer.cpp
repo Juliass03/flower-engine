@@ -10,7 +10,7 @@ static AutoCVarInt32 cVarEnableVma(
 	"r.RHI.EnableVma",
 	"Enable vma allocator to manage vkBuffer create and destroy. 0 is off, others are on.",
 	"RHI",
-	1, // VMA在低端机器上会有过大的VRAM报错
+	1, // 申请超大的VRAM时( > 256),VMA在低端机器上会有报错
 	CVarFlags::ReadOnly | CVarFlags::InitOnce
 );
 

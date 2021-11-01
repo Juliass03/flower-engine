@@ -15,13 +15,16 @@ layout (location = 1) out vec2 outUV0;
 layout (location = 2) out vec3 outWorldPos;
 layout (location = 3) out vec3 outViewPos;
 layout (location = 4) out vec4 outTangent;
-layout (location = 5) out flat uint outInstanceIndex;
+layout (location = 5) out flat uint outMaterialId;
 
 void main()
 {
 	outUV0 = inUV0;
 
-    mat4 modelMatrix  = perObjectBuffer.objects[gl_DrawID].model;
+	uint objId = drawIndirectBuffer.indirectDraws[gl_DrawID].objectId;
+	uint materialId = drawIndirectBuffer.indirectDraws[gl_DrawID].materialId;
+
+    mat4 modelMatrix  = perObjectBuffer.objects[objId].model;
 	vec4 worldPos = modelMatrix * vec4(inPosition,1.0f);
 
 	outWorldPos = vec3(worldPos);
@@ -34,5 +37,5 @@ void main()
 	outWorldNormal = normalMatrix * normalize(inNormal);
 	outTangent =  vec4(normalMatrix * normalize(inTangent.xyz),inTangent.w);
 
-	outInstanceIndex = gl_DrawID;
+	outMaterialId = materialId;
 }

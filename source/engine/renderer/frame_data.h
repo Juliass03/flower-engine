@@ -37,9 +37,14 @@ struct GPUFrameData
 	glm::mat4 camView;
 	glm::mat4 camProj;
 	glm::mat4 camViewProj;
+    glm::mat4 camInvertViewProj;
+
     glm::vec4 camWorldPos;
 	glm::vec4 cameraInfo; // .x fovy .y aspect_ratio .z nearZ .w farZ
     glm::vec4 camFrustumPlanes[6];
+
+    glm::mat4 cascadeViewProjMatrix[4]; // cascade view proj.
+    glm::vec4 cascadeFrustumPlanes[24];
 };
 
 struct GPUDrawCallData

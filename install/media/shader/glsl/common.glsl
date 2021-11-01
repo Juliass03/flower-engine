@@ -43,7 +43,7 @@ struct IndexedIndirectCommand // Gpu culling result
 
 struct OutIndirectDrawCount
 {
-    uint outGbufferDrawCount;
+    uint outDrawCount;
 };
 
 // 当前帧公用的数据
@@ -57,11 +57,19 @@ layout(set = 0, binding = 0) uniform FrameBuffer
     mat4 camView;       // 相机视图矩阵
 	mat4 camProj;       // 相机投影矩阵
 	mat4 camViewProj;   // 相机视图投影矩阵
+    mat4 camInvertViewProjection;
+
     vec4 camWorldPos;   // .xyz为相机的世界空间坐标，.w=0.
 	vec4 camInfo;       // .x fovy .y aspect_ratio .z nearZ .w farZ
     vec4 camFrustumPlanes[6];
 
+    mat4 cascadeViewProjMatrix[4]; // cascade shadow
+                                   // #3 隔3帧更新一次
+                                   // #2 隔1帧更新一次
+                                   // #1 实时更新
+                                   // #0 实时更新
 
+    vec4 cascadeFrustumPlanes[24]; // 用于剔除的cascade Frustum Planes
 } frameData;
 
 vec3 packGBufferNormal(vec3 inNormal)
@@ -72,6 +80,14 @@ vec3 packGBufferNormal(vec3 inNormal)
 vec3 unpackGbufferNormal(vec3 inNormal)
 {
     return inNormal * 2.0f - vec3(1.0f,1.0f,1.0f);
+}
+
+vec3 getWorldPosition(float z,vec2 uv)
+{
+    vec4 posClip  = vec4(uv * 2.0f - 1.0f, z, 1.0f);
+    vec4 posWorld = frameData.camInvertViewProjection * posClip;
+
+    return posWorld.xyz / posWorld.w;
 }
 
 #endif

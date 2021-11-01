@@ -7,12 +7,10 @@ void engine::GpuCullingPass::initInner()
 {
 	bInitPipeline = false;
     createPipeline();
-    createAsyncObjects();
 
     m_deletionQueue.push([&]()
     {
-        destroyPipeline();
-        destroyAsyncObjects();
+		destroyPipeline();
     });
 }
 
@@ -26,61 +24,50 @@ void engine::GpuCullingPass::afterSceneTextureRecreate()
     createPipeline();
 }
 
-void engine::GpuCullingPass::record(uint32 index)
+void engine::GpuCullingPass::gbuffer_record(VkCommandBuffer& cmd,uint32 backBufferIndex)
 {
 	if(m_renderScene->isSceneEmpty())
 	{
 		return;
 	}
 
-    m_cmdbufs[index]->begin();
-
-    VkCommandBuffer cmd = *m_cmdbufs[index];
     std::array<VkBufferMemoryBarrier,2> bufferBarriers {};
 	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
     bufferBarriers[1].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 
 	GPUCullingPushConstants gpuPushConstant = {};
 	gpuPushConstant.drawCount = (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size();
-	VkDeviceSize asyncRange = gpuPushConstant.drawCount*sizeof(GPUDrawCallData);
+    gpuPushConstant.cullIndex = static_cast<uint32>(ECullIndex::GBUFFER);
+    
+	VkDeviceSize asyncRange = gpuPushConstant.drawCount * sizeof(GPUDrawCallData);
 
-    if(m_renderScene->m_drawIndirectSSBOGbuffer.bFirstInit || MeshLibrary::get()->bMeshReload)
-    {
-        m_renderScene->m_drawIndirectSSBOGbuffer.bFirstInit = false;
-        MeshLibrary::get()->bMeshReload = false;
-    }
-    else
-    {
-        bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
-        bufferBarriers[0].size = asyncRange;
-        bufferBarriers[0].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-        bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-        bufferBarriers[0].srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
-        bufferBarriers[0].dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
+    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
+    bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.countBuffer->GetVkBuffer();
 
-		bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.countBuffer->GetVkBuffer();
-		bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOGbuffer.countSize;
-		bufferBarriers[1].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-		bufferBarriers[1].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-		bufferBarriers[1].srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
-		bufferBarriers[1].dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
+    bufferBarriers[0].size = asyncRange;
+    bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOGbuffer.countSize;
 
-		vkCmdPipelineBarrier(
-			cmd,
-			VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-			0,
-			0,nullptr,
-            (uint32)bufferBarriers.size(),bufferBarriers.data(),
-			0,nullptr);
-    }
+    bufferBarriers[0].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+    bufferBarriers[1].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelines[index]);
+    bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    bufferBarriers[1].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 
-    vkCmdPushConstants(cmd, m_pipelineLayouts[index], VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t), &gpuPushConstant);
+    vkCmdPipelineBarrier(
+        cmd,
+        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0,
+        0,nullptr,
+        (uint32)bufferBarriers.size(),bufferBarriers.data(),
+        0,nullptr);
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelines[backBufferIndex]);
+
+    vkCmdPushConstants(cmd, m_pipelineLayouts[backBufferIndex], VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(GPUCullingPushConstants), &gpuPushConstant);
     
     std::vector<VkDescriptorSet> compPassSets = {
-        m_renderer->getFrameData().m_frameDataDescriptorSets[index].set
+          m_renderer->getFrameData().m_frameDataDescriptorSets[backBufferIndex].set
         , m_renderer->getRenderScene().m_meshObjectSSBO->descriptorSets.set
         , m_renderer->getRenderScene().m_drawIndirectSSBOGbuffer.descriptorSets.set
         , m_renderer->getRenderScene().m_drawIndirectSSBOGbuffer.countDescriptorSets.set
@@ -89,7 +76,7 @@ void engine::GpuCullingPass::record(uint32 index)
     vkCmdBindDescriptorSets(
         cmd,
         VK_PIPELINE_BIND_POINT_COMPUTE, 
-        m_pipelineLayouts[index], 
+        m_pipelineLayouts[backBufferIndex], 
         0, 
         (uint32)compPassSets.size(), 
         compPassSets.data(), 
@@ -100,18 +87,102 @@ void engine::GpuCullingPass::record(uint32 index)
     vkCmdDispatch(cmd, (gpuPushConstant.drawCount / 256) + 1, 1, 1);
 
     bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    bufferBarriers[0].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
-    bufferBarriers[0].size = asyncRange;
-    bufferBarriers[0].srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
-    bufferBarriers[0].dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
+    bufferBarriers[1].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 
-	bufferBarriers[1].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	bufferBarriers[1].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-	bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.countBuffer->GetVkBuffer();
-	bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOGbuffer.countSize;
-	bufferBarriers[1].srcQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->computeFamily;
-	bufferBarriers[1].dstQueueFamilyIndex = VulkanRHI::get()->getVulkanDevice()->graphicsFamily;
+    bufferBarriers[0].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+    bufferBarriers[1].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+
+    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
+    bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.countBuffer->GetVkBuffer();
+
+    bufferBarriers[0].size = asyncRange;
+    bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOGbuffer.countSize;
+
+    vkCmdPipelineBarrier(
+        cmd,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+        0,
+        0, nullptr,
+        (uint32)bufferBarriers.size(),bufferBarriers.data(),
+        0, nullptr);
+}
+
+void engine::GpuCullingPass::cascade_record(VkCommandBuffer& cmd,uint32 backBufferIndex,ECullIndex cullIndex)
+{
+    if(m_renderScene->isSceneEmpty())
+    {
+        return;
+    }
+
+    uint32 cascasdeIndex = cullingIndexToCasacdeIndex(cullIndex);
+
+    std::array<VkBufferMemoryBarrier,2> bufferBarriers {};
+    bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    bufferBarriers[1].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+
+    GPUCullingPushConstants gpuPushConstant = {};
+    gpuPushConstant.drawCount = (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size();
+    gpuPushConstant.cullIndex = static_cast<uint32>(cullIndex); 
+
+    VkDeviceSize asyncRange = gpuPushConstant.drawCount * sizeof(GPUDrawCallData);
+
+    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].drawIndirectSSBO->GetVkBuffer();
+    bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].countBuffer->GetVkBuffer();
+
+    bufferBarriers[0].size = asyncRange;
+    bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].countSize;
+
+    bufferBarriers[0].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+    bufferBarriers[1].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+
+    bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    bufferBarriers[1].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+
+    vkCmdPipelineBarrier(
+        cmd,
+        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0,
+        0,nullptr,
+        (uint32)bufferBarriers.size(),bufferBarriers.data(),
+        0,nullptr);
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelines[backBufferIndex]);
+
+    vkCmdPushConstants(cmd, m_pipelineLayouts[backBufferIndex], VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(GPUCullingPushConstants), &gpuPushConstant);
+
+    std::vector<VkDescriptorSet> compPassSets = {
+          m_renderer->getFrameData().m_frameDataDescriptorSets[backBufferIndex].set
+        , m_renderer->getRenderScene().m_meshObjectSSBO->descriptorSets.set
+        , m_renderer->getRenderScene().m_drawIndirectSSBOShadowDepths[cascasdeIndex].descriptorSets.set
+        , m_renderer->getRenderScene().m_drawIndirectSSBOShadowDepths[cascasdeIndex].countDescriptorSets.set
+    };
+
+    vkCmdBindDescriptorSets(
+        cmd,
+        VK_PIPELINE_BIND_POINT_COMPUTE, 
+        m_pipelineLayouts[backBufferIndex], 
+        0, 
+        (uint32)compPassSets.size(), 
+        compPassSets.data(), 
+        0, 
+        nullptr
+    );
+
+    vkCmdDispatch(cmd, (gpuPushConstant.drawCount / 256) + 1, 1, 1);
+
+    bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    bufferBarriers[1].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+
+    bufferBarriers[0].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+    bufferBarriers[1].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+
+    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].drawIndirectSSBO->GetVkBuffer();
+    bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].countBuffer->GetVkBuffer();
+
+    bufferBarriers[0].size = asyncRange;
+    bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].countSize;
 
     vkCmdPipelineBarrier(
         cmd,
@@ -122,7 +193,6 @@ void engine::GpuCullingPass::record(uint32 index)
         (uint32)bufferBarriers.size(),bufferBarriers.data(),
         0, nullptr);
 
-    m_cmdbufs[index]->end();
 }
 
 void engine::GpuCullingPass::createPipeline()
@@ -145,7 +215,7 @@ void engine::GpuCullingPass::createPipeline()
         plci.pushConstantRangeCount = 1; // NOTE: 我们有一个PushConstant
 
         std::vector<VkDescriptorSetLayout> setLayouts = {
-            m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout
+              m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout
             , m_renderer->getRenderScene().m_meshObjectSSBO->descriptorSetLayout.layout
             , m_renderer->getRenderScene().m_drawIndirectSSBOGbuffer.descriptorSetLayout.layout
             , m_renderer->getRenderScene().m_drawIndirectSSBOGbuffer.countDescriptorSetLayout.layout
@@ -187,34 +257,4 @@ void engine::GpuCullingPass::destroyPipeline()
     m_pipelineLayouts.resize(0);
 
     bInitPipeline = false;
-}
-
-void engine::GpuCullingPass::createAsyncObjects()
-{
-    uint32 backBufferCount = (uint32)VulkanRHI::get()->getSwapchainImageViews().size();
-    m_semaphores.resize(backBufferCount);
-    m_cmdbufs.resize(backBufferCount);
-
-    for(uint32 index = 0; index < backBufferCount; index++)
-    {
-        VkSemaphoreCreateInfo semaphoreCreateInfo{};
-        semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        vkCheck(vkCreateSemaphore(VulkanRHI::get()->getDevice(), &semaphoreCreateInfo, nullptr, &m_semaphores[index]));
-
-        m_cmdbufs[index] = VulkanRHI::get()->createComputeCommandBuffer();
-    }
-}
-
-void engine::GpuCullingPass::destroyAsyncObjects()
-{
-    for(uint32 index = 0; index < m_cmdbufs.size(); index++)
-    {
-        vkDestroySemaphore(VulkanRHI::get()->getDevice(), m_semaphores[index], nullptr);
-        
-        delete m_cmdbufs[index];
-        m_cmdbufs[index] = nullptr;
-    }
-    m_semaphores.resize(0);
-    m_cmdbufs.resize(0);
-
 }

@@ -4,6 +4,11 @@
 
 namespace engine{
 
+struct GpuLightingPassPushConstants
+{
+	float pcfDilation;
+};
+
 class LightingPass : public GraphicsPass
 {
 public:

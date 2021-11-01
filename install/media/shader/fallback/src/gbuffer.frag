@@ -10,7 +10,7 @@ layout (location = 1) in  vec2 inUV0;
 layout (location = 2) in  vec3 inWorldPos;
 layout (location = 3) in  vec3 inViewPos;
 layout (location = 4) in  vec4 inTangent;
-layout (location = 5) in  flat uint inInstanceIndex;
+layout (location = 5) in  flat uint InMaterialId;
 
 layout (location = 0) out vec4 outGbufferBaseColorMetal; 
 layout (location = 1) out vec4 outGbufferNormalRoughness; 
@@ -28,7 +28,7 @@ vec3 getNormalFromVertexAttribute(vec3 tangentVec3)
 
 void main() 
 {
-    PerObjectMaterialData matData = perObjectMaterial.materials[nonuniformEXT(inInstanceIndex)];
+    PerObjectMaterialData matData = perObjectMaterial.materials[nonuniformEXT(InMaterialId)];
 
     vec4 baseColorTex = tex(matData.baseColorTexId,inUV0);
 
@@ -47,7 +47,7 @@ void main()
     normalTangentSpace.z = sqrt(max(0.0f,1.0f - dot(normalTangentSpace.xy,normalTangentSpace.xy)));
     vec3 worldSpaceNormal = getNormalFromVertexAttribute(normalTangentSpace);
 
-    outGbufferBaseColorMetal.rgb = baseColorTex.rgb;
+    outGbufferBaseColorMetal.rgb = baseColorTex.rgb * baseColorTex.a;
     outGbufferNormalRoughness.rgb = packGBufferNormal(worldSpaceNormal);
     outGbufferEmissiveAo.rgb = emissiveTex.rgb; 
 

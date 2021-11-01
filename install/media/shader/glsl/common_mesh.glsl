@@ -25,7 +25,7 @@ layout(set = 3, binding = 0) readonly buffer PerObjectMaterial
 
 layout(set = 4, binding = 0, std430) readonly buffer DrawIndirectBuffer
 {
-	IndexedIndirectCommand gbufferIndirectDraws[];
+	IndexedIndirectCommand indirectDraws[];
 } drawIndirectBuffer;
 
 #endif

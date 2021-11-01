@@ -8,7 +8,7 @@
 #include "../scene/components/sceneview_camera.h"
 #include "../scene/components/directionalLight.h"
 #include "render_passes/lighting_pass.h"
-#include "render_passes/shadowDepth_pass.h"
+#include "render_passes/cascade_shadowdepth_pass.h"
 #include "render_prepare.h"
 #include "mesh.h"
 #include "compute_passes/gpu_culling.h"
@@ -68,25 +68,28 @@ bool Renderer::init()
 	m_renderScene->init(this);
 	m_uiPass->initImgui();
 
-	m_gpuCullingPass = new GpuCullingPass(this,m_renderScene,shader_compiler, "GpuCulling");
+	
 
 	// 注册RenderPasses
 	// m_renderpasses.push_back(new ShadowDepthPass(this,m_renderScene,shader_compiler,"ShadowDepth"));
-	m_renderpasses.push_back(new GBufferPass(this,m_renderScene,shader_compiler,"GBuffer"));
-	m_renderpasses.push_back(new LightingPass(this,m_renderScene,shader_compiler,"Lighting"));
-	m_renderpasses.push_back(new TonemapperPass(this,m_renderScene,shader_compiler,"ToneMapper"));
+
+	m_gpuCullingPass = new GpuCullingPass(this,m_renderScene,shader_compiler, "GpuCulling");
+
+	m_shadowdepthPass = new ShadowDepthPass(this,m_renderScene,shader_compiler,"ShadowDepth");
+	m_gbufferPass = new GBufferPass(this,m_renderScene,shader_compiler,"GBuffer");
+	m_lightingPass = new LightingPass(this,m_renderScene,shader_compiler,"Lighting");
+	m_tonemapperPass = new TonemapperPass(this,m_renderScene,shader_compiler,"ToneMapper");
 
 	// 首先调用PerframeData的初始化函数确保全局的PerframeData正确初始化
 	m_frameData.init();
 	m_frameData.buildPerFrameDataDescriptorSets(this);
 
 	// 接下来调用每一个Renderpass的初始化函数
-	for(auto* pass : m_renderpasses)
-	{
-		pass->init();
-	}
-
+	m_shadowdepthPass->init();
 	m_gpuCullingPass->init();
+	m_gbufferPass->init();
+	m_lightingPass->init();
+	m_tonemapperPass->init();
 
 	return true;
 }
@@ -124,10 +127,8 @@ void Renderer::tick(float dt)
 	m_frameData.updateFrameData(m_gpuFrameData);
 	m_renderScene->renderPrepare(m_gpuFrameData);
 
-	// 首先进行gpu剔除
-	m_gpuCullingPass->record(backBufferIndex);
+	
 
-	// 开始动态记录
 	VkCommandBuffer dynamicBuf = *VulkanRHI::get()->getDynamicGraphicsCmdBuf(backBufferIndex);
 
 	vkCheck(vkResetCommandBuffer(dynamicBuf,0));
@@ -137,16 +138,35 @@ void Renderer::tick(float dt)
 	MeshLibrary::get()->bindIndexBuffer(dynamicBuf);
 	MeshLibrary::get()->bindVertexBuffer(dynamicBuf);
 
-	for(auto* pass : m_renderpasses)
-	{
-		pass->dynamicRecord(dynamicBuf,backBufferIndex); // 按注册顺序调用
-	}
+	// TODO: cascade #3 隔3帧更新一次
+	//       cascade #2 隔1帧更新一次
+	//       cascade #1 和 #0 每帧更新
+	m_gpuCullingPass->cascade_record(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_0); // cascade #0 culling
+	m_shadowdepthPass->cascadeRecord(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_0);
+
+	m_gpuCullingPass->cascade_record(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_1); // cascade #1 culling
+	m_shadowdepthPass->cascadeRecord(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_1);
+
+	m_gpuCullingPass->cascade_record(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_2); // cascade #2 culling
+	m_shadowdepthPass->cascadeRecord(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_2);
+
+	m_gpuCullingPass->cascade_record(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_3); // cascade #3 culling
+	m_shadowdepthPass->cascadeRecord(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_3);
+
+	m_gpuCullingPass->gbuffer_record(dynamicBuf,backBufferIndex); // gbuffer culling
+	m_gbufferPass->dynamicRecord(dynamicBuf,backBufferIndex);
+
+	m_lightingPass->dynamicRecord(dynamicBuf,backBufferIndex);
+
+	m_tonemapperPass->dynamicRecord(dynamicBuf,backBufferIndex);
 
 	vkCheck(vkEndCommandBuffer(dynamicBuf));
 
 	uiRecord(backBufferIndex);
 	m_uiPass->renderFrame(backBufferIndex);
 
+
+// 提交部分
 	auto frameStartSemaphore = VulkanRHI::get()->getCurrentFrameWaitSemaphoreRef();
 	auto frameEndSemaphore = VulkanRHI::get()->getCurrentFrameFinishSemaphore();
 	auto dynamicCmdBufSemaphore = VulkanRHI::get()->getDynamicGraphicsCmdBufSemaphore(backBufferIndex);
@@ -156,36 +176,13 @@ void Renderer::tick(float dt)
 	std::vector<VkPipelineStageFlags> waitFlags;
 	std::vector<VkSemaphore> waitSemaphores;
 
-	if(!bSceneEmpty)
-	{
-		VkSubmitInfo gpuCullingSubmitInfo{};
-		gpuCullingSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		gpuCullingSubmitInfo.commandBufferCount = 1;
-		gpuCullingSubmitInfo.pCommandBuffers = &m_gpuCullingPass->m_cmdbufs[backBufferIndex]->getInstance();
-		gpuCullingSubmitInfo.signalSemaphoreCount = 1;
-		gpuCullingSubmitInfo.pSignalSemaphores = &m_gpuCullingPass->m_semaphores[backBufferIndex];
-		vkCheck(vkQueueSubmit(VulkanRHI::get()->getComputeQueue(), 1, &gpuCullingSubmitInfo, VK_NULL_HANDLE));
+	waitFlags = {
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+	};
 
-		waitFlags = { 
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-		};
-
-		waitSemaphores = {
-			frameStartSemaphore,	
-			m_gpuCullingPass->m_semaphores[backBufferIndex]		
-		};
-	}
-	else
-	{
-		waitFlags = { 
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-		};
-
-		waitSemaphores = {
-			frameStartSemaphore
-		};
-	}
+	waitSemaphores = {
+		frameStartSemaphore
+	};
 
 	VulkanSubmitInfo dynamicBufSubmitInfo{};
 	dynamicBufSubmitInfo.setWaitStage(waitFlags)
@@ -210,15 +207,16 @@ void Renderer::tick(float dt)
 
 void Renderer::release()
 {
-	for(auto* pass : m_renderpasses)
-	{
-		pass->release();
-		delete pass;
-	}
+	m_shadowdepthPass->release(); delete m_shadowdepthPass;
+	m_gbufferPass->release(); delete m_gbufferPass;
+	m_lightingPass->release(); delete m_lightingPass;
+	m_tonemapperPass->release(); delete m_tonemapperPass;
+
 	m_uiPass->release();
 	m_renderScene->release();
 	m_frameData.release();
 	m_gpuCullingPass->release();
+
 
 	delete m_gpuCullingPass;
 	delete m_uiPass;
@@ -264,7 +262,6 @@ void Renderer::updateGPUData(float dt)
 
 	if(directionalLights.size()>0)
 	{
-		// NOTE: 当前我们仅处理第一盏有效的直射灯
 		for(auto& light:directionalLights)
 		{
 			if(const auto lightPtr = light.lock())
@@ -273,6 +270,8 @@ void Renderer::updateGPUData(float dt)
 
 				m_gpuFrameData.sunLightColor = lightPtr->getColor();
 				m_gpuFrameData.sunLightDir = lightPtr->getDirection();
+
+				break;// NOTE: 当前我们仅处理第一盏有效的直射灯
 			}
 		}
 	}
@@ -293,6 +292,8 @@ void Renderer::updateGPUData(float dt)
 	m_gpuFrameData.camView = sceneViewCameraComponent->getView();
 	m_gpuFrameData.camProj = sceneViewCameraComponent->getProjection();
 	m_gpuFrameData.camViewProj = m_gpuFrameData.camProj * m_gpuFrameData.camView;
+	m_gpuFrameData.camInvertViewProj = glm::inverse(m_gpuFrameData.camViewProj);
+
 	m_gpuFrameData.camWorldPos = glm::vec4(sceneViewCameraComponent->getPosition(),1.0f);
 
 	m_gpuFrameData.cameraInfo = glm::vec4(
@@ -305,12 +306,39 @@ void Renderer::updateGPUData(float dt)
 	Frustum camFrusum{};
 	camFrusum.update(m_gpuFrameData.camViewProj);
 
+	// 更新ViewFrustum信息
 	m_gpuFrameData.camFrustumPlanes[0] = camFrusum.planes[0];
 	m_gpuFrameData.camFrustumPlanes[1] = camFrusum.planes[1];
 	m_gpuFrameData.camFrustumPlanes[2] = camFrusum.planes[2];
 	m_gpuFrameData.camFrustumPlanes[3] = camFrusum.planes[3];
 	m_gpuFrameData.camFrustumPlanes[4] = camFrusum.planes[4];
 	m_gpuFrameData.camFrustumPlanes[5] = camFrusum.planes[5];
+	
+	// 更新阴影信息
+	std::vector<Cascade> cascadeInfos{};
+	Cascade::SetupCascades(
+		cascadeInfos,
+		sceneViewCameraComponent->getZNear(),
+		m_gpuFrameData.camViewProj,
+		m_gpuFrameData.sunLightDir,
+		m_renderScene
+	);
+	ASSERT(cascadeInfos.size() == 4,"Current use fix 4 cascade num.");
+	for(size_t i = 0; i < cascadeInfos.size(); i++)
+	{
+		m_gpuFrameData.cascadeViewProjMatrix[i] = cascadeInfos[i].viewProj;
+
+		Frustum cascadeFrusum{};
+		cascadeFrusum.update(m_gpuFrameData.cascadeViewProjMatrix[i]);
+
+		m_gpuFrameData.cascadeFrustumPlanes[0 + i * 6] =  cascadeFrusum.planes[0];
+		m_gpuFrameData.cascadeFrustumPlanes[1 + i * 6] =  cascadeFrusum.planes[1];
+		m_gpuFrameData.cascadeFrustumPlanes[2 + i * 6] =  cascadeFrusum.planes[2];
+		m_gpuFrameData.cascadeFrustumPlanes[3 + i * 6] =  cascadeFrusum.planes[3];
+		m_gpuFrameData.cascadeFrustumPlanes[4 + i * 6] =  cascadeFrusum.planes[4];
+		m_gpuFrameData.cascadeFrustumPlanes[5 + i * 6] =  cascadeFrusum.planes[5];
+	}
+
 }
 
 

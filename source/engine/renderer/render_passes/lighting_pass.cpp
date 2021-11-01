@@ -72,6 +72,15 @@ void engine::LightingPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferI
     vkCmdSetViewport(cmd,0,1,&viewport);
     vkCmdSetDepthBias(cmd,0,0,0);
 
+    GpuLightingPassPushConstants pushConstants{};
+    pushConstants.pcfDilation = 20.0f;
+	vkCmdPushConstants(cmd,
+        m_pipelineLayouts[backBufferIndex],
+        VK_SHADER_STAGE_FRAGMENT_BIT,0,
+        sizeof(GpuLightingPassPushConstants),
+        &pushConstants
+    );
+
     vkCmdBindDescriptorSets(
         cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
         m_pipelineLayouts[backBufferIndex],
@@ -213,11 +222,17 @@ void engine::LightingPass::createPipeline()
         depthStencilImage.imageView = ((DepthStencilImage*)(m_renderScene->getSceneTextures().getDepthStencil()))->getDepthOnlyImageView();
         depthStencilImage.sampler = VulkanRHI::get()->getPointClampSampler();
 
+		VkDescriptorImageInfo shadowDepthArrayImages = {};
+		shadowDepthArrayImages.imageLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
+		shadowDepthArrayImages.imageView = m_renderScene->getSceneTextures().getCascadeShadowDepthMapArray()->getImageView();
+		shadowDepthArrayImages.sampler =  m_renderScene->getSceneTextures().getCascadeShadowDepthMapArraySampler();
+
         m_renderer->vkDynamicDescriptorFactoryBegin(index)
             .bindImage(0,&gbufferBaseColorRoughnessImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .bindImage(1,&gbufferNormalMetalImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .bindImage(2,&gbufferEmissiveAoImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,  VK_SHADER_STAGE_FRAGMENT_BIT)
             .bindImage(3,&depthStencilImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .bindImage(4,&shadowDepthArrayImages,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build(m_lightingPassDescriptorSets[index],m_lightingPassDescriptorSetLayouts[index]);
     }
 
@@ -228,9 +243,12 @@ void engine::LightingPass::createPipeline()
     {
         VkPipelineLayoutCreateInfo plci = vkPipelineLayoutCreateInfo();
 
-        // Current we don't need push const.
-        plci.pushConstantRangeCount = 0;
-        plci.pPushConstantRanges = nullptr;
+		VkPushConstantRange push_constant{};
+		push_constant.offset = 0;
+		push_constant.size = sizeof(GpuLightingPassPushConstants);
+		push_constant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		plci.pPushConstantRanges = &push_constant;
+		plci.pushConstantRangeCount = 1; // NOTE: 我们有一个PushConstant
 
         std::vector<VkDescriptorSetLayout> setLayouts = {
               m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout

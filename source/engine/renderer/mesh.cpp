@@ -310,7 +310,6 @@ void engine::MeshLibrary::uploadAppendBuffer()
         {
             VkDeviceSize newDeviceSize = ((currentVertexDataDeviceSize / incrementVertexBufferSize) + 2) * incrementVertexBufferSize;
 
-
             LOG_INFO("Reallocate {0} mb local vram for vertex buffer!", newDeviceSize / (1024 * 1024));
            
             vkQueueWaitIdle(VulkanRHI::get()->getVulkanDevice()->graphicsQueue);
@@ -343,8 +342,6 @@ void engine::MeshLibrary::uploadAppendBuffer()
 
         m_vertexBuffer->getVulkanBuffer()->stageCopyFrom(*stageBuffer, uploadDeviceSize,VulkanRHI::get()->getVulkanDevice()->graphicsQueue, 0, offsetDeviceSize);
         delete stageBuffer;
-
-        bMeshReload = true;
     }
 
     if(m_lastUploadIndexBufferPos != (uint32)m_cacheIndicesData.size())
@@ -395,7 +392,5 @@ void engine::MeshLibrary::uploadAppendBuffer()
 
         m_indexBuffer->getVulkanBuffer()->stageCopyFrom(*stageBuffer, uploadDeviceSize,VulkanRHI::get()->getVulkanDevice()->graphicsQueue, 0, offsetDeviceSize);
         delete stageBuffer;
-
-        bMeshReload = true;
     }
 }

@@ -10,6 +10,8 @@
 **/
 namespace engine{
 
+constexpr auto CASCADE_MAX_COUNT = 4u;
+
 template<typename SSBOType>
 struct SceneUploadSSBO;
 
@@ -49,7 +51,6 @@ public:
 		VulkanDescriptorLayoutReference descriptorSetLayout = {};
 		VkDeviceSize size;
 
-		bool bFirstInit = false;
 		void init(uint32 bindingPos,uint32 countBindingPos);
 		void release();
 
@@ -61,6 +62,8 @@ public:
 	};
 	
 	DrawIndirectBuffer m_drawIndirectSSBOGbuffer;
+	
+	std::array<DrawIndirectBuffer,CASCADE_MAX_COUNT> m_drawIndirectSSBOShadowDepths {};
 
 	Scene& getActiveScene();
 
