@@ -42,13 +42,12 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
     sceneTextureExtent2D.height = sceneTextureExtent.height;
 
     VkRenderPassBeginInfo rpInfo = vkRenderpassBeginInfo(getRenderpass(),sceneTextureExtent2D,m_framebuffers[backBufferIndex]);
-    std::array<VkClearValue,5> clearValues{};
+    std::array<VkClearValue,4> clearValues{};
 
     clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
     clearValues[1].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
     clearValues[2].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
-    clearValues[3].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
-    clearValues[4].depthStencil = { getEngineClearZFar(), 1 };
+    clearValues[3].depthStencil = { getEngineClearZFar(), 1 };
 
     rpInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     rpInfo.pClearValues = &clearValues[0];
@@ -183,7 +182,7 @@ void engine::GBufferPass::createRenderpass()
 
     attachmentDescs[depthAttachmentIndex].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescs[depthAttachmentIndex].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachmentDescs[depthAttachmentIndex].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescs[depthAttachmentIndex].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachmentDescs[depthAttachmentIndex].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDescs[depthAttachmentIndex].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDescs[depthAttachmentIndex].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 

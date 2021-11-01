@@ -20,7 +20,7 @@ static AutoCVarInt32 cVarReverseZ(
 	"r.Shading.ReverseZ",
 	"Enable reverse z. 0 is off, others are on.",
 	"Shading",
-	1,
+	0,
 	CVarFlags::InitOnce | CVarFlags::ReadOnly
 );
 
@@ -41,7 +41,7 @@ float engine::getEngineClearZNear()
 
 VkCompareOp engine::getEngineZTestFunc()
 {
-    return reverseZOpen() ? VK_COMPARE_OP_GREATER_OR_EQUAL : VK_COMPARE_OP_LESS_OR_EQUAL;
+    return reverseZOpen() ? VK_COMPARE_OP_GREATER : VK_COMPARE_OP_LESS;
 }
 
 

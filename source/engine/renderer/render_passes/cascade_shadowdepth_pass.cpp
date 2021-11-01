@@ -89,7 +89,7 @@ void Cascade::SetupCascades(
 	float Zmin = std::numeric_limits<float>::max();
 	for(uint32 i = 0; i<8; i++)
 	{
-		glm::vec4 invCorner = invCam*glm::vec4(frustumCorners[i],1.0f);
+		glm::vec4 invCorner = invCam * glm::vec4(frustumCorners[i],1.0f);
 		frustumCorners[i] = invCorner/invCorner.w; // 齐次除法
 		Zmax = glm::max(frustumCorners[i].z,Zmax);
 		Zmin = glm::min(frustumCorners[i].z,Zmin);
@@ -109,17 +109,17 @@ void Cascade::SetupCascades(
 		glm::vec3 intervalCorners[8] = {};
 
 		// 计算子视锥角点
-		for(uint32 i = 0; i<4; i++)
+		for(uint32 i = 0; i < 4; i++)
 		{
 			// Dist is a stable value.
-			glm::vec3 dist = glm::normalize(frustumCorners[i+4]-frustumCorners[i]);
-			intervalCorners[i+4] = frustumCorners[i]+(dist*frustumIntervalSplit);
-			intervalCorners[i] = frustumCorners[i]+(dist*lastSplitDist);
+			glm::vec3 dist = glm::normalize(frustumCorners[i+4] - frustumCorners[i]);
+			intervalCorners[i+4] = frustumCorners[i] + (dist * frustumIntervalSplit);
+			intervalCorners[i] = frustumCorners[i] + (dist * lastSplitDist);
 		}
 
 		// 计算视锥包围球
 		glm::vec3 intervalCenter = glm::vec3(0.0f);
-		for(uint32 i = 0; i<8; i++)
+		for(uint32 i = 0; i < 8; i++)
 		{
 			intervalCenter += intervalCorners[i];
 		}
@@ -127,12 +127,12 @@ void Cascade::SetupCascades(
 
 		// 计算视锥半径
 		float radius = 0.0f;
-		for(uint32 i = 0; i<8; i++)
+		for(uint32 i = 0; i < 8; i++)
 		{
 			float distance = glm::length(intervalCorners[i]-intervalCenter);
 			radius = glm::max(radius,distance);
 		}
-		radius = std::ceil(radius*16.0f)/16.0f;
+		radius = std::ceil(radius * 16.0f) / 16.0f;
 
 		glm::vec3 maxExtents = glm::vec3(radius);
 		glm::vec3 minExtents = -maxExtents;
@@ -146,8 +146,9 @@ void Cascade::SetupCascades(
 
 		glm::mat4 lightOrthoMatrix;
 
-		float nearZ = reverseZOpen() ? maxExtents.z - minExtents.z : 0.0f;
-		float farZ  = reverseZOpen() ? 0.0f : maxExtents.z - minExtents.z;
+		const bool bReverseZ = reverseZOpen();
+		float nearZ = bReverseZ ? maxExtents.z - minExtents.z : 0.0f;
+		float farZ  = bReverseZ ? 0.0f : maxExtents.z - minExtents.z;
 
 		lightOrthoMatrix = glm::ortho(
 			minExtents.x,
@@ -157,18 +158,24 @@ void Cascade::SetupCascades(
 			nearZ,
 			farZ
 		);
+
 		inout[cascadeIndex].viewProj = lightOrthoMatrix * lightViewMatrix;
 
 		// NOTE: Shadow Map Texel移动对齐解决Flicking
 		glm::vec4 shadowOrigin = glm::vec4(0.0f,0.0f,0.0f,1.0f);
-		shadowOrigin = inout[cascadeIndex].viewProj*shadowOrigin;
-		shadowOrigin = shadowOrigin*((float)cVarSingleShadowMapSize.get()*0.5f);
+
+		shadowOrigin = inout[cascadeIndex].viewProj * shadowOrigin;
+		shadowOrigin = shadowOrigin * ((float)cVarSingleShadowMapSize.get() * 0.5f);
+
 		glm::vec4 roundOrign = glm::round(shadowOrigin);
-		glm::vec4 roundOffset = roundOrign-shadowOrigin;
-		roundOffset = roundOffset*2.0f/(float)cVarSingleShadowMapSize.get();
+		glm::vec4 roundOffset = roundOrign - shadowOrigin;
+
+		roundOffset = roundOffset * 2.0f / (float)cVarSingleShadowMapSize.get();
+
 		lightOrthoMatrix[3][0] = lightOrthoMatrix[3][0] + roundOffset.x;
 		lightOrthoMatrix[3][1] = lightOrthoMatrix[3][1] + roundOffset.y;
-		inout[cascadeIndex].viewProj = lightOrthoMatrix*lightViewMatrix;
+
+		inout[cascadeIndex].viewProj = lightOrthoMatrix * lightViewMatrix;
 
 		lastSplitDist = frustumIntervalSplit;
 	}

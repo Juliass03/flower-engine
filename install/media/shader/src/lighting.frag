@@ -85,7 +85,7 @@ float evaluateDirectShadow(vec3 fragWorldPos,vec3 normal,float safeNoL)
                 inShadowDepthBilinearTexture,
                 shadowCoord,
                 texelSize,
-                2.50f
+                1.0f
             );
 
             break;

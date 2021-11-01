@@ -23,7 +23,7 @@ float shadowPcf(
             vec4(
                 shadowCoord.xy + offsetUv,
                 cascadeIndex,
-                shadowCoord.z + 0.005f
+                shadowCoord.z - 0.005f
             )
         ).r;
 
