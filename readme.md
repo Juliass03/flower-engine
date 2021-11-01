@@ -2,12 +2,11 @@
 
 ## Current Developing Feature
 
-- Realtime Hot Reload Material System. Support Runtime Shader Edit And Rebuild Pipeline.
-- Asyc Mipmap Streaming And Uploading Base on Async Compute.
-- Shader Reflect Properties And Runtime Edit.
+- Gpu Driven Rendering Pipeline.
+- Bindless Material System.
 
 
 
-2021/10/14 0:08 Dev Snapshot
+2021/11/01 22:38 Dev Snapshot
 
-![](dev/Snipaste_2021-10-14_00-02-44.png)
+![](dev/Snipaste_2021-11-01_22-35-26.png)
