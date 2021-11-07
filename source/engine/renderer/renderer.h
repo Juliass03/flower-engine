@@ -16,6 +16,8 @@ extern VkCompareOp getEngineZTestFunc();
 class GraphicsPass;
 class GpuCullingPass;
 class ShadowDepthPass;
+class GpuDepthEvaluateMinMaxPass;
+class GpuCascadeSetupPass;
 
 class Renderer : public IRuntimeModule
 {
@@ -72,6 +74,8 @@ public:
 
 	ShadowDepthPass*   m_shadowdepthPass;
 	GraphicsPass*   m_gbufferPass;
+	GpuDepthEvaluateMinMaxPass* m_depthEvaluateMinMaxPass;
+	GpuCascadeSetupPass* m_cascadeSetupPass;
 	GraphicsPass*   m_lightingPass;
 	GraphicsPass*   m_tonemapperPass;
 };

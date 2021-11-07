@@ -33,7 +33,7 @@ public:
 	static VkFormat getDepthStencilFormat();
 	static VkFormat getLDRSceneColorFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
 	static VkFormat getGbufferBaseColorRoughnessFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
-	static VkFormat getGbufferNormalMetalFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
+	static VkFormat getGbufferNormalMetalFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
 	static VkFormat getGbufferEmissiveAoFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
 
 	DepthOnlyTextureArray* getCascadeShadowDepthMapArray(){return m_cascadeShadowDepthMapArray;}

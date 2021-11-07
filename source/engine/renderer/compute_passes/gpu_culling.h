@@ -24,8 +24,6 @@ struct GPUCullingPushConstants
 	uint32 cullIndex;
 };
 
-
-
 class GpuCullingPass : public ComputePass
 {
 public:

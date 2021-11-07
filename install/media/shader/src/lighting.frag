@@ -3,17 +3,24 @@
 
 #include "../glsl/common.glsl"
 #include "../glsl/common_shadow.glsl"
+#include "../glsl/common_framedata.glsl"
 
 layout (set = 1, binding = 0) uniform sampler2D inGbufferBaseColorMetal;
 layout (set = 1, binding = 1) uniform sampler2D inGbufferNormalRoughness;
 layout (set = 1, binding = 2) uniform sampler2D inGbufferEmissiveAo;
 layout (set = 1, binding = 3) uniform sampler2D inDepth;
 
-layout (set = 1, binding = 4) uniform sampler2DArrayShadow inShadowDepthBilinearTexture;
+layout (set = 1, binding = 4) uniform sampler2DArray inShadowDepthBilinearTexture;
+
+layout(set = 2, binding = 0) readonly buffer CascadeInfoBuffer
+{
+	CascadeInfo cascadeInfosbuffer[];
+};
 
 struct LightingPushConstants
 {
 	float pcfDilation;
+    uint bReverseZ;
 };  
 
 layout(push_constant) uniform constants{   
@@ -56,12 +63,32 @@ GbufferData loadGbufferData()
 
     float sampleDeviceDepth = texture(inDepth,inUV0).r;
     gData.deviceDepth = sampleDeviceDepth;
-    gData.worldPos = getWorldPosition(sampleDeviceDepth,inUV0);
+    gData.worldPos = getWorldPosition(sampleDeviceDepth,inUV0,frameData.camInvertViewProjection);
 
     return gData;
 }
 
-float evaluateDirectShadow(vec3 fragWorldPos,vec3 normal,float safeNoL)
+vec3 getCascadeDebugColor(uint index)
+{
+    if(index == 0)
+    {
+        return vec3(1.0f,0.0f,0.0f);
+    }
+    else if(index == 1)
+    {
+        return vec3(0.0f,1.0f,0.0f);
+    }
+    else if(index == 2)
+    {
+        return vec3(0.0f,0.0f,1.0f);
+    }
+    else
+    {
+        return vec3(1.0f,0.0f,1.0f);
+    }
+}
+
+float evaluateDirectShadow(vec3 fragWorldPos,vec3 normal,float safeNoL,out uint outCascadeIndex)
 {
     ivec2 texDim = textureSize(inShadowDepthBilinearTexture,0).xy;
 	vec2 texelSize = 1.0f / vec2(texDim);
@@ -71,7 +98,8 @@ float evaluateDirectShadow(vec3 fragWorldPos,vec3 normal,float safeNoL)
 
     for(uint cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex ++)
 	{
-        vec4 shadowClipPos = frameData.cascadeViewProjMatrix[cascadeIndex] * vec4(fragWorldPos, 1.0);
+        vec4 shadowClipPos = cascadeInfosbuffer[cascadeIndex].cascadeViewProjMatrix * 
+            vec4(fragWorldPos, 1.0);
 
         vec4 shadowCoord = shadowClipPos / shadowClipPos.w;
 		shadowCoord.st = shadowCoord.st * 0.5f + 0.5f;
@@ -85,8 +113,11 @@ float evaluateDirectShadow(vec3 fragWorldPos,vec3 normal,float safeNoL)
                 inShadowDepthBilinearTexture,
                 shadowCoord,
                 texelSize,
-                1.0f
+                0.0f,
+                pushConstants.bReverseZ != 0
             );
+
+            outCascadeIndex = cascadeIndex;
 
             break;
         }
@@ -104,9 +135,12 @@ void main()
     float NoL = dot(gData.worldNormal,sunDir);
     float NoLSafe = max(0.0f,NoL);
 
-    float directShadow = evaluateDirectShadow(gData.worldPos,gData.worldNormal,NoLSafe);
+    uint cascadeIndex = 4;
+    float directShadow = evaluateDirectShadow(gData.worldPos,gData.worldNormal,NoLSafe,cascadeIndex);
+    vec3 debugCascadeColor = getCascadeDebugColor(cascadeIndex);
 
-    outHdrSceneColor.rgb = vec3(NoLSafe * directShadow + 0.05f) * gData.baseColor;
+    outHdrSceneColor.rgb = vec3(directShadow + 0.05f) * gData.baseColor * debugCascadeColor;
     outHdrSceneColor.a = 1.0f;
 
+   //  outHdrSceneColor.rgb = gData.worldPos;
 }

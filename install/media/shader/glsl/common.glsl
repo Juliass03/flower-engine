@@ -46,31 +46,10 @@ struct OutIndirectDrawCount
     uint outDrawCount;
 };
 
-// 当前帧公用的数据
-layout(set = 0, binding = 0) uniform FrameBuffer
+struct CascadeInfo
 {
-    vec4 appTime;       // .x为app runtime，.y为game runtime, .z 为sin(game runtime), .w为cos(game runtime)
-
-	vec4 sunLightDir;   // 直射灯方向
-    vec4 sunLightColor; // 光照颜色
-
-    mat4 camView;       // 相机视图矩阵
-	mat4 camProj;       // 相机投影矩阵
-	mat4 camViewProj;   // 相机视图投影矩阵
-    mat4 camInvertViewProjection;
-
-    vec4 camWorldPos;   // .xyz为相机的世界空间坐标，.w=0.
-	vec4 camInfo;       // .x fovy .y aspect_ratio .z nearZ .w farZ
-    vec4 camFrustumPlanes[6];
-
-    mat4 cascadeViewProjMatrix[4]; // cascade shadow
-                                   // #3 隔3帧更新一次
-                                   // #2 隔1帧更新一次
-                                   // #1 实时更新
-                                   // #0 实时更新
-
-    vec4 cascadeFrustumPlanes[24]; // 用于剔除的cascade Frustum Planes
-} frameData;
+    mat4 cascadeViewProjMatrix;
+};
 
 vec3 packGBufferNormal(vec3 inNormal)
 {
@@ -82,12 +61,108 @@ vec3 unpackGbufferNormal(vec3 inNormal)
     return inNormal * 2.0f - vec3(1.0f,1.0f,1.0f);
 }
 
-vec3 getWorldPosition(float z,vec2 uv)
+vec3 getWorldPosition(float z,vec2 uv,mat4 camInvViewProj)
 {
     vec4 posClip  = vec4(uv * 2.0f - 1.0f, z, 1.0f);
-    vec4 posWorld = frameData.camInvertViewProjection * posClip;
+    vec4 posWorld = camInvViewProj * posClip;
 
     return posWorld.xyz / posWorld.w;
 }
 
+float linearizeDepth(float z,float n,float f)
+{
+    return clamp(z / (f - z * (f - n)),0.0f,1.0f);
+}
+
+mat4 lookAtRH(vec3 eye,vec3 center,vec3 up)
+{
+    const vec3 f = normalize(center - eye);
+    const vec3 s = normalize(cross(f, up));
+    const vec3 u = cross(s, f);
+
+    mat4 ret =  {
+        {1.0f,0.0f,0.0f,0.0f},
+        {0.0f,1.0f,0.0f,0.0f},
+        {0.0f,0.0f,1.0f,0.0f},
+        {1.0f,0.0f,0.0f,1.0f}
+    };
+
+    ret[0][0] = s.x;
+    ret[1][0] = s.y;
+    ret[2][0] = s.z;
+    ret[0][1] = u.x;
+    ret[1][1] = u.y;
+    ret[2][1] = u.z;
+    ret[0][2] =-f.x;
+    ret[1][2] =-f.y;
+    ret[2][2] =-f.z;
+    ret[3][0] =-dot(s, eye);
+    ret[3][1] =-dot(u, eye);
+    ret[3][2] = dot(f, eye);
+
+    return ret;
+}
+
+mat4 lookAtLH(vec3 eye,vec3 center,vec3 up)
+{
+    vec3 f = (normalize(center - eye));
+    vec3 s = (normalize(cross(up, f)));
+    vec3 u = (cross(f, s));
+
+    mat4 Result =  {
+        {1.0f,0.0f,0.0f,0.0f},
+        {0.0f,1.0f,0.0f,0.0f},
+        {0.0f,0.0f,1.0f,0.0f},
+        {1.0f,0.0f,0.0f,1.0f}
+    };
+    Result[0][0] = s.x;
+    Result[1][0] = s.y;
+    Result[2][0] = s.z;
+    Result[0][1] = u.x;
+    Result[1][1] = u.y;
+    Result[2][1] = u.z;
+    Result[0][2] = f.x;
+    Result[1][2] = f.y;
+    Result[2][2] = f.z;
+    Result[3][0] = -dot(s, eye);
+    Result[3][1] = -dot(u, eye);
+    Result[3][2] = -dot(f, eye);
+    return Result;
+}
+
+mat4 orthoRH_ZO(float left, float right, float bottom, float top, float zNear, float zFar)
+{
+    mat4 ret =  {
+        {1.0f,0.0f,0.0f,0.0f},
+        {0.0f,1.0f,0.0f,0.0f},
+        {0.0f,0.0f,1.0f,0.0f},
+        {1.0f,0.0f,0.0f,1.0f}
+    };
+
+    ret[0][0] = 2.0f / (right - left);
+    ret[1][1] = 2.0f / (top - bottom);
+    ret[2][2] = -1.0f / (zFar - zNear);
+    ret[3][0] = -(right + left) / (right - left);
+    ret[3][1] = -(top + bottom) / (top - bottom);
+    ret[3][2] = -zNear / (zFar - zNear);
+
+	return ret;
+}
+
+mat4 orthoLH_ZO(float left, float right, float bottom, float top, float zNear, float zFar)
+{
+    mat4 Result =  {
+        {1.0f,0.0f,0.0f,0.0f},
+        {0.0f,1.0f,0.0f,0.0f},
+        {0.0f,0.0f,1.0f,0.0f},
+        {1.0f,0.0f,0.0f,1.0f}
+    };
+    Result[0][0] = 2.0f / (right - left);
+    Result[1][1] = 2.0f / (top - bottom);
+    Result[2][2] = 1.0f / (zFar - zNear);
+    Result[3][0] = - (right + left) / (right - left);
+    Result[3][1] = - (top + bottom) / (top - bottom);
+    Result[3][2] = - zNear / (zFar - zNear);
+    return Result;
+}
 #endif

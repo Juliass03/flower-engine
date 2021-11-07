@@ -6,6 +6,14 @@
 
 namespace engine{
 
+static AutoCVarInt32 cVarShadowDrawDistance(
+	"r.Shadow.HardwarePCF",
+	"Cascade shadow use hardware pcf.",
+	"Shadow",
+	0,
+	CVarFlags::ReadOnly | CVarFlags::InitOnce
+);
+
 VkFormat SceneTextures::getDepthStencilFormat()
 {
     return VulkanRHI::get()->getVulkanDevice()->findDepthStencilFormat();
@@ -30,7 +38,7 @@ VkSampler SceneTextures::getCascadeShadowDepthMapArraySampler()
     ci.mipLodBias = 0.0f;
     ci.unnormalizedCoordinates = VK_FALSE;
 
-    // 永远使用硬件过滤
+    if(cVarShadowDrawDistance.get() == 1)
     {
         ci.compareEnable = VK_TRUE;
         ci.minFilter = VK_FILTER_LINEAR;

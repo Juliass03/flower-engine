@@ -2,6 +2,7 @@
 #extension GL_EXT_nonuniform_qualifier : require
 
 #include "../glsl/common.glsl"
+#include "../glsl/common_framedata.glsl"
 
 layout (set = 1, binding = 0) uniform sampler2D scenecolorTex;
 

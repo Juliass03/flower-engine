@@ -593,7 +593,7 @@ VkFormat asset_system::TextureInfo::getVkFormat()
             }
             else
             {
-                return VK_FORMAT_R8G8B8A8_SRGB;
+                return VK_FORMAT_R8G8B8A8_UNORM;
             }
         }
         else
@@ -760,7 +760,7 @@ VkSampler toVkSampler(asset_system::ESamplerType type)
     switch(type)
     {
     case engine::asset_system::ESamplerType::PointClamp:
-        return VulkanRHI::get()->getPointClampSampler();
+        return VulkanRHI::get()->getPointClampEdgeSampler();
 
     case engine::asset_system::ESamplerType::PointRepeat:
         return VulkanRHI::get()->getPointRepeatSampler();
@@ -771,7 +771,7 @@ VkSampler toVkSampler(asset_system::ESamplerType type)
     case engine::asset_system::ESamplerType::LinearRepeat:
         return VulkanRHI::get()->getLinearRepeatSampler();
     }
-    return VulkanRHI::get()->getPointClampSampler();
+    return VulkanRHI::get()->getPointClampEdgeSampler();
 }
 
 

@@ -1,12 +1,15 @@
 #include "render_scene.h"
 #include "mesh.h"
 #include "../scene/components/staticmesh_renderer.h"
+#include "render_passes/cascade_shadowdepth_pass.h"	
 #include "frame_data.h"
 #include "render_prepare.h"
 #include "material.h"
 
 constexpr uint32_t SSBO_BINDING_POS = 0;
 constexpr uint32_t SSBO_COUNT_BUFFER_BINDING_POS = 0;
+constexpr uint32_t SSBO_DEPTH_EVALUATE_BINDING_POS = 0;
+constexpr uint32_t SSBO_CASCADE_SETUP_BINDING_POS = 0;
 
 namespace engine{
 
@@ -98,6 +101,8 @@ void RenderScene::init(Renderer* renderer)
 	m_meshObjectSSBO->init(SSBO_BINDING_POS);
 	m_meshMaterialSSBO->init(SSBO_BINDING_POS);
 	m_drawIndirectSSBOGbuffer.init(SSBO_BINDING_POS,SSBO_COUNT_BUFFER_BINDING_POS);
+	m_evaluateDepthMinMax.init(SSBO_DEPTH_EVALUATE_BINDING_POS);
+	m_cascadeSetupBuffer.init(SSBO_CASCADE_SETUP_BINDING_POS);
 
 	for(auto& drawIndirectSSBOShadowDepth : m_drawIndirectSSBOShadowDepths)
 	{
@@ -111,8 +116,9 @@ void RenderScene::release()
 
 	m_meshObjectSSBO->release();
 	m_meshMaterialSSBO->release();
-
+	m_evaluateDepthMinMax.release();
 	m_drawIndirectSSBOGbuffer.release();
+	m_cascadeSetupBuffer.release();
 
 	// NOTE: 为每一级的CascadeShadowMap都准备一份剔除数据
 	for(auto& drawIndirectSSBOShadowDepth:m_drawIndirectSSBOShadowDepths)
@@ -219,6 +225,66 @@ void RenderScene::DrawIndirectBuffer::release()
 {
 	delete drawIndirectSSBO;
 	delete countBuffer;
+}
+
+void RenderScene::EvaluateDepthMinMaxBuffer::init(uint32 bindingPos)
+{
+	size = sizeof(GpuDepthEvaluteMinMaxBuffer);
+
+	buffer = VulkanBuffer::create(
+		VulkanRHI::get()->getVulkanDevice(),
+		VulkanRHI::get()->getGraphicsCommandPool(),
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		VMA_MEMORY_USAGE_GPU_ONLY,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		size,
+		nullptr
+	);
+
+	VkDescriptorBufferInfo countBufInfo = {};
+	countBufInfo.buffer = *buffer;
+	countBufInfo.offset = 0;
+	countBufInfo.range = size;
+
+	VulkanRHI::get()->vkDescriptorFactoryBegin()
+		.bindBuffer(bindingPos,&countBufInfo,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,VK_SHADER_STAGE_COMPUTE_BIT)
+		.build(descriptorSets,descriptorSetLayout);
+}
+
+void RenderScene::EvaluateDepthMinMaxBuffer::release()
+{
+	delete buffer;
+}
+
+void RenderScene::CascadeSetupBuffer::init(uint32 bindingPos)
+{
+	// 4个Cascade
+	size = sizeof(GpuCascadeInfo) * CASCADE_MAX_COUNT;
+
+	buffer = VulkanBuffer::create(
+		VulkanRHI::get()->getVulkanDevice(),
+		VulkanRHI::get()->getGraphicsCommandPool(),
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		VMA_MEMORY_USAGE_GPU_ONLY,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		size,
+		nullptr
+	);
+
+	VkDescriptorBufferInfo countBufInfo = {};
+	countBufInfo.buffer = *buffer;
+	countBufInfo.offset = 0;
+	countBufInfo.range = size;
+
+	VulkanRHI::get()->vkDescriptorFactoryBegin()
+		.bindBuffer(bindingPos,&countBufInfo,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		 VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+		.build(descriptorSets,descriptorSetLayout);
+}
+
+void RenderScene::CascadeSetupBuffer::release()
+{
+	delete buffer;
 }
 
 }

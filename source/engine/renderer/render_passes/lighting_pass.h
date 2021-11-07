@@ -7,6 +7,7 @@ namespace engine{
 struct GpuLightingPassPushConstants
 {
 	float pcfDilation;
+	uint32 bReverseZ;
 };
 
 class LightingPass : public GraphicsPass

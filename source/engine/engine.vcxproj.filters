@@ -48,6 +48,8 @@
     <ClCompile Include="vk\impl\vk_fence.cpp" />
     <ClCompile Include="renderer\render_prepare.cpp" />
     <ClCompile Include="renderer\compute_passes\gpu_culling.cpp" />
+    <ClCompile Include="renderer\compute_passes\depth_evaluate_minmax.cpp" />
+    <ClCompile Include="renderer\compute_passes\cascade_setup.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\cvar.h" />
@@ -110,5 +112,7 @@
     <ClInclude Include="renderer\render_prepare.h" />
     <ClInclude Include="renderer\compute_passes\gpu_culling.h" />
     <ClInclude Include="renderer\frustum.h" />
+    <ClInclude Include="renderer\compute_passes\depth_evaluate_minmax.h" />
+    <ClInclude Include="renderer\compute_passes\cascade_setup.h" />
   </ItemGroup>
 </Project>

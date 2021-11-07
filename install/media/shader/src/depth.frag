@@ -2,6 +2,7 @@
 #extension GL_EXT_nonuniform_qualifier : require
 
 #include "../glsl/common.glsl"
+#include "../glsl/common_framedata.glsl"
 #include "../glsl/common_mesh.glsl"
 
 layout (location = 0) in  vec2 inUV0;

@@ -2,7 +2,7 @@
 #include "vk_device.h"
 #include <array>
 #include <Vma/vk_mem_alloc.h>
-#include <glm/glm.hpp>
+#include "../../core/core.h"
 
 namespace engine{
 

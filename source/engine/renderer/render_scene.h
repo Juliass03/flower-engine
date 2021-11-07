@@ -62,6 +62,32 @@ public:
 	};
 	
 	DrawIndirectBuffer m_drawIndirectSSBOGbuffer;
+
+	struct EvaluateDepthMinMaxBuffer
+	{
+		// 评估场景的最大最小深度(用于Cascade视锥构建)
+		VulkanBuffer* buffer; 
+		VulkanDescriptorSetReference descriptorSets = {};
+		VulkanDescriptorLayoutReference descriptorSetLayout = {};
+		VkDeviceSize size;
+
+		void init(uint32 bindingPos);
+		void release();
+	};
+	EvaluateDepthMinMaxBuffer m_evaluateDepthMinMax;
+
+	struct CascadeSetupBuffer
+	{
+		// 构建Cascade阴影信息
+		VulkanBuffer* buffer; 
+		VulkanDescriptorSetReference descriptorSets = {};
+		VulkanDescriptorLayoutReference descriptorSetLayout = {};
+		VkDeviceSize size;
+
+		void init(uint32 bindingPos);
+		void release();
+	};
+	CascadeSetupBuffer m_cascadeSetupBuffer;
 	
 	std::array<DrawIndirectBuffer,CASCADE_MAX_COUNT> m_drawIndirectSSBOShadowDepths {};
 

@@ -11,3 +11,7 @@ glslc.exe src/gbuffer.vert -o bin/gbuffer.vert.spv
 glslc.exe src/gbuffer.frag -o bin/gbuffer.frag.spv
 
 glslc.exe src/gpuculling.comp -o bin/gpuculling.comp.spv
+
+glslc.exe src/evaluateDepthMinMax.comp -o bin/evaluateDepthMinMax.comp.spv
+
+glslc.exe src/cascadeShadowSetup.comp -o bin/cascadeShadowSetup.comp.spv

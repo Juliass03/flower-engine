@@ -3,6 +3,7 @@
 
 #include "../glsl/common.glsl"
 #include "../glsl/common_mesh.glsl"
+#include "../glsl/common_framedata.glsl"
 
 layout (location = 0) in  vec3 inWorldNormal;
 layout (location = 1) in  vec2 inUV0;
@@ -19,7 +20,6 @@ vec3 getNormalFromVertexAttribute(vec3 tangentVec3)
 {
     vec3 n = normalize(inWorldNormal);
     vec3 t = normalize(inTangent.xyz);
-    t = normalize(t - dot(t, n) * n);
     vec3 b = normalize(cross(n,t) * inTangent.w);
     mat3 tbn =  mat3(t, b, n);
     return normalize(tbn * normalize(tangentVec3));
@@ -42,7 +42,6 @@ void main()
 
     vec3 normalTangentSpace = normalTex.xyz;
     normalTangentSpace.xy = normalTangentSpace.xy * 2.0f - vec2(1.0f);
-    normalTangentSpace.y *= -1.0f;
     normalTangentSpace.z = sqrt(max(0.0f,1.0f - dot(normalTangentSpace.xy,normalTangentSpace.xy)));
     vec3 worldSpaceNormal = getNormalFromVertexAttribute(normalTangentSpace);
 

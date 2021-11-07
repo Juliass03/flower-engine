@@ -31,6 +31,7 @@ struct GPUMaterialData
 struct GPUFrameData
 {
 	glm::vec4 appTime;
+
     glm::vec4 sunLightDir;
     glm::vec4 sunLightColor;
 
@@ -42,9 +43,6 @@ struct GPUFrameData
     glm::vec4 camWorldPos;
 	glm::vec4 cameraInfo; // .x fovy .y aspect_ratio .z nearZ .w farZ
     glm::vec4 camFrustumPlanes[6];
-
-    glm::mat4 cascadeViewProjMatrix[4]; // cascade view proj.
-    glm::vec4 cascadeFrustumPlanes[24];
 };
 
 struct GPUDrawCallData
@@ -57,6 +55,17 @@ struct GPUDrawCallData
 
     uint32 objectId;
     uint32 materialId;
+};
+
+struct GpuDepthEvaluteMinMaxBuffer
+{
+	uint32 minDepth;
+    uint32 maxDepth;
+};
+
+struct GpuCascadeInfo
+{
+    glm::mat4 cascadeViewProjMatrix;
 };
 
 struct GPUOutIndirectDrawCount

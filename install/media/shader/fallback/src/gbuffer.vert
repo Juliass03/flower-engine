@@ -4,6 +4,7 @@
 
 #include "../../glsl/common.glsl"
 #include "../../glsl/common_mesh.glsl"
+#include "../../glsl/common_framedata.glsl"
 
 layout (location = 0) in vec3 inPosition;
 layout (location = 1) in vec2 inUV0;

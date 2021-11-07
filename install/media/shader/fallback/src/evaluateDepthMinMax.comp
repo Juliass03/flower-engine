@@ -1,0 +1,135 @@
+#version 460
+
+#define WORK_TILE_SIZE 16
+
+// 24 bit
+// 0xFFFFFFFF --> 4,294,967,295
+// SCALE_UINT_7u  4,000,000,000 + 10u
+const uint SCALE_UINT_7u = 4000000000;
+const float SCALE_UINT_7 = 4000000000.0f;
+layout (local_size_x = WORK_TILE_SIZE,local_size_y = WORK_TILE_SIZE,local_size_z = 1) in;
+
+layout(set = 0, binding = 0) uniform sampler2D inDepthImage;
+
+struct DepthRange
+{
+    uint minDepth;
+    uint maxDepth;
+};
+
+layout(set = 1, binding = 0) writeonly buffer DepthRangeBuffer
+{
+	DepthRange range;
+};
+
+struct PushConstantData
+{
+    vec2 imageSize;
+};
+
+layout(push_constant) uniform block
+{
+	PushConstantData pushConstant;
+};
+
+shared vec2 DepthContainer[WORK_TILE_SIZE * WORK_TILE_SIZE]; // .x is min, .y is max
+
+// TODO: use subgroup.
+void main()
+{
+	uvec2 pos = gl_GlobalInvocationID.xy;
+
+    uint idx = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+
+	if (idx == 0)
+	{
+		atomicExchange(range.minDepth, SCALE_UINT_7u + 10u);
+        atomicExchange(range.maxDepth, 0);
+	}
+    barrier();
+
+    const uint linearIndex = gl_LocalInvocationID.y * WORK_TILE_SIZE + gl_LocalInvocationID.x;
+
+    // we will set depth image with a point clamp edge sampler.
+    // So don't care about border case here.
+    vec2 sampleUV = (vec2(pos) + vec2(0.5)) / pushConstant.imageSize; 
+
+	float depth = clamp(texture(inDepthImage, sampleUV).x, 0.0f, 1.0f);
+
+    DepthContainer[linearIndex] = vec2(depth,depth);
+
+    groupMemoryBarrier();
+    barrier();
+
+    if (linearIndex < 128) // 16 * 16 = 256 elements to merge
+    {
+        DepthContainer[linearIndex].x = min(DepthContainer[linearIndex].x, DepthContainer[linearIndex + 128].x);
+        DepthContainer[linearIndex].y = max(DepthContainer[linearIndex].y, DepthContainer[linearIndex + 128].y);
+    }
+
+    groupMemoryBarrier();
+    barrier();
+
+    if (linearIndex < 64) 
+    {
+        DepthContainer[linearIndex].x = min(DepthContainer[linearIndex].x, DepthContainer[linearIndex + 64].x);
+        DepthContainer[linearIndex].y = max(DepthContainer[linearIndex].y, DepthContainer[linearIndex + 64].y);
+    }
+
+    groupMemoryBarrier();
+    barrier();
+
+    if (linearIndex < 32) 
+    {
+        DepthContainer[linearIndex].x = min(DepthContainer[linearIndex].x, DepthContainer[linearIndex + 32].x);
+        DepthContainer[linearIndex].y = max(DepthContainer[linearIndex].y, DepthContainer[linearIndex + 32].y);
+    }
+
+    groupMemoryBarrier();
+    barrier();
+
+    if (linearIndex < 16) 
+    {
+        DepthContainer[linearIndex].x = min(DepthContainer[linearIndex].x, DepthContainer[linearIndex + 16].x);
+        DepthContainer[linearIndex].y = max(DepthContainer[linearIndex].y, DepthContainer[linearIndex + 16].y);
+    }
+
+    groupMemoryBarrier();
+    barrier();
+
+    if (linearIndex < 8)
+    {
+        DepthContainer[linearIndex].x = min(DepthContainer[linearIndex].x, DepthContainer[linearIndex + 8].x);
+        DepthContainer[linearIndex].y = max(DepthContainer[linearIndex].y, DepthContainer[linearIndex + 8].y);
+    }
+
+    groupMemoryBarrier();
+    barrier();
+
+    if (linearIndex < 4)
+    {
+        DepthContainer[linearIndex].x = min(DepthContainer[linearIndex].x, DepthContainer[linearIndex + 4].x);
+        DepthContainer[linearIndex].y = max(DepthContainer[linearIndex].y, DepthContainer[linearIndex + 4].y);
+    }
+
+    groupMemoryBarrier();
+    barrier();
+
+    if (linearIndex < 2)
+    {
+        DepthContainer[linearIndex].x = min(DepthContainer[linearIndex].x, DepthContainer[linearIndex + 2].x);
+        DepthContainer[linearIndex].y = max(DepthContainer[linearIndex].y, DepthContainer[linearIndex + 2].y);
+    }
+
+    groupMemoryBarrier();
+    barrier();
+
+    if (linearIndex < 1) 
+    {
+        float minDepthUintNear = max(0.0f, min(DepthContainer[linearIndex].x, DepthContainer[linearIndex + 1].x) * SCALE_UINT_7);
+        float maxDepthUintNear = min(SCALE_UINT_7, max(DepthContainer[linearIndex].y, DepthContainer[linearIndex + 1].y) * SCALE_UINT_7 + 10.0f);
+
+        atomicMin(range.minDepth, uint(minDepthUintNear));
+        atomicMax(range.maxDepth, uint(maxDepthUintNear));
+    }
+}

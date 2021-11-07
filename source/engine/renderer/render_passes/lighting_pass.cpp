@@ -74,6 +74,8 @@ void engine::LightingPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferI
 
     GpuLightingPassPushConstants pushConstants{};
     pushConstants.pcfDilation = 20.0f;
+    pushConstants.bReverseZ = reverseZOpen();
+
 	vkCmdPushConstants(cmd,
         m_pipelineLayouts[backBufferIndex],
         VK_SHADER_STAGE_FRAGMENT_BIT,0,
@@ -96,6 +98,15 @@ void engine::LightingPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferI
         1,
         &m_lightingPassDescriptorSets[backBufferIndex].set,0,nullptr
     );
+
+    vkCmdBindDescriptorSets(
+        cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_pipelineLayouts[backBufferIndex],
+        2, // PassSet #2
+        1,
+        &m_renderScene->m_cascadeSetupBuffer.descriptorSets.set,0,nullptr
+    );
+
     vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,m_pipelines[backBufferIndex]);
     vkCmdDraw(cmd, 3, 1, 0, 0);
     vkCmdEndRenderPass(cmd);
@@ -205,25 +216,25 @@ void engine::LightingPass::createPipeline()
         VkDescriptorImageInfo gbufferBaseColorRoughnessImage = {};
         gbufferBaseColorRoughnessImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         gbufferBaseColorRoughnessImage.imageView = m_renderScene->getSceneTextures().getGbufferBaseColorRoughness()->getImageView();
-        gbufferBaseColorRoughnessImage.sampler = VulkanRHI::get()->getPointClampSampler();
+        gbufferBaseColorRoughnessImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
 
         VkDescriptorImageInfo gbufferNormalMetalImage = {};
         gbufferNormalMetalImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         gbufferNormalMetalImage.imageView = m_renderScene->getSceneTextures().getGbufferNormalMetal()->getImageView();
-        gbufferNormalMetalImage.sampler = VulkanRHI::get()->getPointClampSampler();
+        gbufferNormalMetalImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
 
         VkDescriptorImageInfo gbufferEmissiveAoImage = {};
         gbufferEmissiveAoImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         gbufferEmissiveAoImage.imageView = m_renderScene->getSceneTextures().getGbufferEmissiveAo()->getImageView();
-        gbufferEmissiveAoImage.sampler = VulkanRHI::get()->getPointClampSampler();
+        gbufferEmissiveAoImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
 
         VkDescriptorImageInfo depthStencilImage = {};
         depthStencilImage.imageLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
         depthStencilImage.imageView = ((DepthStencilImage*)(m_renderScene->getSceneTextures().getDepthStencil()))->getDepthOnlyImageView();
-        depthStencilImage.sampler = VulkanRHI::get()->getPointClampSampler();
+        depthStencilImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
 
 		VkDescriptorImageInfo shadowDepthArrayImages = {};
-		shadowDepthArrayImages.imageLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
+		shadowDepthArrayImages.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		shadowDepthArrayImages.imageView = m_renderScene->getSceneTextures().getCascadeShadowDepthMapArray()->getImageView();
 		shadowDepthArrayImages.sampler =  m_renderScene->getSceneTextures().getCascadeShadowDepthMapArraySampler();
 
@@ -253,6 +264,7 @@ void engine::LightingPass::createPipeline()
         std::vector<VkDescriptorSetLayout> setLayouts = {
               m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout
             , m_lightingPassDescriptorSetLayouts[index].layout 
+            , m_renderScene->m_cascadeSetupBuffer.descriptorSetLayout.layout
         };
 
         plci.setLayoutCount = (uint32)setLayouts.size();

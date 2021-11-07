@@ -85,14 +85,10 @@ void Cascade::SetupCascades(
 
 	// 转化为世界空间下
 	glm::mat4 invCam = glm::inverse(cameraViewProj);
-	float Zmax = std::numeric_limits<float>::min();
-	float Zmin = std::numeric_limits<float>::max();
 	for(uint32 i = 0; i<8; i++)
 	{
 		glm::vec4 invCorner = invCam * glm::vec4(frustumCorners[i],1.0f);
 		frustumCorners[i] = invCorner/invCorner.w; // 齐次除法
-		Zmax = glm::max(frustumCorners[i].z,Zmax);
-		Zmin = glm::min(frustumCorners[i].z,Zmin);
 	}
 
 	// 遍历每个cascade来计算它的正交投影矩阵
@@ -113,7 +109,7 @@ void Cascade::SetupCascades(
 		{
 			// Dist is a stable value.
 			glm::vec3 dist = glm::normalize(frustumCorners[i+4] - frustumCorners[i]);
-			intervalCorners[i+4] = frustumCorners[i] + (dist * frustumIntervalSplit);
+			intervalCorners[i + 4] = frustumCorners[i] + (dist * frustumIntervalSplit);
 			intervalCorners[i] = frustumCorners[i] + (dist * lastSplitDist);
 		}
 
@@ -165,17 +161,27 @@ void Cascade::SetupCascades(
 		glm::vec4 shadowOrigin = glm::vec4(0.0f,0.0f,0.0f,1.0f);
 
 		shadowOrigin = inout[cascadeIndex].viewProj * shadowOrigin;
-		shadowOrigin = shadowOrigin * ((float)cVarSingleShadowMapSize.get() * 0.5f);
+
+		const float shadowmapSize = (float)cVarSingleShadowMapSize.get();
+
+		shadowOrigin = shadowOrigin * (shadowmapSize / 2.0f);
 
 		glm::vec4 roundOrign = glm::round(shadowOrigin);
 		glm::vec4 roundOffset = roundOrign - shadowOrigin;
 
-		roundOffset = roundOffset * 2.0f / (float)cVarSingleShadowMapSize.get();
+		roundOffset = roundOffset * 2.0f / shadowmapSize;
 
 		lightOrthoMatrix[3][0] = lightOrthoMatrix[3][0] + roundOffset.x;
 		lightOrthoMatrix[3][1] = lightOrthoMatrix[3][1] + roundOffset.y;
 
 		inout[cascadeIndex].viewProj = lightOrthoMatrix * lightViewMatrix;
+
+		inout[cascadeIndex].extents = glm::vec4(
+			minExtents.x  + roundOffset.x,
+			minExtents.y  + roundOffset.y,
+			maxExtents.x  + roundOffset.x,
+			maxExtents.y  + roundOffset.y
+		);
 
 		lastSplitDist = frustumIntervalSplit;
 	}
@@ -233,9 +239,9 @@ void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer& cmd,uint32 backBuff
     scissor.offset = {0,0};
     VkViewport viewport{};
     viewport.x = 0.0f;
-    viewport.y = 0.0f;
+    viewport.y = 0.0f; // flip y on mesh raster
     viewport.width = (float)shadowTextureExtent2D.width;
-    viewport.height = (float)shadowTextureExtent2D.height;
+    viewport.height = (float)shadowTextureExtent2D.height; // flip y on mesh raster
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
@@ -293,6 +299,7 @@ void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer& cmd,uint32 backBuff
 		, m_renderer->getRenderScene().m_meshObjectSSBO->descriptorSets.set
 		, m_renderer->getRenderScene().m_meshMaterialSSBO->descriptorSets.set
 		, m_renderer->getRenderScene().m_drawIndirectSSBOShadowDepths[cascadeIndex].descriptorSets.set
+		, m_renderer->getRenderScene().m_cascadeSetupBuffer.descriptorSets.set
 	};
 
 	vkCmdBindDescriptorSets(
@@ -351,33 +358,37 @@ void engine::ShadowDepthPass::createRenderpass()
     attachmentDesc.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
-    attachmentDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
+    attachmentDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
+	VkAttachmentReference colorReference = {};
+	colorReference.attachment = VK_ATTACHMENT_UNUSED;
+	colorReference.layout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkAttachmentReference depthReference = {};
     depthReference.attachment = 0;
     depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkSubpassDescription subpass = {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 0;
-    subpass.pDepthStencilAttachment = &depthReference;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colorReference;
+	subpass.pDepthStencilAttachment = &depthReference; 
 
     std::array<VkSubpassDependency, 2> dependencies;
     dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
     dependencies[0].dstSubpass = 0;
-    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	dependencies[0].dstAccessMask =  VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
     dependencies[1].srcSubpass = 0;
-    dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    dependencies[1].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
     VkRenderPassCreateInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -453,6 +464,7 @@ void engine::ShadowDepthPass::createPipeline()
 			, m_renderer->getRenderScene().m_meshObjectSSBO->descriptorSetLayout.layout
 			, m_renderer->getRenderScene().m_meshMaterialSSBO->descriptorSetLayout.layout
 			, m_renderer->getRenderScene().m_drawIndirectSSBOGbuffer.descriptorSetLayout.layout
+			, m_renderer->getRenderScene().m_cascadeSetupBuffer.descriptorSetLayout.layout
 		};
 		plci.setLayoutCount = (uint32)setLayouts.size();
 		plci.pSetLayouts = setLayouts.data();

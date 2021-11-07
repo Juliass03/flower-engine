@@ -2,8 +2,8 @@
 
 layout (local_size_x = 256) in;
 
-// set = 0 在common.glsl中使用掉了
 #include "../../glsl/common.glsl"
+#include "../../glsl/common_framedata.glsl"
 
 layout(set = 1, binding = 0) readonly buffer PerObjectBuffer
 {
@@ -81,25 +81,13 @@ void cascadeVisibileCulling(uint id,uint cascadeId)
 	bool bVisibile = true;
 
 	vec4  sphereBounds = objectData.sphereBounds;
-	vec3  center = sphereBounds.xyz;
 	float radius = sphereBounds.w;
+	vec3 center = sphereBounds.xyz;
 
-	vec4 pos = vec4(center,1.0f); pos = objectData.model * pos; // world space pos
+	vec4 pos = vec4(center,1.0f); 
+	pos = objectData.model * pos; // world space pos
 
-	// Sphere Frustum Culling
-	for (int i = 0; i < 6; i++) 
-	{
-		if(i == 5)
-		{
-			continue;
-		}
-
-		if (dot(pos, frameData.cascadeFrustumPlanes[cascadeId * 4 + i]) + radius < 0.0)
-		{
-			bVisibile = false;
-			break;
-		}
-	}
+	// TODO: Cascade Culling
 
 	// Sotre in buffer if visible
 	if(bVisibile)
@@ -127,15 +115,15 @@ void main()
 		atomicExchange(indirectDrawCount.outDrawCount, 0);
 	}
 
-	barrier();
+barrier();
     
     if(idx < cullData.drawCount)
 	{
-		if(cullData.cullIndex == 0)
+		if(cullData.cullIndex == 0) // gbuffer culling
 		{
 			gbufferVisibileCulling(idx);
 		}
-		else if(cullData.cullIndex >= 1 && cullData.cullIndex <= 4)
+		else if(cullData.cullIndex >= 1 && cullData.cullIndex <= 4) // cascade shadow culling
 		{
 			cascadeVisibileCulling(idx,cullData.cullIndex - 1);
 		}

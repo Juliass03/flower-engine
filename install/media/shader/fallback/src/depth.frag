@@ -3,6 +3,7 @@
 
 #include "../../glsl/common.glsl"
 #include "../../glsl/common_mesh.glsl"
+#include "../../glsl/common_framedata.glsl"
 
 layout (location = 0) in  vec2 inUV0;
 layout (location = 1) in  flat uint inBaseColorTexId;

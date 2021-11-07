@@ -108,6 +108,8 @@
     <ClCompile Include="core\runtime_module.cpp" />
     <ClCompile Include="core\timer.cpp" />
     <ClCompile Include="launch\glfw_window.cpp" />
+    <ClCompile Include="renderer\compute_passes\cascade_setup.cpp" />
+    <ClCompile Include="renderer\compute_passes\depth_evaluate_minmax.cpp" />
     <ClCompile Include="renderer\compute_passes\gpu_culling.cpp" />
     <ClCompile Include="renderer\frame_data.cpp" />
     <ClCompile Include="renderer\material.cpp" />
@@ -164,6 +166,8 @@
     <ClInclude Include="core\runtime_module.h" />
     <ClInclude Include="core\timer.h" />
     <ClInclude Include="launch\launch_engine_loop.h" />
+    <ClInclude Include="renderer\compute_passes\cascade_setup.h" />
+    <ClInclude Include="renderer\compute_passes\depth_evaluate_minmax.h" />
     <ClInclude Include="renderer\compute_passes\gpu_culling.h" />
     <ClInclude Include="renderer\frame_data.h" />
     <ClInclude Include="renderer\frustum.h" />

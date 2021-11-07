@@ -58,9 +58,9 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
 
     VkViewport viewport{};
     viewport.x = 0.0f;
-    viewport.y = 0.0f;
+    viewport.y = (float)sceneTextureExtent2D.height; // flip y on mesh raster
     viewport.width = (float)sceneTextureExtent2D.width;
-    viewport.height = (float)sceneTextureExtent2D.height;
+    viewport.height = -(float)sceneTextureExtent2D.height; // flip y on mesh raster
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
@@ -310,7 +310,7 @@ void engine::GBufferPass::createPipeline()
         gpf.inputAssembly = vkInputAssemblyCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
         gpf.rasterizer = vkRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL);
 
-        gpf.rasterizer.cullMode = VK_CULL_MODE_NONE; // TODO: Cull BACK
+        gpf.rasterizer.cullMode = VK_CULL_MODE_NONE;
 
         gpf.multisampling = vkMultisamplingStateCreateInfo();
         gpf.colorBlendAttachments.push_back(vkColorBlendAttachmentState());

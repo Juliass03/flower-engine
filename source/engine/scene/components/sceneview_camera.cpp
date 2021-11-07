@@ -125,7 +125,7 @@ namespace engine
 
             auto ret = glm::perspective(glm::radians(Zoom),(float)app_width/(float)app_height,tmpZnear,tmpZFar);
             
-            ret[1][1] *= -1.0f; // Vulkan
+            //ret[1][1] *= -1.0f; // now flip y at tonemapper pass
             return ret;
         }
 

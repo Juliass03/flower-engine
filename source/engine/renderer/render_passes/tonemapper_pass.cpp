@@ -195,7 +195,7 @@ void engine::TonemapperPass::createPipeline()
         VkDescriptorImageInfo sceneColorImage = {};
         sceneColorImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         sceneColorImage.imageView = m_renderScene->getSceneTextures().getHDRSceneColor()->getImageView();
-        sceneColorImage.sampler = VulkanRHI::get()->getPointClampSampler();
+        sceneColorImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
 
         m_renderer->vkDynamicDescriptorFactoryBegin(index)
             .bindImage(0,&sceneColorImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)

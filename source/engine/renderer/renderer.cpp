@@ -9,6 +9,8 @@
 #include "../scene/components/directionalLight.h"
 #include "render_passes/lighting_pass.h"
 #include "render_passes/cascade_shadowdepth_pass.h"
+#include "compute_passes/depth_evaluate_minmax.h"
+#include "compute_passes/cascade_setup.h"
 #include "render_prepare.h"
 #include "mesh.h"
 #include "compute_passes/gpu_culling.h"
@@ -76,7 +78,12 @@ bool Renderer::init()
 	m_gpuCullingPass = new GpuCullingPass(this,m_renderScene,shader_compiler, "GpuCulling");
 
 	m_shadowdepthPass = new ShadowDepthPass(this,m_renderScene,shader_compiler,"ShadowDepth");
+
+
 	m_gbufferPass = new GBufferPass(this,m_renderScene,shader_compiler,"GBuffer");
+	m_depthEvaluateMinMaxPass = new GpuDepthEvaluateMinMaxPass(this,m_renderScene,shader_compiler, "DepthEvaluateMinMax");
+	m_cascadeSetupPass = new GpuCascadeSetupPass(this,m_renderScene,shader_compiler, "CascadeSetup");
+
 	m_lightingPass = new LightingPass(this,m_renderScene,shader_compiler,"Lighting");
 	m_tonemapperPass = new TonemapperPass(this,m_renderScene,shader_compiler,"ToneMapper");
 
@@ -88,6 +95,8 @@ bool Renderer::init()
 	m_shadowdepthPass->init();
 	m_gpuCullingPass->init();
 	m_gbufferPass->init();
+	m_depthEvaluateMinMaxPass->init();
+	m_cascadeSetupPass->init();
 	m_lightingPass->init();
 	m_tonemapperPass->init();
 
@@ -138,6 +147,15 @@ void Renderer::tick(float dt)
 	MeshLibrary::get()->bindIndexBuffer(dynamicBuf);
 	MeshLibrary::get()->bindVertexBuffer(dynamicBuf);
 
+	
+	m_gpuCullingPass->gbuffer_record(dynamicBuf,backBufferIndex); // gbuffer culling
+
+	m_gbufferPass->dynamicRecord(dynamicBuf,backBufferIndex); // gbuffer rendering
+
+	m_depthEvaluateMinMaxPass->record(dynamicBuf,backBufferIndex); // depth evaluate min max
+
+	m_cascadeSetupPass->record(dynamicBuf,backBufferIndex);// cascade setup.
+
 	// TODO: cascade #3 隔3帧更新一次
 	//       cascade #2 隔1帧更新一次
 	//       cascade #1 和 #0 每帧更新
@@ -152,9 +170,6 @@ void Renderer::tick(float dt)
 
 	m_gpuCullingPass->cascade_record(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_3); // cascade #3 culling
 	m_shadowdepthPass->cascadeRecord(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_3);
-
-	m_gpuCullingPass->gbuffer_record(dynamicBuf,backBufferIndex); // gbuffer culling
-	m_gbufferPass->dynamicRecord(dynamicBuf,backBufferIndex);
 
 	m_lightingPass->dynamicRecord(dynamicBuf,backBufferIndex);
 
@@ -208,7 +223,11 @@ void Renderer::tick(float dt)
 void Renderer::release()
 {
 	m_shadowdepthPass->release(); delete m_shadowdepthPass;
+
 	m_gbufferPass->release(); delete m_gbufferPass;
+	m_depthEvaluateMinMaxPass->release(); delete m_depthEvaluateMinMaxPass;
+	m_cascadeSetupPass->release(); delete m_cascadeSetupPass;
+
 	m_lightingPass->release(); delete m_lightingPass;
 	m_tonemapperPass->release(); delete m_tonemapperPass;
 
@@ -271,7 +290,7 @@ void Renderer::updateGPUData(float dt)
 				m_gpuFrameData.sunLightColor = lightPtr->getColor();
 				m_gpuFrameData.sunLightDir = lightPtr->getDirection();
 
-				break;// NOTE: 当前我们仅处理第一盏有效的直射灯
+				break;// NOTE: 当前我们仅处理第一盏有效的直射灯 
 			}
 		}
 	}
@@ -313,32 +332,6 @@ void Renderer::updateGPUData(float dt)
 	m_gpuFrameData.camFrustumPlanes[3] = camFrusum.planes[3];
 	m_gpuFrameData.camFrustumPlanes[4] = camFrusum.planes[4];
 	m_gpuFrameData.camFrustumPlanes[5] = camFrusum.planes[5];
-	
-	// 更新阴影信息
-	std::vector<Cascade> cascadeInfos{};
-	Cascade::SetupCascades(
-		cascadeInfos,
-		sceneViewCameraComponent->getZNear(),
-		m_gpuFrameData.camViewProj,
-		m_gpuFrameData.sunLightDir,
-		m_renderScene
-	);
-	ASSERT(cascadeInfos.size() == 4,"Current use fix 4 cascade num.");
-	for(size_t i = 0; i < cascadeInfos.size(); i++)
-	{
-		m_gpuFrameData.cascadeViewProjMatrix[i] = cascadeInfos[i].viewProj;
-
-		Frustum cascadeFrusum{};
-		cascadeFrusum.update(m_gpuFrameData.cascadeViewProjMatrix[i]);
-
-		m_gpuFrameData.cascadeFrustumPlanes[0 + i * 6] =  cascadeFrusum.planes[0];
-		m_gpuFrameData.cascadeFrustumPlanes[1 + i * 6] =  cascadeFrusum.planes[1];
-		m_gpuFrameData.cascadeFrustumPlanes[2 + i * 6] =  cascadeFrusum.planes[2];
-		m_gpuFrameData.cascadeFrustumPlanes[3 + i * 6] =  cascadeFrusum.planes[3];
-		m_gpuFrameData.cascadeFrustumPlanes[4 + i * 6] =  cascadeFrusum.planes[4];
-		m_gpuFrameData.cascadeFrustumPlanes[5 + i * 6] =  cascadeFrusum.planes[5];
-	}
-
 }
 
 

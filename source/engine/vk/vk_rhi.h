@@ -154,7 +154,8 @@ public:
     Ref<VulkanCommandBuffer> getDynamicGraphicsCmdBuf(uint32 index) { return m_dynamicGraphicsCommandBuffer[index]; }
     VkSemaphore getDynamicGraphicsCmdBufSemaphore(uint32 index) { return m_dynamicGraphicsCommandExecuteSemaphores[index]; }
     VkSampler createSampler(VkSamplerCreateInfo info);
-    VkSampler getPointClampSampler();
+    VkSampler getPointClampBorderSampler(VkBorderColor);
+    VkSampler getPointClampEdgeSampler();
     VkSampler getPointRepeatSampler();
     VkSampler getLinearClampSampler();
     VkSampler getLinearRepeatSampler();

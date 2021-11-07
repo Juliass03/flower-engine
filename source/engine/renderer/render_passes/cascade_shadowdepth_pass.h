@@ -6,10 +6,14 @@ namespace engine
 
 enum class ECullIndex;
 
+// Cpu cascade setup.
+// Now we all transfer to gpu.
+// See casacde_setup.cpp and cascade_setup.h
 struct Cascade
 {
 	float splitDepth;
 	glm::mat4 viewProj;
+	glm::vec4 extents;
 
 	static void SetupCascades(
 		std::vector<Cascade>& inout,

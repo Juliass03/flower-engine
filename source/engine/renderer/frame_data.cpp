@@ -39,7 +39,7 @@ void engine::PerFrameData::buildPerFrameDataDescriptorSets(Ref<Renderer> rendere
             frameDataBufInfo.range = sizeof(GPUFrameData);
 
             renderer->vkDynamicDescriptorFactoryBegin(index)
-                .bindBuffer(0,&frameDataBufInfo,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT)
+                .bindBuffer(0,&frameDataBufInfo,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
                 .build(m_frameDataDescriptorSets[index],m_frameDataDescriptorSetLayouts[index]);
         }
         bNeedRebuild = false;

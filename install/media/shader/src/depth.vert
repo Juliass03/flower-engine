@@ -2,6 +2,7 @@
 #extension GL_EXT_nonuniform_qualifier : require
 
 #include "../glsl/common.glsl"
+#include "../glsl/common_framedata.glsl"
 #include "../glsl/common_mesh.glsl"
 
 layout (location = 0) in vec3 inPosition;
@@ -11,6 +12,11 @@ layout (location = 3) in vec4 inTangent;
 
 layout (location = 0) out vec2 outUV0;
 layout (location = 1) out flat uint outBaseColorTexId;
+
+layout(set = 5, binding = 0) readonly buffer CascadeInfoBuffer
+{
+	CascadeInfo cascadeInfosbuffer[];
+};
 
 struct DepthDrawPushConstants
 {
@@ -30,7 +36,7 @@ void main()
 	uint materialId = drawIndirectBuffer.indirectDraws[gl_DrawID].materialId;
 
 	mat4 modelMatrix  = perObjectBuffer.objects[objId].model;
-	mat4 mvp = frameData.cascadeViewProjMatrix[cascadeInfos.cascadeIndex] * modelMatrix;
+	mat4 mvp = cascadeInfosbuffer[cascadeInfos.cascadeIndex].cascadeViewProjMatrix * modelMatrix;
 
 	gl_Position = mvp * vec4(inPosition, 1.0f);
 

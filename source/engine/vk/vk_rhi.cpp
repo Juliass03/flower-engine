@@ -19,9 +19,9 @@ void VulkanRHI::init(GLFWwindow* window,
     m_instanceLayerNames = instanceLayerNames;
     m_deviceExtensionNames = deviceExtensionNames;
     m_deviceExtensionNames.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+    m_deviceExtensionNames.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
     m_deviceExtensionNames.push_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME); // ÓÃÓÚbindless
     m_deviceExtensionNames.push_back(VK_KHR_MAINTENANCE3_EXTENSION_NAME);
-    m_deviceExtensionNames.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
 
     // Enable gpu features here.
     m_enableGpuFeatures.samplerAnisotropy = true; // Enable sampler anisotropy.
@@ -345,21 +345,38 @@ VkSampler VulkanRHI::createSampler(VkSamplerCreateInfo info)
     return m_samplerCache.createSampler(&info);
 }
 
-
-
-VkSampler VulkanRHI::getPointClampSampler()
+VkSampler VulkanRHI::getPointClampBorderSampler(VkBorderColor borderColor)
 {
     SamplerFactory sfa{};
     sfa
         .MagFilter(VK_FILTER_NEAREST)
         .MinFilter(VK_FILTER_NEAREST)
-        .MipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR)
+        .MipmapMode(VK_SAMPLER_MIPMAP_MODE_NEAREST)
         .AddressModeU(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
         .AddressModeV(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
         .AddressModeW(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
-        .CompareOp(VK_COMPARE_OP_LESS)
+        .BorderColor(borderColor)
+        .UnnormalizedCoordinates(VK_FALSE)
+        .MaxAnisotropy(1.0f)
+        .AnisotropyEnable(VK_FALSE)
+        .MinLod(0.0f)
+        .MaxLod(MAX_TEXTURE_LOD)
+        .MipLodBias(0.0f);
+
+    return VulkanRHI::get()->createSampler(sfa.getCreateInfo());
+}
+
+VkSampler VulkanRHI::getPointClampEdgeSampler()
+{
+    SamplerFactory sfa{};
+    sfa
+        .MagFilter(VK_FILTER_NEAREST)
+        .MinFilter(VK_FILTER_NEAREST)
+        .MipmapMode(VK_SAMPLER_MIPMAP_MODE_NEAREST)
+        .AddressModeU(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+        .AddressModeV(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+        .AddressModeW(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
         .CompareEnable(VK_FALSE)
-        .BorderColor(VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK)
         .UnnormalizedCoordinates(VK_FALSE)
         .MaxAnisotropy(1.0f)
         .AnisotropyEnable(VK_FALSE)

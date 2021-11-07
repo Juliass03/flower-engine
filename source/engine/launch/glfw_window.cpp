@@ -1,6 +1,6 @@
 #include "launch_engine_loop.h"
 #include "../core/cvar.h"
-#include <glm/glm.hpp>
+#include "../core/core.h"
 #include <sstream>
 #include "../engine.h"
 #include "../vk/vk_rhi.h"

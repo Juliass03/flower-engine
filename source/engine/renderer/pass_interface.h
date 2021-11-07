@@ -4,6 +4,12 @@
 #include "../shader_compiler/shader_compiler.h"
 
 namespace engine{
+
+inline uint32_t getGroupCount(uint32_t threadCount, uint32_t localSize)
+{
+	return (threadCount + localSize - 1) / localSize;
+}
+
 class Renderer;
 class GraphicsPass
 {

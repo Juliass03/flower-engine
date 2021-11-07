@@ -1,0 +1,177 @@
+#version 460
+
+#define WORK_CASCADE_SIZE 4
+
+// 24 bit
+// 0xFFFFFFFF --> 4,294,967,295
+// SCALE_UINT_7u  4,000,000,000 + 10u
+const uint SCALE_UINT_7u = 4000000000;
+const float SCALE_UINT_7 = 4000000000.0f;
+
+// set = 0 为perframe data
+#include "../../glsl/common.glsl"
+#include "../../glsl/common_framedata.glsl"
+
+struct DepthRange
+{
+    uint minDepth;
+    uint maxDepth;
+};
+
+layout(set = 1, binding = 0) readonly buffer DepthRangeBuffer
+{
+	DepthRange range;
+};
+
+layout(set = 2, binding = 0) writeonly buffer CascadeInfoBuffer
+{
+	CascadeInfo cascadeInfos[];
+};
+
+struct PushConstantData
+{
+    uint bReverseZ;
+    float shadowMapSize;
+    uint bFixCascade;
+};
+
+layout(push_constant) uniform block
+{
+	PushConstantData pushConstant;
+};
+
+layout (local_size_x = WORK_CASCADE_SIZE,local_size_y = 1,local_size_z = 1) in;
+
+void main()
+{
+    const float sMapSize = pushConstant.shadowMapSize; 
+
+    const float nearClip = frameData.camInfo.z; // nearZ
+    const float farClip = frameData.camInfo.w;  // farZ
+
+    // uint float
+    const uint minDepthUint = range.minDepth;
+    const uint maxDepthUint = range.maxDepth;
+
+    // unpack to float
+    float minDistance = float(minDepthUint) / SCALE_UINT_7;
+    float maxDistance = float(maxDepthUint) / SCALE_UINT_7;
+
+    // linearize
+    minDistance = linearizeDepth(minDistance, nearClip, farClip);
+    maxDistance = linearizeDepth(maxDistance, nearClip, farClip);
+
+    minDistance = pushConstant.bFixCascade != 0 ? 0.0f : minDistance;
+    maxDistance = pushConstant.bFixCascade != 0 ? 1.0f : maxDistance;
+
+    // split cascade
+    float cascadeSplits[4];
+    
+    {
+        const float lambda = 1.0f;
+        float clipRange = farClip - nearClip;
+        float minZ = nearClip + minDistance * clipRange;
+        float maxZ = nearClip + maxDistance * clipRange;
+
+        float range = maxZ - minZ;
+        float ratio = maxZ / minZ;
+
+        for(uint i = 0; i < WORK_CASCADE_SIZE; ++i)
+        {
+            float p = float(i + 1) / float(WORK_CASCADE_SIZE);
+            float logScale = minZ * pow(abs(ratio), p);
+            float uniformScale = minZ + range * p;
+            float d = lambda * (logScale - uniformScale) + uniformScale;
+            cascadeSplits[i] = (d - nearClip) / clipRange;
+        }
+    }
+
+    // now setup each cascade.
+    vec3 frustumCornersWS[8];
+    frustumCornersWS[0] = vec3( 1.0f, -1.0f, 0.0f);
+    frustumCornersWS[1] = vec3(-1.0f, -1.0f, 0.0f);
+    frustumCornersWS[2] = vec3( 1.0f,  1.0f, 0.0f);
+    frustumCornersWS[3] = vec3(-1.0f,  1.0f, 0.0f);
+    frustumCornersWS[4] = vec3( 1.0f, -1.0f, 1.0f);
+    frustumCornersWS[5] = vec3(-1.0f, -1.0f, 1.0f);
+    frustumCornersWS[6] = vec3( 1.0f,  1.0f, 1.0f);
+    frustumCornersWS[7] = vec3(-1.0f,  1.0f, 1.0f);
+
+    // convert to world space
+    for(uint i = 0; i < 8; i ++)
+    {
+        vec4 invCorner = frameData.camInvertViewProjection * vec4(frustumCornersWS[i],1.0f);
+        frustumCornersWS[i] = invCorner.xyz / invCorner.w;
+    }
+
+    const uint cascadeIdx = gl_GlobalInvocationID.x;
+    float prevSplitDist = cascadeIdx == 0 ? minDistance : cascadeSplits[cascadeIdx - 1];
+    float splitDist = cascadeSplits[cascadeIdx];
+
+    // calculate 4 corner world pos of cascade view frustum.
+    for(uint i = 0; i < 4; i ++)
+    {
+        vec3 cornerRay = frustumCornersWS[i + 4] - frustumCornersWS[i]; // distance ray.
+
+        vec3 nearCornerRay = cornerRay * prevSplitDist;
+        vec3 farCornerRay = cornerRay * splitDist;
+
+        frustumCornersWS[i + 4] = frustumCornersWS[i] + farCornerRay;
+        frustumCornersWS[i] = frustumCornersWS[i] + nearCornerRay;
+    }
+
+    // calculate center pos of view frustum.
+    vec3 frustumCenter = vec3(0.0f);
+    for(uint i = 0; i < 8; i ++)
+    {
+        frustumCenter += frustumCornersWS[i];
+    }
+    frustumCenter /= 8.0f;
+
+    // get view sphere bounds radius.
+    float sphereRadius = 0.0f;
+    for(uint i = 0; i < 8; ++i)
+    {
+        float dist = length(frustumCornersWS[i] - frustumCenter);
+        sphereRadius = max(sphereRadius, dist);
+    }
+    sphereRadius = ceil(sphereRadius * 16.0f) / 16.0f;
+    vec3 maxExtents = vec3(sphereRadius);
+    vec3 minExtents = -maxExtents;
+
+    // create temporary view project matrix for cascade.
+    vec3 upDir = vec3(0.0f, 1.0f, 0.0f);
+    vec3 shadowCameraPos = frustumCenter - frameData.sunLightDir.xyz * -minExtents.z;
+
+    vec3 cascadeExtents = maxExtents - minExtents;
+    float nearZProj = pushConstant.bReverseZ != 0 ? cascadeExtents.z : 0.0f;
+    float farZProj  = pushConstant.bReverseZ != 0 ? 0.0f : cascadeExtents.z;
+
+    mat4 shadowView = lookAtRH(shadowCameraPos,frustumCenter,upDir);
+    mat4 shadowProj = orthoRH_ZO(
+        minExtents.x, maxExtents.x, 
+        minExtents.y, maxExtents.y,
+        nearZProj,    farZProj
+    );
+
+    mat4 shadowViewProjMatrix = shadowProj * shadowView;
+    vec4 shadowOrigin = vec4(0.0f,0.0f,0.0f,1.0f);
+    shadowOrigin = shadowViewProjMatrix * shadowOrigin;
+
+    shadowOrigin *= (sMapSize / 2.0f); // move to center uv pos
+
+    vec3 roundedOrigin = round(shadowOrigin.xyz);
+    vec3 roundOffset = roundedOrigin - shadowOrigin.xyz;
+
+    roundOffset = roundOffset * (2.0f / sMapSize);
+    roundOffset.z = 0.0f;
+
+    // pushback round offset data to project matrix.
+    shadowProj[3][0] += roundOffset.x;
+    shadowProj[3][1] += roundOffset.y;
+
+    // final proj view matrix
+    mat4 shadowFinalViewProj = shadowProj * shadowView;
+
+    cascadeInfos[cascadeIdx].cascadeViewProjMatrix = shadowFinalViewProj;
+}

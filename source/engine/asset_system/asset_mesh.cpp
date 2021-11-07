@@ -7,8 +7,6 @@
 #include "../core/timer.h"
 #include <algorithm>
 #include <unordered_map>
-#include <glm/glm.hpp>
-#include <glm/gtx/hash.hpp>
 #include "../renderer/material.h"
 
 #include <assimp/Importer.hpp>

@@ -40,7 +40,7 @@ void WidgetViewport::onVisibleTick(size_t i)
 	
 
 	m_cacheImageInfo.setIcon(m_renderer->getRenderScene().getSceneTextures().getLDRSceneColor());
-	m_cacheImageInfo.setSampler(VulkanRHI::get()->getPointClampSampler());
+	m_cacheImageInfo.setSampler(VulkanRHI::get()->getPointClampEdgeSampler());
 	
 	ImGui::Image(m_cacheImageInfo.getId(uint32_t(i)),ImVec2(width,height));
 	Input::setMouseInViewport(ImGui::IsItemHovered());
