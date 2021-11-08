@@ -36,6 +36,31 @@ void engine::GpuDepthEvaluateMinMaxPass::record(VkCommandBuffer& cmd,uint32 back
 		return;
 	}
 
+	// Need gbuffer depth.
+	// Need depth min max buffer. 
+	std::array<VkImageMemoryBarrier,1> imageBarriers {};
+	imageBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+
+	imageBarriers[0].image = m_renderScene->getSceneTextures().getDepthStencil()->getImage();
+	imageBarriers[0].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	imageBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	imageBarriers[0].subresourceRange.levelCount = 1;
+	imageBarriers[0].subresourceRange.layerCount = 1;
+	imageBarriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+	imageBarriers[0].oldLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
+	imageBarriers[0].newLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL; 
+
+	vkCmdPipelineBarrier(
+		cmd,
+		VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+		0,
+		0, nullptr,
+		0, nullptr,
+		(uint32)imageBarriers.size(), imageBarriers.data()
+	);
+
+
 	std::array<VkBufferMemoryBarrier,1> bufferBarriers {};
 	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 
@@ -45,7 +70,6 @@ void engine::GpuDepthEvaluateMinMaxPass::record(VkCommandBuffer& cmd,uint32 back
 	gpuPushConstant.imageSize.y = float(depthImageExtent.height);
 
 	VkDeviceSize asyncRange = m_renderScene->m_evaluateDepthMinMax.size;
-
 	bufferBarriers[0].buffer = m_renderScene->m_evaluateDepthMinMax.buffer->GetVkBuffer();
 	bufferBarriers[0].size = asyncRange;
 	bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -85,6 +109,22 @@ void engine::GpuDepthEvaluateMinMaxPass::record(VkCommandBuffer& cmd,uint32 back
 		getGroupCount(depthImageExtent.width, WORK_TILE_SIZE), 
 		getGroupCount(depthImageExtent.height,WORK_TILE_SIZE), 
 		1
+	);
+
+
+	imageBarriers[0].image = m_renderScene->getSceneTextures().getDepthStencil()->getImage();
+	imageBarriers[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	imageBarriers[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	imageBarriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+	vkCmdPipelineBarrier(
+		cmd,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+		VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+		0,
+		0, nullptr,
+		0, nullptr,
+		(uint32)imageBarriers.size(), imageBarriers.data()
 	);
 
 	bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;

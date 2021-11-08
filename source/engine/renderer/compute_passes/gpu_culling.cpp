@@ -192,7 +192,6 @@ void engine::GpuCullingPass::cascade_record(VkCommandBuffer& cmd,uint32 backBuff
         0, nullptr,
         (uint32)bufferBarriers.size(),bufferBarriers.data(),
         0, nullptr);
-
 }
 
 void engine::GpuCullingPass::createPipeline()

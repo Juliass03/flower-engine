@@ -138,7 +138,7 @@ void main()
     float directShadow = evaluateDirectShadow(gData.worldPos,gData.worldNormal,NoLSafe,cascadeIndex);
     vec3 debugCascadeColor = getCascadeDebugColor(cascadeIndex);
 
-    outHdrSceneColor.rgb = vec3(NoLSafe * directShadow + 0.05f) * gData.baseColor ;
+    outHdrSceneColor.rgb = vec3(NoLSafe * directShadow + 0.05f) * gData.baseColor;
     outHdrSceneColor.a = 1.0f;
 
    //  outHdrSceneColor.rgb = gData.worldPos;

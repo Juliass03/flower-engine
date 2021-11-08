@@ -64,14 +64,16 @@ vec3 unpackGbufferNormal(vec3 inNormal)
 vec3 getWorldPosition(float z,vec2 uv,mat4 camInvViewProj)
 {
     vec4 posClip  = vec4(uv * 2.0f - 1.0f, z, 1.0f);
-    vec4 posWorld = camInvViewProj * posClip;
+    posClip.y *= -1.0f; // We use vulkan viewport flip y
 
+    vec4 posWorld = camInvViewProj * posClip;
     return posWorld.xyz / posWorld.w;
 }
 
+// return [znear - zfar]
 float linearizeDepth(float z,float n,float f)
 {
-    return clamp(z / (f - z * (f - n)),0.0f,1.0f);
+    return n * f / (f + z * (n - f));
 }
 
 mat4 lookAtRH(vec3 eye,vec3 center,vec3 up)

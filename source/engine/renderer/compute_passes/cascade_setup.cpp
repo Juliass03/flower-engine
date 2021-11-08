@@ -8,7 +8,7 @@ static AutoCVarInt32 cVarFixCascade(
 	"r.Shadow.FixCascade",
 	"Enable fix cascade. 0 is off, others are on.",
 	"Shadow",
-	1,
+	0,
 	CVarFlags::ReadAndWrite
 );
 
@@ -53,25 +53,17 @@ void engine::GpuCascadeSetupPass::record(VkCommandBuffer& cmd,uint32 backBufferI
 	gpuPushConstant.bFixCascade = cVarFixCascade.get() != 0;
 	gpuPushConstant.shadowMapSize = float(*cVarShadowMapSize);
 
-	std::array<VkBufferMemoryBarrier,2> bufferBarriers {};
+	std::array<VkBufferMemoryBarrier,1> bufferBarriers {};
 	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	bufferBarriers[1].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-
-	VkDeviceSize asyncRange0 =  m_renderScene->m_evaluateDepthMinMax.size;
-	bufferBarriers[0].buffer = m_renderScene->m_evaluateDepthMinMax.buffer->GetVkBuffer();
+	VkDeviceSize asyncRange0 = m_renderScene->m_cascadeSetupBuffer.size;
+	bufferBarriers[0].buffer = m_renderScene->m_cascadeSetupBuffer.buffer->GetVkBuffer();
 	bufferBarriers[0].size = asyncRange0;
-	bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-	VkDeviceSize asyncRange1 = m_renderScene->m_cascadeSetupBuffer.size;
-	bufferBarriers[1].buffer = m_renderScene->m_cascadeSetupBuffer.buffer->GetVkBuffer();
-	bufferBarriers[1].size = asyncRange1;
-	bufferBarriers[1].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	bufferBarriers[1].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+	bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 
 	vkCmdPipelineBarrier(
 		cmd,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+		VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
 		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 		0,
 		0,nullptr,
@@ -102,15 +94,10 @@ void engine::GpuCascadeSetupPass::record(VkCommandBuffer& cmd,uint32 backBufferI
 
 	vkCmdDispatch(cmd, 1, 1, 1);
 
-	bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	bufferBarriers[0].buffer = m_renderScene->m_evaluateDepthMinMax.buffer->GetVkBuffer();
+	bufferBarriers[0].buffer = m_renderScene->m_cascadeSetupBuffer.buffer->GetVkBuffer();
 	bufferBarriers[0].size = asyncRange0;
-
-	bufferBarriers[1].buffer = m_renderScene->m_cascadeSetupBuffer.buffer->GetVkBuffer();
-	bufferBarriers[1].size = asyncRange1;
-	bufferBarriers[1].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	bufferBarriers[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
 	vkCmdPipelineBarrier(
 		cmd,

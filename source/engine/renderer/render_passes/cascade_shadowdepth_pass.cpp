@@ -239,9 +239,9 @@ void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer& cmd,uint32 backBuff
     scissor.offset = {0,0};
     VkViewport viewport{};
     viewport.x = 0.0f;
-    viewport.y = 0.0f; // flip y on mesh raster
+    viewport.y = (float)shadowTextureExtent2D.height; // flip y on mesh raster
     viewport.width = (float)shadowTextureExtent2D.width;
-    viewport.height = (float)shadowTextureExtent2D.height; // flip y on mesh raster
+    viewport.height = -(float)shadowTextureExtent2D.height; // flip y on mesh raster
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
@@ -255,34 +255,27 @@ void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer& cmd,uint32 backBuff
 		return;
 	}
 
+	if(cascadeIndex == 0)
+	{
+		VkBufferMemoryBarrier casacadeToGraphicsBarrier{};
+		casacadeToGraphicsBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		casacadeToGraphicsBarrier.buffer =  m_renderScene->m_cascadeSetupBuffer.buffer->GetVkBuffer();
+		casacadeToGraphicsBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		casacadeToGraphicsBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		casacadeToGraphicsBarrier.size = m_renderScene->m_cascadeSetupBuffer.size;
+
+		vkCmdPipelineBarrier(
+			cmd,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+			0,
+			0,nullptr,
+			1,&casacadeToGraphicsBarrier,
+			0,nullptr);
+	}
+
 	GPUCascadePushConstants gpuPushConstant = {};
 	gpuPushConstant.cascadeIndex = cascadeIndex;
-
-	VkDeviceSize asyncRange = (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size() * sizeof(GPUDrawCallData);
-	std::array<VkBufferMemoryBarrier,2> bufferBarriers{};
-	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	bufferBarriers[1].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-
-	bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascadeIndex].drawIndirectSSBO->GetVkBuffer();
-	bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascadeIndex].countBuffer->GetVkBuffer();
-	
-	bufferBarriers[0].size = asyncRange;
-	bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOShadowDepths[cascadeIndex].countSize;
-	
-	bufferBarriers[0].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-	bufferBarriers[1].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-
-	bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	bufferBarriers[1].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-
-	vkCmdPipelineBarrier(
-		cmd,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-		0,
-		0,nullptr,
-		(uint32)bufferBarriers.size(),bufferBarriers.data(),
-		0,nullptr);
 
 	vkCmdBeginRenderPass(cmd,&rpInfo,VK_SUBPASS_CONTENTS_INLINE);
 
@@ -326,26 +319,6 @@ void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer& cmd,uint32 backBuff
 	);
 
 	vkCmdEndRenderPass(cmd);
-
-	bufferBarriers[0].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	bufferBarriers[1].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-	bufferBarriers[1].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-
-	bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascadeIndex].drawIndirectSSBO->GetVkBuffer();
-	bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascadeIndex].countBuffer->GetVkBuffer();
-
-	bufferBarriers[0].size = asyncRange;
-	bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOShadowDepths[cascadeIndex].countSize;
-
-	vkCmdPipelineBarrier(
-		cmd,
-		VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		0,
-		0,nullptr,
-		(uint32)bufferBarriers.size(),bufferBarriers.data(),
-		0,nullptr);
 }
 
 void engine::ShadowDepthPass::createRenderpass()
@@ -503,9 +476,9 @@ void engine::ShadowDepthPass::createPipeline()
 		shadowExtent2D.height = shadowExtent.height;
 
 		gpf.viewport.x = 0.0f;
-		gpf.viewport.y = 0.0f;
+		gpf.viewport.y = (float)shadowExtent2D.height;
 		gpf.viewport.width =  (float)shadowExtent2D.width;
-		gpf.viewport.height = (float)shadowExtent2D.height;
+		gpf.viewport.height = -(float)shadowExtent2D.height;
 		gpf.viewport.minDepth = 0.0f;
 		gpf.viewport.maxDepth = 1.0f;
 		gpf.scissor.offset = { 0, 0 };

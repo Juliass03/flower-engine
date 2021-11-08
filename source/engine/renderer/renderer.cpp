@@ -22,8 +22,8 @@ static AutoCVarInt32 cVarReverseZ(
 	"r.Shading.ReverseZ",
 	"Enable reverse z. 0 is off, others are on.",
 	"Shading",
-	0,
-	CVarFlags::InitOnce | CVarFlags::ReadOnly
+	1,
+	CVarFlags::ReadAndWrite
 );
 
 bool engine::reverseZOpen()

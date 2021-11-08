@@ -74,29 +74,6 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
         return;
     }
 
-	VkDeviceSize asyncRange = (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size()*sizeof(GPUDrawCallData);
-	std::array<VkBufferMemoryBarrier,2> bufferBarriers{};
-	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    bufferBarriers[1].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-
-    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
-    bufferBarriers[0].size = asyncRange;
-    bufferBarriers[0].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.countBuffer->GetVkBuffer();
-    bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOGbuffer.countSize;
-    bufferBarriers[1].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    bufferBarriers[1].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-
-    vkCmdPipelineBarrier(
-        cmd,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-        0,
-        0,nullptr,
-        (uint32)bufferBarriers.size(),bufferBarriers.data(),
-        0,nullptr);
-
     vkCmdBeginRenderPass(cmd,&rpInfo,VK_SUBPASS_CONTENTS_INLINE);
 
     vkCmdSetScissor(cmd,0,1,&scissor);
@@ -133,24 +110,6 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
     );
 
     vkCmdEndRenderPass(cmd);
-
-    bufferBarriers[0].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
-    bufferBarriers[0].size = asyncRange;
-    bufferBarriers[1].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    bufferBarriers[1].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.countBuffer->GetVkBuffer();
-    bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOGbuffer.countSize;
-
-    vkCmdPipelineBarrier(
-        cmd,
-        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0,
-        0,nullptr,
-        (uint32)bufferBarriers.size(),bufferBarriers.data(),
-        0,nullptr);
 }
 
 void engine::GBufferPass::createRenderpass()
@@ -174,7 +133,7 @@ void engine::GBufferPass::createRenderpass()
     attachmentDescs[0].format = SceneTextures::getGbufferBaseColorRoughnessFormat();
     attachmentDescs[1].format = SceneTextures::getGbufferNormalMetalFormat();
     attachmentDescs[2].format = SceneTextures::getGbufferEmissiveAoFormat();
-    attachmentDescs[3].format = SceneTextures::getDepthStencilFormat();
+    attachmentDescs[depthAttachmentIndex].format = SceneTextures::getDepthStencilFormat();
 
     attachmentDescs[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     attachmentDescs[1].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -183,8 +142,8 @@ void engine::GBufferPass::createRenderpass()
     attachmentDescs[depthAttachmentIndex].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescs[depthAttachmentIndex].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDescs[depthAttachmentIndex].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachmentDescs[depthAttachmentIndex].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachmentDescs[depthAttachmentIndex].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescs[depthAttachmentIndex].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescs[depthAttachmentIndex].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachmentDescs[depthAttachmentIndex].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
     attachmentDescs[depthAttachmentIndex].finalLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
 
@@ -325,9 +284,9 @@ void engine::GBufferPass::createPipeline()
         sceneTextureExtent2D.width = sceneTextureExtent.width;
         sceneTextureExtent2D.height = sceneTextureExtent.height;
         gpf.viewport.x = 0.0f;
-        gpf.viewport.y = 0.0f;
+        gpf.viewport.y = (float)sceneTextureExtent2D.height;
         gpf.viewport.width =  (float)sceneTextureExtent2D.width;
-        gpf.viewport.height = (float)sceneTextureExtent2D.height;
+        gpf.viewport.height = -(float)sceneTextureExtent2D.height;
         gpf.viewport.minDepth = 0.0f;
         gpf.viewport.maxDepth = 1.0f;
         gpf.scissor.offset = { 0, 0 };

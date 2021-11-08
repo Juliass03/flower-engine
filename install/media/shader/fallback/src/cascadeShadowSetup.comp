@@ -46,30 +46,46 @@ void main()
 {
     const float sMapSize = pushConstant.shadowMapSize; 
 
-    const float nearClip = frameData.camInfo.z; // nearZ
-    const float farClip = frameData.camInfo.w;  // farZ
+    float nearClip = frameData.camInfo.z; // nearZ
+    float farClip = frameData.camInfo.w;  // farZ
+    if(pushConstant.bReverseZ != 0)// reverse z
+    {
+        nearClip = frameData.camInfo.w;
+        farClip = frameData.camInfo.z;
+    }
+
+    float clipRange = farClip - nearClip;
 
     // uint float
     const uint minDepthUint = range.minDepth;
     const uint maxDepthUint = range.maxDepth;
 
     // unpack to float
-    float minDistance = float(minDepthUint) / SCALE_UINT_7;
-    float maxDistance = float(maxDepthUint) / SCALE_UINT_7;
+    float minDistance =  float(minDepthUint) / SCALE_UINT_7;
+    float maxDistance =  float(maxDepthUint) / SCALE_UINT_7;
 
     // linearize
-    minDistance = linearizeDepth(minDistance, nearClip, farClip);
-    maxDistance = linearizeDepth(maxDistance, nearClip, farClip);
-
-    minDistance = pushConstant.bFixCascade != 0 ? 0.0f : minDistance;
-    maxDistance = pushConstant.bFixCascade != 0 ? 1.0f : maxDistance;
+    minDistance = clamp((linearizeDepth(minDistance, nearClip, farClip) - nearClip) / clipRange,0.0f,1.0f);
+    maxDistance = clamp((linearizeDepth(maxDistance, nearClip, farClip) - nearClip) / clipRange,0.0f,1.0f);
+    
+    if(pushConstant.bReverseZ != 0)
+    {
+        float tempMin = minDistance;
+        minDistance = pushConstant.bFixCascade != 0 ? 1.0f : maxDistance;
+        maxDistance = pushConstant.bFixCascade != 0 ? 0.0f : tempMin;
+    }
+    else
+    {
+        minDistance = pushConstant.bFixCascade != 0 ? 0.0f : minDistance;
+        maxDistance = pushConstant.bFixCascade != 0 ? 1.0f : maxDistance;
+    }
 
     // split cascade
     float cascadeSplits[4];
     
     {
         const float lambda = 1.0f;
-        float clipRange = farClip - nearClip;
+        
         float minZ = nearClip + minDistance * clipRange;
         float maxZ = nearClip + maxDistance * clipRange;
 
@@ -88,14 +104,14 @@ void main()
 
     // now setup each cascade.
     vec3 frustumCornersWS[8];
-    frustumCornersWS[0] = vec3( 1.0f, -1.0f, 0.0f);
-    frustumCornersWS[1] = vec3(-1.0f, -1.0f, 0.0f);
-    frustumCornersWS[2] = vec3( 1.0f,  1.0f, 0.0f);
-    frustumCornersWS[3] = vec3(-1.0f,  1.0f, 0.0f);
-    frustumCornersWS[4] = vec3( 1.0f, -1.0f, 1.0f);
-    frustumCornersWS[5] = vec3(-1.0f, -1.0f, 1.0f);
-    frustumCornersWS[6] = vec3( 1.0f,  1.0f, 1.0f);
-    frustumCornersWS[7] = vec3(-1.0f,  1.0f, 1.0f);
+    frustumCornersWS[0] = vec3(-1.0f,  1.0f, 0.0f);
+    frustumCornersWS[1] = vec3(1.0f,  1.0f,  0.0f);
+    frustumCornersWS[2] = vec3(1.0f, -1.0f,  0.0f);
+    frustumCornersWS[3] = vec3(-1.0f, -1.0f, 0.0f);
+    frustumCornersWS[4] = vec3(-1.0f,  1.0f,  1.0f);
+    frustumCornersWS[5] = vec3(1.0f,  1.0f,   1.0f);
+    frustumCornersWS[6] = vec3(1.0f, -1.0f,   1.0f);
+    frustumCornersWS[7] = vec3(-1.0f,  -1.0f, 1.0f);
 
     // convert to world space
     for(uint i = 0; i < 8; i ++)

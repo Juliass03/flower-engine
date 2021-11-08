@@ -62,7 +62,7 @@ GbufferData loadGbufferData()
     gData.ao = packGbufferEmissiveAo.w;
 
     float sampleDeviceDepth = texture(inDepth,inUV0).r;
-    gData.deviceDepth = sampleDeviceDepth;
+    gData.deviceDepth = clamp(sampleDeviceDepth,0.0f,1.0f);
     gData.worldPos = getWorldPosition(sampleDeviceDepth,inUV0,frameData.camInvertViewProjection);
 
     return gData;
@@ -102,11 +102,12 @@ float evaluateDirectShadow(vec3 fragWorldPos,vec3 normal,float safeNoL,out uint 
             vec4(fragWorldPos, 1.0);
 
         vec4 shadowCoord = shadowClipPos / shadowClipPos.w;
+        
 		shadowCoord.st = shadowCoord.st * 0.5f + 0.5f;
-
+        shadowCoord.y = 1.0f - shadowCoord.y;
         if( shadowCoord.x > 0.01f && shadowCoord.y > 0.01f && 
 			shadowCoord.x < 0.99f && shadowCoord.y < 0.99f &&
-			shadowCoord.z > 0.0f && shadowCoord.z < 1.0f)
+			shadowCoord.z > 0.0f  && shadowCoord.z < 1.0f)
 		{
             shadowFactor = shadowPcf(
                 cascadeIndex,
@@ -139,8 +140,8 @@ void main()
     float directShadow = evaluateDirectShadow(gData.worldPos,gData.worldNormal,NoLSafe,cascadeIndex);
     vec3 debugCascadeColor = getCascadeDebugColor(cascadeIndex);
 
-    outHdrSceneColor.rgb = vec3(directShadow + 0.05f) * gData.baseColor * debugCascadeColor;
+    outHdrSceneColor.rgb = vec3(directShadow * NoLSafe + 0.05f) * gData.baseColor;
     outHdrSceneColor.a = 1.0f;
 
-   //  outHdrSceneColor.rgb = gData.worldPos;
+    outHdrSceneColor.rgb = gData.worldPos;
 }
