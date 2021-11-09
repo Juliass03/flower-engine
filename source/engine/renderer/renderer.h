@@ -70,12 +70,15 @@ public:
 	VulkanDescriptorFactory vkDynamicDescriptorFactoryBegin(uint32 i);
 
 public:
-	GpuCullingPass* m_gpuCullingPass;
 
-	ShadowDepthPass*   m_shadowdepthPass;
+	GpuCullingPass* m_gbufferCullingPass;
 	GraphicsPass*   m_gbufferPass;
 	GpuDepthEvaluateMinMaxPass* m_depthEvaluateMinMaxPass;
 	GpuCascadeSetupPass* m_cascadeSetupPass;
+
+	GpuCullingPass* m_cascasdeCullingPasses;
+	ShadowDepthPass* m_shadowdepthPasses;
+
 	GraphicsPass*   m_lightingPass;
 	GraphicsPass*   m_tonemapperPass;
 };

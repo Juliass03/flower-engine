@@ -45,12 +45,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)install\</OutDir>
+    <OutDir>$(SolutionDir)binary\$(ProjectName)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)binary\$(ProjectName)\$(Configuration)\obj\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)install\</OutDir>
+    <OutDir>$(SolutionDir)binary\$(ProjectName)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)binary\$(ProjectName)\$(Configuration)\obj\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

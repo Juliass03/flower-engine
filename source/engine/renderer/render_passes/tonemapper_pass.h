@@ -16,7 +16,7 @@ public:
 	virtual void initInner() override;
 	virtual void beforeSceneTextureRecreate() override;
 	virtual void afterSceneTextureRecreate() override;
-	virtual void dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIndex) override;
+	virtual void dynamicRecord(uint32 backBufferIndex) override;
 private:
 	std::vector<VkFramebuffer> m_framebuffers = {};
 

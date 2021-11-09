@@ -213,7 +213,23 @@ void engine::ShadowDepthPass::afterSceneTextureRecreate()
 	createPipeline();
 }
 
-void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer& cmd,uint32 backBufferIndex,ECullIndex cullIndexType)
+void engine::ShadowDepthPass::dynamicRecord(uint32 backBufferIndex)
+{
+	VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
+	commandBufBegin(backBufferIndex);
+
+	MeshLibrary::get()->bindIndexBuffer(cmd);
+	MeshLibrary::get()->bindVertexBuffer(cmd);
+
+	for(size_t i = 0; i < CASCADE_MAX_COUNT; i++)
+	{
+		cascadeRecord(cmd,backBufferIndex,ECullIndex(i + 1));
+	}
+
+	commandBufEnd(backBufferIndex);
+}
+
+void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer cmd,uint32 backBufferIndex,ECullIndex cullIndexType)
 {
 	uint32 cascadeIndex = cullingIndexToCasacdeIndex(cullIndexType);
 	CHECK(cascadeIndex < 4);
@@ -253,25 +269,6 @@ void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer& cmd,uint32 backBuff
 		vkCmdSetDepthBias(cmd,0,0,0);
 		vkCmdEndRenderPass(cmd);
 		return;
-	}
-
-	if(cascadeIndex == 0)
-	{
-		VkBufferMemoryBarrier casacadeToGraphicsBarrier{};
-		casacadeToGraphicsBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-		casacadeToGraphicsBarrier.buffer =  m_renderScene->m_cascadeSetupBuffer.buffer->GetVkBuffer();
-		casacadeToGraphicsBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		casacadeToGraphicsBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		casacadeToGraphicsBarrier.size = m_renderScene->m_cascadeSetupBuffer.size;
-
-		vkCmdPipelineBarrier(
-			cmd,
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-			VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-			0,
-			0,nullptr,
-			1,&casacadeToGraphicsBarrier,
-			0,nullptr);
 	}
 
 	GPUCascadePushConstants gpuPushConstant = {};

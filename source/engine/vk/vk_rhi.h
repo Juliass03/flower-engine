@@ -64,7 +64,7 @@ private: // cache
 private:
     uint32 m_imageIndex;
     uint32 m_currentFrame = 0;
-    const int m_maxFramesInFlight = 3;
+    const int m_maxFramesInFlight = 2;
     std::vector<VkSemaphore> m_semaphoresImageAvailable;
     std::vector<VkSemaphore> m_semaphoresRenderFinished;
     std::vector<VkFence> m_inFlightFences;

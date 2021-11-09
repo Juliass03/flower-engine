@@ -37,14 +37,17 @@ public:
 	virtual void beforeSceneTextureRecreate() override;
 	virtual void afterSceneTextureRecreate() override;
 
-	void gbuffer_record(VkCommandBuffer& cmd,uint32 backBufferIndex);
-	void cascade_record(VkCommandBuffer& cmd,uint32 backBufferIndex,ECullIndex cullIndex);
+	void gbuffer_record(uint32 backBufferIndex);
+	void cascade_record(uint32 backBufferIndex);
 
 private:
 	bool bInitPipeline = false;
 
 	void createPipeline();
 	void destroyPipeline();
+
+	void cascade_record(VkCommandBuffer cmd,uint32 backBufferIndex,ECullIndex cullIndex);
+
 public:
 	std::vector<VkPipeline> m_pipelines = {};
 	std::vector<VkPipelineLayout> m_pipelineLayouts = {};

@@ -24,43 +24,14 @@ void engine::GpuCullingPass::afterSceneTextureRecreate()
     createPipeline();
 }
 
-void engine::GpuCullingPass::gbuffer_record(VkCommandBuffer& cmd,uint32 backBufferIndex)
+void engine::GpuCullingPass::gbuffer_record(uint32 backBufferIndex)
 {
-	if(m_renderScene->isSceneEmpty())
-	{
-		return;
-	}
-
-    std::array<VkBufferMemoryBarrier,2> bufferBarriers {};
-	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    bufferBarriers[1].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
+    commandBufBegin(backBufferIndex);
 
 	GPUCullingPushConstants gpuPushConstant = {};
 	gpuPushConstant.drawCount = (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size();
     gpuPushConstant.cullIndex = static_cast<uint32>(ECullIndex::GBUFFER);
-    
-	VkDeviceSize asyncRange = gpuPushConstant.drawCount * sizeof(GPUDrawCallData);
-
-    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
-    bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.countBuffer->GetVkBuffer();
-
-    bufferBarriers[0].size = asyncRange;
-    bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOGbuffer.countSize;
-
-    bufferBarriers[0].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    bufferBarriers[1].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-
-    bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    bufferBarriers[1].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-
-    vkCmdPipelineBarrier(
-        cmd,
-        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0,
-        0,nullptr,
-        (uint32)bufferBarriers.size(),bufferBarriers.data(),
-        0,nullptr);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelines[backBufferIndex]);
 
@@ -85,69 +56,31 @@ void engine::GpuCullingPass::gbuffer_record(VkCommandBuffer& cmd,uint32 backBuff
     );
 
     vkCmdDispatch(cmd, (gpuPushConstant.drawCount / 256) + 1, 1, 1);
-
-    bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    bufferBarriers[1].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-
-    bufferBarriers[0].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    bufferBarriers[1].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-
-    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.drawIndirectSSBO->GetVkBuffer();
-    bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOGbuffer.countBuffer->GetVkBuffer();
-
-    bufferBarriers[0].size = asyncRange;
-    bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOGbuffer.countSize;
-
-    vkCmdPipelineBarrier(
-        cmd,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-        0,
-        0, nullptr,
-        (uint32)bufferBarriers.size(),bufferBarriers.data(),
-        0, nullptr);
+    
+    commandBufEnd(backBufferIndex);
 }
 
-void engine::GpuCullingPass::cascade_record(VkCommandBuffer& cmd,uint32 backBufferIndex,ECullIndex cullIndex)
+void engine::GpuCullingPass::cascade_record(uint32 backBufferIndex)
 {
-    if(m_renderScene->isSceneEmpty())
+    VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
+    commandBufBegin(backBufferIndex);
+
+    for(size_t i = 0; i < CASCADE_MAX_COUNT; i++)
     {
-        return;
+        cascade_record(cmd,backBufferIndex,ECullIndex(i + 1));
     }
 
-    uint32 cascasdeIndex = cullingIndexToCasacdeIndex(cullIndex);
+    commandBufEnd(backBufferIndex);
+}
 
-    std::array<VkBufferMemoryBarrier,2> bufferBarriers {};
-    bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    bufferBarriers[1].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+void engine::GpuCullingPass::cascade_record(VkCommandBuffer cmd,uint32 backBufferIndex,ECullIndex cullIndex)
+{
+    uint32 cascasdeIndex = cullingIndexToCasacdeIndex(cullIndex);
 
     GPUCullingPushConstants gpuPushConstant = {};
     gpuPushConstant.drawCount = (uint32)m_renderScene->m_cacheMeshObjectSSBOData.size();
     gpuPushConstant.cullIndex = static_cast<uint32>(cullIndex); 
-
-    VkDeviceSize asyncRange = gpuPushConstant.drawCount * sizeof(GPUDrawCallData);
-
-    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].drawIndirectSSBO->GetVkBuffer();
-    bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].countBuffer->GetVkBuffer();
-
-    bufferBarriers[0].size = asyncRange;
-    bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].countSize;
-
-    bufferBarriers[0].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    bufferBarriers[1].srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-
-    bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    bufferBarriers[1].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-
-    vkCmdPipelineBarrier(
-        cmd,
-        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0,
-        0,nullptr,
-        (uint32)bufferBarriers.size(),bufferBarriers.data(),
-        0,nullptr);
-
+   
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelines[backBufferIndex]);
 
     vkCmdPushConstants(cmd, m_pipelineLayouts[backBufferIndex], VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(GPUCullingPushConstants), &gpuPushConstant);
@@ -171,27 +104,6 @@ void engine::GpuCullingPass::cascade_record(VkCommandBuffer& cmd,uint32 backBuff
     );
 
     vkCmdDispatch(cmd, (gpuPushConstant.drawCount / 256) + 1, 1, 1);
-
-    bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    bufferBarriers[1].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-
-    bufferBarriers[0].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    bufferBarriers[1].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-
-    bufferBarriers[0].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].drawIndirectSSBO->GetVkBuffer();
-    bufferBarriers[1].buffer = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].countBuffer->GetVkBuffer();
-
-    bufferBarriers[0].size = asyncRange;
-    bufferBarriers[1].size = m_renderScene->m_drawIndirectSSBOShadowDepths[cascasdeIndex].countSize;
-
-    vkCmdPipelineBarrier(
-        cmd,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-        0,
-        0, nullptr,
-        (uint32)bufferBarriers.size(),bufferBarriers.data(),
-        0, nullptr);
 }
 
 void engine::GpuCullingPass::createPipeline()

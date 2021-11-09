@@ -75,10 +75,10 @@ bool Renderer::init()
 	// 注册RenderPasses
 	// m_renderpasses.push_back(new ShadowDepthPass(this,m_renderScene,shader_compiler,"ShadowDepth"));
 
-	m_gpuCullingPass = new GpuCullingPass(this,m_renderScene,shader_compiler, "GpuCulling");
+	m_gbufferCullingPass = new GpuCullingPass(this,m_renderScene,shader_compiler, "GbufferCulling");
 
-	m_shadowdepthPass = new ShadowDepthPass(this,m_renderScene,shader_compiler,"ShadowDepth");
-
+	m_cascasdeCullingPasses = new GpuCullingPass(this,m_renderScene,shader_compiler, "CascadeCulling");
+	m_shadowdepthPasses = new ShadowDepthPass(this,m_renderScene,shader_compiler, "CascadeDepth");
 
 	m_gbufferPass = new GBufferPass(this,m_renderScene,shader_compiler,"GBuffer");
 	m_depthEvaluateMinMaxPass = new GpuDepthEvaluateMinMaxPass(this,m_renderScene,shader_compiler, "DepthEvaluateMinMax");
@@ -92,11 +92,14 @@ bool Renderer::init()
 	m_frameData.buildPerFrameDataDescriptorSets(this);
 
 	// 接下来调用每一个Renderpass的初始化函数
-	m_shadowdepthPass->init();
-	m_gpuCullingPass->init();
+	m_gbufferCullingPass->init();
 	m_gbufferPass->init();
 	m_depthEvaluateMinMaxPass->init();
 	m_cascadeSetupPass->init();
+
+	m_cascasdeCullingPasses->init();
+	m_shadowdepthPasses->init();
+
 	m_lightingPass->init();
 	m_tonemapperPass->init();
 
@@ -136,85 +139,133 @@ void Renderer::tick(float dt)
 	m_frameData.updateFrameData(m_gpuFrameData);
 	m_renderScene->renderPrepare(m_gpuFrameData);
 
-	
-
-	VkCommandBuffer dynamicBuf = *VulkanRHI::get()->getDynamicGraphicsCmdBuf(backBufferIndex);
-
-	vkCheck(vkResetCommandBuffer(dynamicBuf,0));
-	VkCommandBufferBeginInfo cmdBeginInfo = vkCommandbufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-	vkCheck(vkBeginCommandBuffer(dynamicBuf,&cmdBeginInfo));
-
-	MeshLibrary::get()->bindIndexBuffer(dynamicBuf);
-	MeshLibrary::get()->bindVertexBuffer(dynamicBuf);
 
 	
-	m_gpuCullingPass->gbuffer_record(dynamicBuf,backBufferIndex); // gbuffer culling
+	m_gbufferCullingPass->gbuffer_record(backBufferIndex); // gbuffer culling
 
-	m_gbufferPass->dynamicRecord(dynamicBuf,backBufferIndex); // gbuffer rendering
+	m_gbufferPass->dynamicRecord(backBufferIndex); // gbuffer rendering
 
-	m_depthEvaluateMinMaxPass->record(dynamicBuf,backBufferIndex); // depth evaluate min max
+	m_depthEvaluateMinMaxPass->record(backBufferIndex); // depth evaluate min max
+	m_cascadeSetupPass->record(backBufferIndex);// cascade setup.
 
-	m_cascadeSetupPass->record(dynamicBuf,backBufferIndex);// cascade setup.
+	m_cascasdeCullingPasses->cascade_record(backBufferIndex); // cascade culling
 
-	// TODO: cascade #3 隔3帧更新一次
-	//       cascade #2 隔1帧更新一次
-	//       cascade #1 和 #0 每帧更新
-	m_gpuCullingPass->cascade_record(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_0); // cascade #0 culling
-	m_shadowdepthPass->cascadeRecord(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_0);
+	m_shadowdepthPasses->dynamicRecord(backBufferIndex); // shadow rendering
 
-	m_gpuCullingPass->cascade_record(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_1); // cascade #1 culling
-	m_shadowdepthPass->cascadeRecord(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_1);
+	m_lightingPass->dynamicRecord(backBufferIndex); // lighting pass
 
-	m_gpuCullingPass->cascade_record(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_2); // cascade #2 culling
-	m_shadowdepthPass->cascadeRecord(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_2);
+	m_tonemapperPass->dynamicRecord(backBufferIndex); // tonemapper pass
 
-	m_gpuCullingPass->cascade_record(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_3); // cascade #3 culling
-	m_shadowdepthPass->cascadeRecord(dynamicBuf,backBufferIndex, ECullIndex::CASCADE_3);
-
-	m_lightingPass->dynamicRecord(dynamicBuf,backBufferIndex);
-
-	m_tonemapperPass->dynamicRecord(dynamicBuf,backBufferIndex);
-
-	vkCheck(vkEndCommandBuffer(dynamicBuf));
 
 	uiRecord(backBufferIndex);
 	m_uiPass->renderFrame(backBufferIndex);
 
-
+// TODO: 使用 rendergraph 简化这部分
 // 提交部分
 	auto frameStartSemaphore = VulkanRHI::get()->getCurrentFrameWaitSemaphoreRef();
 	auto frameEndSemaphore = VulkanRHI::get()->getCurrentFrameFinishSemaphore();
-	auto dynamicCmdBufSemaphore = VulkanRHI::get()->getDynamicGraphicsCmdBufSemaphore(backBufferIndex);
 
 	const bool bSceneEmpty = m_renderScene->isSceneEmpty();
 
-	std::vector<VkPipelineStageFlags> waitFlags;
-	std::vector<VkSemaphore> waitSemaphores;
+	std::vector<VkPipelineStageFlags> graphicsWaitFlags = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+	std::vector<VkPipelineStageFlags> computeWaitFlags = { VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT};
 
-	waitFlags = {
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-	};
+	std::vector<VkSemaphore> waitSemaphores = {frameStartSemaphore};
 
-	waitSemaphores = {
-		frameStartSemaphore
-	};
 
-	VulkanSubmitInfo dynamicBufSubmitInfo{};
-	dynamicBufSubmitInfo.setWaitStage(waitFlags)
-		.setWaitSemaphore(waitSemaphores.data(),(uint32)waitSemaphores.size())
-		.setSignalSemaphore(&dynamicCmdBufSemaphore,1)
-		.setCommandBuffer(&dynamicBuf,1);
 
+	// 1. gbuffer culling
+	VulkanSubmitInfo gbufferCullingSubmitInfo{};
+	auto gbufferCullingSemaphore = m_gbufferCullingPass->getSemaphore(backBufferIndex);
+	VkCommandBuffer gbufferCullingBuf = m_gbufferCullingPass->getCommandBuf(backBufferIndex)->getInstance();
+	gbufferCullingSubmitInfo.setWaitStage(graphicsWaitFlags)
+		.setWaitSemaphore(waitSemaphores.data(),(uint32)waitSemaphores.size()) // 等待上一帧完成
+		.setSignalSemaphore(&gbufferCullingSemaphore,1)
+		.setCommandBuffer(&gbufferCullingBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&gbufferCullingSubmitInfo.get(),nullptr));
+
+	// 2. gbuffer rendering
+	VulkanSubmitInfo gbufferRenderingSubmitInfo{};
+	auto gbufferRenderingSemaphore = m_gbufferPass->getSemaphore(backBufferIndex);
+	VkCommandBuffer gbufferRenderingBuf = m_gbufferPass->getCommandBuf(backBufferIndex)->getInstance();
+	gbufferRenderingSubmitInfo.setWaitStage(computeWaitFlags)// 等待剔除完成
+		.setWaitSemaphore(&gbufferCullingSemaphore,1) 
+		.setSignalSemaphore(&gbufferRenderingSemaphore,1) 
+		.setCommandBuffer(&gbufferRenderingBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&gbufferRenderingSubmitInfo.get(),nullptr));
+	
+	// 3. depth evaluate min max
+	VulkanSubmitInfo depthEvaluateMinMaxSubmitInfo{};
+	auto depthEvaluateMinMaxSemaphore = m_depthEvaluateMinMaxPass->getSemaphore(backBufferIndex);
+	VkCommandBuffer depthEvaluateMinMaxBuf = m_depthEvaluateMinMaxPass->getCommandBuf(backBufferIndex)->getInstance();
+	depthEvaluateMinMaxSubmitInfo.setWaitStage(graphicsWaitFlags)
+		.setWaitSemaphore(&gbufferRenderingSemaphore,1) 
+		.setSignalSemaphore(&depthEvaluateMinMaxSemaphore,1) 
+		.setCommandBuffer(&depthEvaluateMinMaxBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&depthEvaluateMinMaxSubmitInfo.get(),nullptr));
+
+	// 4. cascade setup
+	VulkanSubmitInfo cascasdeSetupSubmitInfo{};
+	auto cascasdeSetupSemaphore = m_cascadeSetupPass->getSemaphore(backBufferIndex);
+	VkCommandBuffer cascasdeSetupBuf = m_cascadeSetupPass->getCommandBuf(backBufferIndex)->getInstance();
+	cascasdeSetupSubmitInfo.setWaitStage(computeWaitFlags)
+		.setWaitSemaphore(&depthEvaluateMinMaxSemaphore,1)
+		.setSignalSemaphore(&cascasdeSetupSemaphore,1) 
+		.setCommandBuffer(&cascasdeSetupBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&cascasdeSetupSubmitInfo.get(),nullptr));
+
+	// 5. cascade culling
+	VulkanSubmitInfo cascasdeCullingSubmitInfo{};
+	auto cascasdeCullingSemaphore = m_cascasdeCullingPasses->getSemaphore(backBufferIndex);
+	VkCommandBuffer cascasdeCullingBuf = m_cascasdeCullingPasses->getCommandBuf(backBufferIndex)->getInstance();
+	cascasdeCullingSubmitInfo.setWaitStage(computeWaitFlags)
+		.setWaitSemaphore(&cascasdeSetupSemaphore,1)
+		.setSignalSemaphore(&cascasdeCullingSemaphore,1) 
+		.setCommandBuffer(&cascasdeCullingBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&cascasdeCullingSubmitInfo.get(),nullptr));
+
+	// 6. shadow rendering
+	VulkanSubmitInfo shadowDepthSubmitInfo{};
+	auto shadowDepthSemaphore = m_shadowdepthPasses->getSemaphore(backBufferIndex);
+	VkCommandBuffer shadowDepthBuf = m_shadowdepthPasses->getCommandBuf(backBufferIndex)->getInstance();
+	shadowDepthSubmitInfo.setWaitStage(computeWaitFlags)
+		.setWaitSemaphore(&cascasdeCullingSemaphore,1)
+		.setSignalSemaphore(&shadowDepthSemaphore,1) 
+		.setCommandBuffer(&shadowDepthBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&shadowDepthSubmitInfo.get(),nullptr));
+
+	// 7. lighting
+	VulkanSubmitInfo lightingSubmitInfo{};
+	auto lightingSemaphore = m_lightingPass->getSemaphore(backBufferIndex);
+	VkCommandBuffer lightingBuf = m_lightingPass->getCommandBuf(backBufferIndex)->getInstance();
+	lightingSubmitInfo.setWaitStage(graphicsWaitFlags)
+		.setWaitSemaphore(&shadowDepthSemaphore,1)
+		.setSignalSemaphore(&lightingSemaphore,1) 
+		.setCommandBuffer(&lightingBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&lightingSubmitInfo.get(),nullptr));
+
+	// 8. tonemapping
+	VulkanSubmitInfo tonemapperSubmitInfo{};
+	auto tonemapperSemaphore = m_tonemapperPass->getSemaphore(backBufferIndex);
+	VkCommandBuffer tonemapperBuf = m_tonemapperPass->getCommandBuf(backBufferIndex)->getInstance();
+	tonemapperSubmitInfo.setWaitStage(graphicsWaitFlags)
+		.setWaitSemaphore(&lightingSemaphore,1)
+		.setSignalSemaphore(&tonemapperSemaphore,1) 
+		.setCommandBuffer(&tonemapperBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&tonemapperSubmitInfo.get(),nullptr));
+
+	// 9. imgui
 	VulkanSubmitInfo imguiPassSubmitInfo{};
 	VkCommandBuffer cmd_uiPass = m_uiPass->getCommandBuffer(backBufferIndex);
-	imguiPassSubmitInfo.setWaitStage(waitFlags)
-		.setWaitSemaphore(&dynamicCmdBufSemaphore,1)
+	imguiPassSubmitInfo.setWaitStage(graphicsWaitFlags)
+		.setWaitSemaphore(&tonemapperSemaphore,1)
 		.setSignalSemaphore(frameEndSemaphore,1)
 		.setCommandBuffer(&cmd_uiPass,1);
 
-	std::vector<VkSubmitInfo> submitInfos = { dynamicBufSubmitInfo,imguiPassSubmitInfo };
+	std::vector<VkSubmitInfo> submitInfos = { imguiPassSubmitInfo };
 
-	VulkanRHI::get()->submitAndResetFence((uint32_t)submitInfos.size(),submitInfos.data());
+	VulkanRHI::get()->resetFence();
+	VulkanRHI::get()->submit((uint32_t)submitInfos.size(),submitInfos.data());
 	m_uiPass->updateAfterSubmit();
 
 	VulkanRHI::get()->present();
@@ -222,7 +273,8 @@ void Renderer::tick(float dt)
 
 void Renderer::release()
 {
-	m_shadowdepthPass->release(); delete m_shadowdepthPass;
+	m_cascasdeCullingPasses->release(); delete m_cascasdeCullingPasses;
+	m_shadowdepthPasses->release(); delete m_shadowdepthPasses;
 
 	m_gbufferPass->release(); delete m_gbufferPass;
 	m_depthEvaluateMinMaxPass->release(); delete m_depthEvaluateMinMaxPass;
@@ -230,16 +282,12 @@ void Renderer::release()
 
 	m_lightingPass->release(); delete m_lightingPass;
 	m_tonemapperPass->release(); delete m_tonemapperPass;
+	m_gbufferCullingPass->release(); delete m_gbufferCullingPass;
 
-	m_uiPass->release();
-	m_renderScene->release();
+	m_uiPass->release(); delete m_uiPass;
+
+	m_renderScene->release(); delete m_renderScene;
 	m_frameData.release();
-	m_gpuCullingPass->release();
-
-
-	delete m_gpuCullingPass;
-	delete m_uiPass;
-	delete m_renderScene;
 
 	for(size_t i = 0; i < m_dynamicDescriptorAllocator.size(); i++)
 	{

@@ -62,8 +62,9 @@ GbufferData loadGbufferData()
     gData.ao = packGbufferEmissiveAo.w;
 
     float sampleDeviceDepth = texture(inDepth,inUV0).r;
+    
     gData.deviceDepth = sampleDeviceDepth;
-    gData.worldPos = getWorldPosition(sampleDeviceDepth,inUV0,frameData.camInvertViewProjection);
+    gData.worldPos = getWorldPosition(sampleDeviceDepth,inUV0,frameData.camInvertViewProjection); 
 
     return gData;
 }

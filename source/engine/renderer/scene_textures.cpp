@@ -16,7 +16,7 @@ static AutoCVarInt32 cVarShadowDrawDistance(
 
 VkFormat SceneTextures::getDepthStencilFormat()
 {
-    return VulkanRHI::get()->getVulkanDevice()->findDepthStencilFormat();
+    return VulkanRHI::get()->getVulkanDevice()->findDepthOnlyFormat();
 }
 
 VkSampler SceneTextures::getCascadeShadowDepthMapArraySampler()
@@ -77,10 +77,9 @@ void SceneTextures::allocate(uint32 width,uint32 height,bool forceAllocate)
         getHDRSceneColorFormat()
     );
 
-    m_depthStencilTexture = DepthStencilImage::create(
+    m_depthStencilTexture = DepthOnlyImage::create(
         VulkanRHI::get()->getVulkanDevice(),
-        width,height,
-        true // 需要采样深度图
+        width,height
     );
 
     m_finalColorTexture = RenderTexture::create(

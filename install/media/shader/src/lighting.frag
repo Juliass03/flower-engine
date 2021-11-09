@@ -63,7 +63,7 @@ GbufferData loadGbufferData()
 
     float sampleDeviceDepth = texture(inDepth,inUV0).r;
     gData.deviceDepth = clamp(sampleDeviceDepth,0.0f,1.0f);
-    gData.worldPos = getWorldPosition(sampleDeviceDepth,inUV0,frameData.camInvertViewProjection);
+    gData.worldPos = getWorldPosition(gData.deviceDepth,inUV0,frameData.camInvertViewProjection);
 
     return gData;
 }
@@ -140,8 +140,7 @@ void main()
     float directShadow = evaluateDirectShadow(gData.worldPos,gData.worldNormal,NoLSafe,cascadeIndex);
     vec3 debugCascadeColor = getCascadeDebugColor(cascadeIndex);
 
-    outHdrSceneColor.rgb = vec3(directShadow * NoLSafe + 0.05f) * gData.baseColor;
+    outHdrSceneColor.rgb = vec3(NoLSafe * directShadow + 0.05f) * gData.baseColor;
     outHdrSceneColor.a = 1.0f;
 
-    outHdrSceneColor.rgb = gData.worldPos;
 }

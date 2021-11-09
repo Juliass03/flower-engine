@@ -11,7 +11,26 @@ inline uint32_t getGroupCount(uint32_t threadCount, uint32_t localSize)
 }
 
 class Renderer;
-class GraphicsPass
+
+class PassCommon
+{
+public:
+	VkSemaphore getSemaphore(uint32 i);
+	VulkanCommandBuffer* getCommandBuf(uint32 i);
+
+protected:
+	DeletionQueue m_deletionQueue = {};
+	std::vector<VulkanCommandBuffer*> m_commandbufs = {};
+	std::vector<VkSemaphore> m_semaphore = {};
+
+	void createCommandBuffersAndSemaphore();
+	void releaseCommandBuffersAndSemaphore();
+
+	void commandBufBegin(uint32 index);
+	void commandBufEnd(uint32 index);
+};
+
+class GraphicsPass : public PassCommon
 {
 public:
 	GraphicsPass() = delete;
@@ -24,7 +43,8 @@ public:
 	void release();
 
 	VkRenderPass getRenderpass() { return m_renderpass; }
-	virtual void dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIndex) = 0;
+	virtual void dynamicRecord(uint32 backBufferIndex) = 0;
+
 
 private:
 	std::string m_passName;
@@ -36,7 +56,6 @@ protected:
 	Ref<shaderCompiler::ShaderCompiler> m_shaderCompiler;
 	Ref<Renderer> m_renderer;
 	Ref<RenderScene> m_renderScene;
-	DeletionQueue m_deletionQueue = {};
 	
 	virtual void beforeSceneTextureRecreate() = 0;
 	virtual void afterSceneTextureRecreate() = 0;
@@ -46,7 +65,7 @@ public:
 	bool isPassType(shaderCompiler::EShaderPass type) { return m_passType == type; }
 };
 
-class ComputePass
+class ComputePass : public PassCommon
 {
 public:
 	ComputePass() = delete;
@@ -65,7 +84,6 @@ protected:
 	Ref<shaderCompiler::ShaderCompiler> m_shaderCompiler;
 	Ref<Renderer> m_renderer;
 	Ref<RenderScene> m_renderScene;
-	DeletionQueue m_deletionQueue = {};
 
 	virtual void beforeSceneTextureRecreate() = 0;
 	virtual void afterSceneTextureRecreate() = 0;

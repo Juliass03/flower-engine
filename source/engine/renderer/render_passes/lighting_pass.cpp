@@ -30,8 +30,11 @@ void engine::LightingPass::afterSceneTextureRecreate()
     createPipeline();
 }
 
-void engine::LightingPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIndex)
+void engine::LightingPass::dynamicRecord(uint32 backBufferIndex)
 {
+    VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
+    commandBufBegin(backBufferIndex);
+
     auto sceneTextureExtent = m_renderScene->getSceneTextures().getHDRSceneColor()->getExtent();
     VkExtent2D sceneTextureExtent2D{};
     sceneTextureExtent2D.width = sceneTextureExtent.width;
@@ -110,6 +113,8 @@ void engine::LightingPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferI
     vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,m_pipelines[backBufferIndex]);
     vkCmdDraw(cmd, 3, 1, 0, 0);
     vkCmdEndRenderPass(cmd);
+
+    commandBufEnd(backBufferIndex);
 }
 
 void engine::LightingPass::createRenderpass()
@@ -229,8 +234,8 @@ void engine::LightingPass::createPipeline()
         gbufferEmissiveAoImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
 
         VkDescriptorImageInfo depthStencilImage = {};
-        depthStencilImage.imageLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
-        depthStencilImage.imageView = ((DepthStencilImage*)(m_renderScene->getSceneTextures().getDepthStencil()))->getDepthOnlyImageView();
+        depthStencilImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        depthStencilImage.imageView = m_renderScene->getSceneTextures().getDepthStencil()->getImageView();
         depthStencilImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
 
 		VkDescriptorImageInfo shadowDepthArrayImages = {};

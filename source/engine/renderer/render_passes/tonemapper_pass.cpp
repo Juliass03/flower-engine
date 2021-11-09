@@ -29,8 +29,11 @@ void engine::TonemapperPass::afterSceneTextureRecreate()
     createPipeline();
 }
 
-void engine::TonemapperPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIndex)
+void engine::TonemapperPass::dynamicRecord(uint32 backBufferIndex)
 {
+    VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
+    commandBufBegin(backBufferIndex);
+
     auto sceneTextureExtent = m_renderScene->getSceneTextures().getLDRSceneColor()->getExtent();
     VkExtent2D sceneTextureExtent2D{};
     sceneTextureExtent2D.width = sceneTextureExtent.width;
@@ -89,6 +92,8 @@ void engine::TonemapperPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBuffe
     vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,m_pipelines[backBufferIndex]);
     vkCmdDraw(cmd, 3, 1, 0, 0);
     vkCmdEndRenderPass(cmd);
+
+    commandBufEnd(backBufferIndex);
 }
 
 void engine::TonemapperPass::createRenderpass()

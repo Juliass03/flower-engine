@@ -41,10 +41,11 @@ public:
 	virtual void beforeSceneTextureRecreate() override;
 	virtual void afterSceneTextureRecreate() override;
 
-	virtual void dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIndex) override { }
-	void cascadeRecord(VkCommandBuffer& cmd,uint32 backBufferIndex, ECullIndex);
+	virtual void dynamicRecord(uint32 backBufferIndex) override;
+	
 private:
 	std::vector<std::vector<VkFramebuffer>> m_cascadeFramebuffers = {};
+	void cascadeRecord(VkCommandBuffer cmd,uint32 backBufferIndex, ECullIndex);
 
 private:
 	bool bInitPipeline = false;

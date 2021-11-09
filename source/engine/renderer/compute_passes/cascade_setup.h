@@ -20,7 +20,7 @@ namespace engine{
 		virtual void beforeSceneTextureRecreate() override;
 		virtual void afterSceneTextureRecreate() override;
 
-		void record(VkCommandBuffer& cmd,uint32 backBufferIndex);
+		void record(uint32 backBufferIndex);
 		void barrierUseStart();
 		void barrierUseEnd();
 

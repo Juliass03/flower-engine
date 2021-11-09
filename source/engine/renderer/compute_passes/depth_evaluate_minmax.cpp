@@ -29,60 +29,16 @@ void engine::GpuDepthEvaluateMinMaxPass::afterSceneTextureRecreate()
 	createPipeline();
 }
 
-void engine::GpuDepthEvaluateMinMaxPass::record(VkCommandBuffer& cmd,uint32 backBufferIndex)
+void engine::GpuDepthEvaluateMinMaxPass::record(uint32 backBufferIndex)
 {
-	if(m_renderScene->isSceneEmpty())
-	{
-		return;
-	}
-
-	// Need gbuffer depth.
-	// Need depth min max buffer. 
-	std::array<VkImageMemoryBarrier,1> imageBarriers {};
-	imageBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-
-	imageBarriers[0].image = m_renderScene->getSceneTextures().getDepthStencil()->getImage();
-	imageBarriers[0].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	imageBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	imageBarriers[0].subresourceRange.levelCount = 1;
-	imageBarriers[0].subresourceRange.layerCount = 1;
-	imageBarriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-	imageBarriers[0].oldLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
-	imageBarriers[0].newLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL; 
-
-	vkCmdPipelineBarrier(
-		cmd,
-		VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		0,
-		0, nullptr,
-		0, nullptr,
-		(uint32)imageBarriers.size(), imageBarriers.data()
-	);
-
-
-	std::array<VkBufferMemoryBarrier,1> bufferBarriers {};
-	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
+	commandBufBegin(backBufferIndex);
 
 	GpuDepthEvaluateMinMaxPushConstant gpuPushConstant = {};
 	auto depthImageExtent = m_renderScene->getSceneTextures().getDepthStencil()->getExtent();
 	gpuPushConstant.imageSize.x = float(depthImageExtent.width);
 	gpuPushConstant.imageSize.y = float(depthImageExtent.height);
 
-	VkDeviceSize asyncRange = m_renderScene->m_evaluateDepthMinMax.size;
-	bufferBarriers[0].buffer = m_renderScene->m_evaluateDepthMinMax.buffer->GetVkBuffer();
-	bufferBarriers[0].size = asyncRange;
-	bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-
-	vkCmdPipelineBarrier(
-		cmd,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		0,
-		0,nullptr,
-		(uint32)bufferBarriers.size(),bufferBarriers.data(),
-		0,nullptr);
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelines[backBufferIndex]);
 
@@ -111,35 +67,7 @@ void engine::GpuDepthEvaluateMinMaxPass::record(VkCommandBuffer& cmd,uint32 back
 		1
 	);
 
-
-	imageBarriers[0].image = m_renderScene->getSceneTextures().getDepthStencil()->getImage();
-	imageBarriers[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	imageBarriers[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	imageBarriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-	vkCmdPipelineBarrier(
-		cmd,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-		0,
-		0, nullptr,
-		0, nullptr,
-		(uint32)imageBarriers.size(), imageBarriers.data()
-	);
-
-	bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	bufferBarriers[0].buffer = m_renderScene->m_evaluateDepthMinMax.buffer->GetVkBuffer();
-	bufferBarriers[0].size = asyncRange;
-
-	vkCmdPipelineBarrier(
-		cmd,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		0,
-		0, nullptr,
-		(uint32)bufferBarriers.size(),bufferBarriers.data(),
-		0, nullptr);
+	commandBufEnd(backBufferIndex);
 }
 
 void engine::GpuDepthEvaluateMinMaxPass::createPipeline()
@@ -153,8 +81,8 @@ void engine::GpuDepthEvaluateMinMaxPass::createPipeline()
 	for(uint32 index = 0; index < backBufferCount; index++)
 	{
 		VkDescriptorImageInfo depthStencilImage = {};
-		depthStencilImage.imageLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
-		depthStencilImage.imageView = ((DepthStencilImage*)(m_renderScene->getSceneTextures().getDepthStencil()))->getDepthOnlyImageView();
+		depthStencilImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		depthStencilImage.imageView = m_renderScene->getSceneTextures().getDepthStencil()->getImageView();;
 		depthStencilImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
 
 		m_renderer->vkDynamicDescriptorFactoryBegin(index)

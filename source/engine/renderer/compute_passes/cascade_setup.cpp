@@ -39,12 +39,10 @@ void engine::GpuCascadeSetupPass::afterSceneTextureRecreate()
 	createPipeline();
 }
 
-void engine::GpuCascadeSetupPass::record(VkCommandBuffer& cmd,uint32 backBufferIndex)
+void engine::GpuCascadeSetupPass::record(uint32 backBufferIndex)
 {
-	if(m_renderScene->isSceneEmpty())
-	{
-		return;
-	}
+	VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
+	commandBufBegin(backBufferIndex);
 
 	GpuCascadeSetupPushConstant gpuPushConstant = {}; 
 	static auto* cVarShadowMapSize = CVarSystem::get()->getInt32CVar("r.Shadow.ShadowMapSize");
@@ -52,23 +50,6 @@ void engine::GpuCascadeSetupPass::record(VkCommandBuffer& cmd,uint32 backBufferI
 	gpuPushConstant.reverseZ = reverseZOpen();
 	gpuPushConstant.bFixCascade = cVarFixCascade.get() != 0;
 	gpuPushConstant.shadowMapSize = float(*cVarShadowMapSize);
-
-	std::array<VkBufferMemoryBarrier,1> bufferBarriers {};
-	bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	VkDeviceSize asyncRange0 = m_renderScene->m_cascadeSetupBuffer.size;
-	bufferBarriers[0].buffer = m_renderScene->m_cascadeSetupBuffer.buffer->GetVkBuffer();
-	bufferBarriers[0].size = asyncRange0;
-	bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-
-	vkCmdPipelineBarrier(
-		cmd,
-		VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		0,
-		0,nullptr,
-		(uint32)bufferBarriers.size(),bufferBarriers.data(),
-		0,nullptr);
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelines[backBufferIndex]);
 
@@ -94,19 +75,7 @@ void engine::GpuCascadeSetupPass::record(VkCommandBuffer& cmd,uint32 backBufferI
 
 	vkCmdDispatch(cmd, 1, 1, 1);
 
-	bufferBarriers[0].buffer = m_renderScene->m_cascadeSetupBuffer.buffer->GetVkBuffer();
-	bufferBarriers[0].size = asyncRange0;
-	bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-	vkCmdPipelineBarrier(
-		cmd,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-		0,
-		0, nullptr,
-		(uint32)bufferBarriers.size(),bufferBarriers.data(),
-		0, nullptr);
+	commandBufEnd(backBufferIndex);
 }
 
 void engine::GpuCascadeSetupPass::barrierUseStart()

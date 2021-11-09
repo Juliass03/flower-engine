@@ -34,8 +34,11 @@ void engine::GBufferPass::afterSceneTextureRecreate()
     createPipeline();
 }
 
-void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIndex)
+void engine::GBufferPass::dynamicRecord(uint32 backBufferIndex)
 {
+    VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
+    commandBufBegin(backBufferIndex);
+
     auto sceneTextureExtent = m_renderScene->getSceneTextures().getHDRSceneColor()->getExtent();
     VkExtent2D sceneTextureExtent2D{};
     sceneTextureExtent2D.width = sceneTextureExtent.width;
@@ -71,8 +74,13 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
         vkCmdSetViewport(cmd,0,1,&viewport);
         vkCmdSetDepthBias(cmd,0,0,0);
         vkCmdEndRenderPass(cmd);
+
+        commandBufEnd(backBufferIndex);
         return;
     }
+
+    MeshLibrary::get()->bindIndexBuffer(cmd);
+	MeshLibrary::get()->bindVertexBuffer(cmd);
 
     vkCmdBeginRenderPass(cmd,&rpInfo,VK_SUBPASS_CONTENTS_INLINE);
 
@@ -110,6 +118,8 @@ void engine::GBufferPass::dynamicRecord(VkCommandBuffer& cmd,uint32 backBufferIn
     );
 
     vkCmdEndRenderPass(cmd);
+
+    commandBufEnd(backBufferIndex);
 }
 
 void engine::GBufferPass::createRenderpass()
@@ -142,10 +152,10 @@ void engine::GBufferPass::createRenderpass()
     attachmentDescs[depthAttachmentIndex].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescs[depthAttachmentIndex].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDescs[depthAttachmentIndex].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachmentDescs[depthAttachmentIndex].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachmentDescs[depthAttachmentIndex].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescs[depthAttachmentIndex].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescs[depthAttachmentIndex].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDescs[depthAttachmentIndex].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
-    attachmentDescs[depthAttachmentIndex].finalLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
+    attachmentDescs[depthAttachmentIndex].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     std::vector<VkAttachmentReference> colorReferences;
     colorReferences.push_back({ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
