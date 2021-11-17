@@ -9,4 +9,4 @@
 - Gpu Driven Rendering Pipeline.
 - Bindless Material System.
 - PBS Shading System.
-- Sample Distribution Shadow Maps.
+- Gpu Dispatch Sample Distribution Shadow Maps.
