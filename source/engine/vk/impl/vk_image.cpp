@@ -87,6 +87,9 @@ void VulkanImage::transitionLayout(VkCommandBuffer cb,VkImageLayout newLayout,Vk
     case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
         srcMask = VK_ACCESS_SHADER_READ_BIT;
         break;
+    case VK_IMAGE_LAYOUT_GENERAL:
+        srcMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        break;
     default:
         LOG_GRAPHICS_FATAL("Image layout transition no support.");
         srcMask = 0;
@@ -589,7 +592,7 @@ DepthOnlyTextureArray* DepthOnlyTextureArray::create(VulkanDevice* device,uint32
     return ret;
 }
 
-RenderTexture* RenderTexture::create(VulkanDevice* device,uint32_t width,uint32_t height,VkFormat format)
+RenderTexture* RenderTexture::create(VulkanDevice* device,uint32_t width,uint32_t height,VkFormat format,VkImageUsageFlags usage)
 {
     RenderTexture* ret = new RenderTexture();
 
@@ -605,7 +608,7 @@ RenderTexture* RenderTexture::create(VulkanDevice* device,uint32_t width,uint32_
     info.arrayLayers = 1;
     info.samples = VK_SAMPLE_COUNT_1_BIT;
     info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    info.usage = usage;
     info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     info.queueFamilyIndexCount = 0;
     info.pQueueFamilyIndices = nullptr;
@@ -625,6 +628,76 @@ void VulkanImageArray::InitViews(const std::vector<VkImageViewCreateInfo> infos)
     }
     
     bInitArrayViews = true;
+}
+
+RenderTextureCube* RenderTextureCube::create(
+    VulkanDevice* device,
+    uint32_t width,
+    uint32_t height,
+    uint32_t mipmapLevels,
+    VkFormat format,
+    VkImageUsageFlags usage,
+    bool bCreateViewsForMips)
+{
+    RenderTextureCube* ret = new RenderTextureCube();
+
+    uint32_t trueMipmapLevels = mipmapLevels == -1 ? getMipLevelsCount(width,height) : mipmapLevels;
+
+    VkImageCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO; 
+    info.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT; // cube map 
+    info.imageType = VK_IMAGE_TYPE_2D;
+    info.format = format;
+    info.extent =  { width, height, 1 };
+    info.mipLevels = trueMipmapLevels;
+    info.arrayLayers = 6; // cubemap has 6 layers
+    info.samples = VK_SAMPLE_COUNT_1_BIT;
+    info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    info.usage = usage;
+    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    info.queueFamilyIndexCount = 0;
+    info.pQueueFamilyIndices = nullptr;
+    info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    ret->VulkanImage::create(device, info,VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, false);
+
+    if(bCreateViewsForMips)
+    {
+		std::vector<VkImageViewCreateInfo> viewsInfo;
+		viewsInfo.resize(trueMipmapLevels);
+		for(uint32 index = 0; index < trueMipmapLevels; index++)
+		{
+			VkImageViewCreateInfo viewInfo{};
+			viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+			viewInfo.format = info.format;
+			viewInfo.subresourceRange = {};
+			viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			viewInfo.subresourceRange.baseMipLevel = index;
+			viewInfo.subresourceRange.levelCount = 1;
+			viewInfo.subresourceRange.baseArrayLayer = 0;
+			viewInfo.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+			viewInfo.image = ret->m_image;
+			viewsInfo[index] = viewInfo;
+		}
+
+        ret->m_perMipmapTextureView.resize(viewsInfo.size());
+		for(uint32 index = 0; index < viewsInfo.size(); index++)
+		{
+            ret->m_perMipmapTextureView[index] = VK_NULL_HANDLE;
+			vkCheck(vkCreateImageView(VulkanRHI::get()->getDevice(),&viewsInfo[index],nullptr,& ret->m_perMipmapTextureView[index]));
+		}
+
+        ret->bInitMipmapViews = true;
+    }
+
+    return ret;
+}
+
+VkImageView RenderTextureCube::getMipmapView(uint32 level)
+{
+    CHECK(level < m_createInfo.mipLevels && bInitMipmapViews);
+
+    return m_perMipmapTextureView[level];
 }
 
 }

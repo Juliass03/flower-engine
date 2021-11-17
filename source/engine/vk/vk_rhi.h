@@ -126,9 +126,9 @@ public:
     }
     VulkanDescriptorLayoutCache& getDescriptorLayoutCache() { return m_descriptorLayoutCache; }
     VulkanShaderCache& getShaderCache() { return m_shaderCache; }
-    VulkanShaderModule* getShader(const std::string& path);
-    VkShaderModule getVkShader(const std::string& path);
-    void addShaderModule(const std::string& path);
+    VulkanShaderModule* getShader(const std::string& path,bool bReload = false);
+    VkShaderModule getVkShader(const std::string& path,bool bReload = false);
+    void addShaderModule(const std::string& path,bool bReload = false);
     const uint32 getCurrentFrameIndex() { return m_currentFrame; }
     VkSemaphore* getCurrentFrameWaitSemaphore() { return &m_semaphoresImageAvailable[m_currentFrame]; }
     VkSemaphore getCurrentFrameWaitSemaphoreRef() { return m_semaphoresImageAvailable[m_currentFrame]; }

@@ -21,8 +21,6 @@ namespace engine{
 		virtual void afterSceneTextureRecreate() override;
 
 		void record(uint32 backBufferIndex);
-		void barrierUseStart();
-		void barrierUseEnd();
 
 	private:
 		bool bInitPipeline = false;

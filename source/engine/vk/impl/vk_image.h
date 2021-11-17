@@ -141,7 +141,40 @@ namespace engine{
         RenderTexture() = default;
     public:
         virtual ~RenderTexture() = default;
-        static RenderTexture* create(VulkanDevice*device,uint32_t width,uint32_t height,VkFormat format);
+        static RenderTexture* create(VulkanDevice*device,uint32_t width,uint32_t height,VkFormat format,VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+    };
+
+    class RenderTextureCube : public VulkanImage
+    {
+        RenderTextureCube() = default;
+        bool bInitMipmapViews = false;
+		std::vector<VkImageView> m_perMipmapTextureView{};
+		void release()
+		{
+			for(auto& view : m_perMipmapTextureView)
+			{
+                CHECK(bInitMipmapViews);
+				vkDestroyImageView(*m_device,view,nullptr);
+			}
+		}
+    public:
+        virtual ~RenderTextureCube() 
+        {
+            release();
+        }
+        static RenderTextureCube* create(
+            VulkanDevice*device,
+            uint32_t width,
+            uint32_t height,
+            uint32_t mipmapLevels,
+            VkFormat format,
+            VkImageUsageFlags usage = 
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | 
+                VK_IMAGE_USAGE_SAMPLED_BIT,
+            bool bCreateViewsForMips = false
+         );
+
+        VkImageView getMipmapView(uint32 level);
     };
 
 }

@@ -100,17 +100,18 @@ public:
 
     VulkanDescriptorFactory& bindBuffer(uint32_t binding,VkDescriptorBufferInfo* bufferInfo,VkDescriptorType type,VkShaderStageFlags stageFlags);
     VulkanDescriptorFactory& bindImage(uint32_t binding,VkDescriptorImageInfo*,VkDescriptorType type,VkShaderStageFlags stageFlags);
-
+    VulkanDescriptorFactory& bindImages(uint32_t binding,uint32_t count,VkDescriptorImageInfo*,VkDescriptorType type,VkShaderStageFlags stageFlags);
     bool build(VulkanDescriptorSetReference& set,VulkanDescriptorLayoutReference& layout);
     bool build(VulkanDescriptorSetReference& set);
     bool build(VkDescriptorSet* set);
 private:
     struct DescriptorWriteContainer
     {
-        VkDescriptorImageInfo imgInfo;
-        VkDescriptorBufferInfo bufInfo;
+        VkDescriptorImageInfo* imgInfo;
+        VkDescriptorBufferInfo* bufInfo;
         uint32 binding;
         VkDescriptorType type;
+        uint32 count;
         bool isImg = false;
     };
 

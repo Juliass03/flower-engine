@@ -1,0 +1,61 @@
+#version 460
+#extension GL_EXT_nonuniform_qualifier : require
+
+const vec2 cubemapSize = vec2(1024.0, 1024.0);
+layout (local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+
+layout (set = 0, binding = 0, rgba16f) uniform writeonly imageCube envCube;
+layout (set = 1, binding = 0) uniform sampler2D BindlessSampler2D[];
+
+struct GPUPushConstants
+{
+	uint envId;
+	float exposure;
+};	
+
+layout(push_constant) uniform block
+{   
+   GPUPushConstants constants;
+};
+
+vec3 sampleEnvColor(uint id,vec2 uv)
+{
+	vec3 hdrColor = textureLod(BindlessSampler2D[nonuniformEXT(id)],uv,0.0).rgb;
+	return vec3(1.0) - exp(-hdrColor * constants.exposure);
+}
+
+vec3 cubeCoordToWorld(ivec3 cubeCoord, vec2 cubemapSize)
+{
+	vec2 texCoord = vec2(cubeCoord.xy) / cubemapSize;
+	texCoord = texCoord  * 2.0 - 1.0; // -1..1
+	switch(cubeCoord.z)
+	{
+		case 0: return vec3( 1.0, -texCoord.yx);               // +X
+		case 1: return vec3(-1.0, -texCoord.y, texCoord.x);    // -X
+		case 2: return vec3( texCoord.x,   1.0,  texCoord.y);  // +Y
+		case 3: return vec3( texCoord.x,  -1.0, -texCoord.y);  // -Y
+		case 4: return vec3( texCoord.x,  -texCoord.y, 1.0);   // +Z
+		case 5: return vec3(-texCoord.xy, -1.0);               // -Z
+	}
+	return vec3(0.0);
+}
+
+vec2 SampleSphericalMap(vec3 v)
+{
+	const vec2 invAtan = vec2(0.1591, 0.3183);
+    vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
+    uv *= invAtan;
+    uv += 0.5;
+    return uv;
+}
+
+void main()
+{
+	ivec3 cubeCoord = ivec3(gl_GlobalInvocationID);
+  	vec3 worldPos = cubeCoordToWorld(cubeCoord, cubemapSize);
+  	vec2 sphericalMapUV = SampleSphericalMap(normalize(worldPos));
+	vec4 outColor;
+    outColor.xyz = sampleEnvColor(constants.envId,sphericalMapUV);
+    outColor.w = 1.0f;
+	imageStore(envCube, cubeCoord, outColor);
+}

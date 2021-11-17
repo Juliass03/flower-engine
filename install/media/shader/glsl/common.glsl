@@ -48,6 +48,7 @@ struct OutIndirectDrawCount
 
 struct CascadeInfo
 {
+    float splitPosition;
     mat4 cascadeViewProjMatrix;
 };
 

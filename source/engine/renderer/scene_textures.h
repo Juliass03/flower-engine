@@ -17,17 +17,27 @@ private:
 	VulkanImage* m_depthStencilTexture;      // DepthStencil Texture.
 	VulkanImage* m_finalColorTexture;        // LDR SceneColor Texture. R8G8B8A8 
 
+	VulkanImage* m_brdflutTexture; // R16G16
+
+	VulkanImage* m_irradiancePrefilterTextureCube; // R16G16B16A16
+	VulkanImage* m_specularPrefilterTextureCube; // R16G16B16A16
+
+#if 0
+	VulkanImage* m_envTextureCube; // R16G16B16A16
+#endif
 
 	// Cascade shadow texture array.
 	DepthOnlyTextureArray* m_cascadeShadowDepthMapArray;
 
 	bool m_init = false;
+	bool m_needPrepareTexture = true;
+
 	uint32 m_cacheSceneWidth = ScreenTextureInitSize;
 	uint32 m_cacheSceneHeight = ScreenTextureInitSize;
 
 public:
 	SceneTextures() = default;
-	~SceneTextures() { release(); }
+	~SceneTextures() { release(true); }
 
 	static VkFormat getHDRSceneColorFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
 	static VkFormat getDepthStencilFormat();
@@ -36,11 +46,19 @@ public:
 	static VkFormat getGbufferNormalMetalFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
 	static VkFormat getGbufferEmissiveAoFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
 
+	static VkFormat getIrradiancePrefilterCubeFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
+	static VkFormat getSpecularPrefilterCubeFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
+	static VkFormat getBRDFLutFormat() { return VK_FORMAT_R16G16_SFLOAT; }
+
+	static uint32 getBRDFLutDim() { return 512; }
+	static uint32 getPrefilterCubeDim() { return 128; }
+	static uint32 getSpecularPrefilterCubeDim() { return 1024; }
+
 	DepthOnlyTextureArray* getCascadeShadowDepthMapArray(){return m_cascadeShadowDepthMapArray;}
 	VkSampler getCascadeShadowDepthMapArraySampler();
 
 	void allocate(uint32 width,uint32 height,bool forceAllocate = false);
-	void release();
+	void release(bool bAll = false);
 
 	Ref<VulkanImage> getHDRSceneColor() { return m_sceneColorTexture; }
 	Ref<VulkanImage> getDepthStencil() { return m_depthStencilTexture; }
@@ -48,6 +66,15 @@ public:
 	Ref<VulkanImage> getGbufferBaseColorRoughness() { return m_gbufferBaseColorRoughness; }
 	Ref<VulkanImage> getGbufferNormalMetal() { return m_gbufferNormalMetal; }
 	Ref<VulkanImage> getGbufferEmissiveAo() { return m_gbufferEmissiveAo; }
+	Ref<VulkanImage> getBRDFLut() { return m_brdflutTexture; }
+	Ref<VulkanImage> getIrradiancePrefilterCube() { return m_irradiancePrefilterTextureCube; }
+	Ref<VulkanImage> getSpecularPrefilterCube() { return m_specularPrefilterTextureCube; }
+
+#if 0
+	Ref<VulkanImage> getEnvCube() { return m_envTextureCube; }
+	static uint32 getEnvCubeDim() { return 1024; }
+	static VkFormat getEnvCubeFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
+#endif
 
 	uint32 getWidth() { return m_cacheSceneWidth; };
 	uint32 getHeight() { return m_cacheSceneHeight; };

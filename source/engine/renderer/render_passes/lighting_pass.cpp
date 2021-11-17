@@ -243,12 +243,30 @@ void engine::LightingPass::createPipeline()
 		shadowDepthArrayImages.imageView = m_renderScene->getSceneTextures().getCascadeShadowDepthMapArray()->getImageView();
 		shadowDepthArrayImages.sampler =  m_renderScene->getSceneTextures().getCascadeShadowDepthMapArraySampler();
 
+        VkDescriptorImageInfo BRDFLutImage = {};
+        BRDFLutImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        BRDFLutImage.imageView = m_renderScene->getSceneTextures().getBRDFLut()->getImageView();
+        BRDFLutImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
+
+        VkDescriptorImageInfo IrradianceCubeImage = {};
+        IrradianceCubeImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        IrradianceCubeImage.imageView = m_renderScene->getSceneTextures().getIrradiancePrefilterCube()->getImageView();
+        IrradianceCubeImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
+
+        VkDescriptorImageInfo SpecularCubeImage = {};
+        SpecularCubeImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        SpecularCubeImage.imageView = m_renderScene->getSceneTextures().getSpecularPrefilterCube()->getImageView();
+        SpecularCubeImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
+
         m_renderer->vkDynamicDescriptorFactoryBegin(index)
             .bindImage(0,&gbufferBaseColorRoughnessImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .bindImage(1,&gbufferNormalMetalImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .bindImage(2,&gbufferEmissiveAoImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,  VK_SHADER_STAGE_FRAGMENT_BIT)
             .bindImage(3,&depthStencilImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .bindImage(4,&shadowDepthArrayImages,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .bindImage(5,&BRDFLutImage,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .bindImage(6,&IrradianceCubeImage, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .bindImage(7,&SpecularCubeImage, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build(m_lightingPassDescriptorSets[index],m_lightingPassDescriptorSetLayouts[index]);
     }
 

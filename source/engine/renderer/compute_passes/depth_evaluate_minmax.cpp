@@ -115,7 +115,7 @@ void engine::GpuDepthEvaluateMinMaxPass::createPipeline()
 
 		m_pipelineLayouts[index] = VulkanRHI::get()->createPipelineLayout(plci);
 
-		auto* shaderModule = VulkanRHI::get()->getShader("media/shader/fallback/bin/evaluateDepthMinMax.comp.spv");
+		auto* shaderModule = VulkanRHI::get()->getShader("media/shader/fallback/bin/evaluateDepthMinMax.comp.spv",true);
 		VkPipelineShaderStageCreateInfo shaderStageCI{};
 		shaderStageCI.module = shaderModule->GetModule();
 		shaderStageCI.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

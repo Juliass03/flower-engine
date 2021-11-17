@@ -54,9 +54,16 @@ void main()
     // So don't care about border case here.
     vec2 sampleUV = (vec2(pos) + vec2(0.5)) / pushConstant.imageSize; 
 
-	float depth = clamp(texture(inDepthImage, sampleUV).x, 0.0f, 1.0f);
+	float depth = texture(inDepthImage, sampleUV).x;
 
-    DepthContainer[linearIndex] = vec2(depth,depth);
+    if(depth < 0.000001f || depth > 0.999999f)
+    {
+        DepthContainer[linearIndex] = vec2(SCALE_UINT_7u + 10u,0);
+    }
+    else
+    {
+       DepthContainer[linearIndex] = vec2(depth,depth);
+    }
 
     groupMemoryBarrier();
     barrier();

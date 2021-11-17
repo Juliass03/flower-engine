@@ -32,7 +32,7 @@ glm::vec4 engine::DirectionalLight::getDirection()
 
 glm::vec4 engine::DirectionalLight::getColor()
 {
-	return m_color;
+	return m_color; 
 }
 
 void engine::DirectionalLight::setColor(glm::vec4 newColor)

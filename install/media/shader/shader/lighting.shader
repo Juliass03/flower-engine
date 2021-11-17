@@ -1,5 +1,5 @@
 shader Engine/Lighting 
-pass Lighting 
-  
-vert :/src/fullscreen.vert           
-frag :/src/lighting.frag       
+pass Lighting       
+             
+vert :/src/fullscreen.vert                                                                                                      
+frag :/src/lighting.frag                          

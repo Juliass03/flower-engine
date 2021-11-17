@@ -106,6 +106,47 @@ void SceneTextures::allocate(uint32 width,uint32 height,bool forceAllocate)
         getGbufferNormalMetalFormat()
     );
 
+    if(m_needPrepareTexture)
+    {
+        m_brdflutTexture = RenderTexture::create(
+            VulkanRHI::get()->getVulkanDevice(),
+            getBRDFLutDim(),
+            getBRDFLutDim(),
+            getBRDFLutFormat(),
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
+        );
+
+        m_irradiancePrefilterTextureCube = RenderTextureCube::create(
+            VulkanRHI::get()->getVulkanDevice(),
+            getPrefilterCubeDim(),
+            getPrefilterCubeDim(),
+            1,
+            getIrradiancePrefilterCubeFormat(),
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
+        );
+
+        m_specularPrefilterTextureCube = RenderTextureCube::create(
+			VulkanRHI::get()->getVulkanDevice(),
+			getSpecularPrefilterCubeDim(),
+            getSpecularPrefilterCubeDim(),
+			-1,
+			getSpecularPrefilterCubeFormat(),
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_STORAGE_BIT,
+            true
+        );
+
+#if 0
+        m_envTextureCube = RenderTextureCube::create(
+            VulkanRHI::get()->getVulkanDevice(),
+            getEnvCubeDim(),
+            getEnvCubeDim(),
+            1,
+            getEnvCubeFormat(),
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
+        );
+#endif
+    }
+
 	static int32* singleShadowMapSizePtr = CVarSystem::get()->getInt32CVar("r.Shadow.ShadowMapSize");
     uint32 singleShadowMapWidth  = uint32(*singleShadowMapSizePtr);
     uint32 singleShadowMapHeight = uint32(*singleShadowMapSizePtr);
@@ -126,10 +167,28 @@ void SceneTextures::allocate(uint32 width,uint32 height,bool forceAllocate)
     LOG_GRAPHICS_TRACE("Reallocate scene textures with width: {0}, height: {1}.",width,height);
 
     m_init = true;
+    m_needPrepareTexture = false; // Only prepare once.
 }
 
-void SceneTextures::release()
+void SceneTextures::release(bool bAll)
 {
+    if(bAll)
+    {
+        CHECK(m_needPrepareTexture == false);
+
+        CHECK(m_brdflutTexture);
+        CHECK(m_irradiancePrefilterTextureCube);
+        CHECK(m_specularPrefilterTextureCube);
+
+        delete m_brdflutTexture;
+        delete m_irradiancePrefilterTextureCube;
+        delete m_specularPrefilterTextureCube;
+#if 0
+        CHECK(m_envTextureCube);
+        delete m_envTextureCube;
+#endif
+    }
+
     if(!m_init)
     {
         return;
@@ -141,7 +200,6 @@ void SceneTextures::release()
     delete m_gbufferBaseColorRoughness;
     delete m_gbufferEmissiveAo;
     delete m_gbufferNormalMetal;
-
     delete m_cascadeShadowDepthMapArray;
 
     m_init = false;

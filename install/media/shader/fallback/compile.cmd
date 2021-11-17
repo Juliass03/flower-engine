@@ -1,17 +1,7 @@
-glslc.exe src/fullscreen.vert -o bin/tonemapper.vert.spv
-glslc.exe src/tonemapper.frag -o bin/tonemapper.frag.spv
-
-glslc.exe src/fullscreen.vert -o bin/lighting.vert.spv
-glslc.exe src/lighting.frag -o bin/lighting.frag.spv
-
-glslc.exe src/depth.vert -o bin/depth.vert.spv
-glslc.exe src/depth.frag -o bin/depth.frag.spv
-
-glslc.exe src/gbuffer.vert -o bin/gbuffer.vert.spv
-glslc.exe src/gbuffer.frag -o bin/gbuffer.frag.spv
-
 glslc.exe src/gpuculling.comp -o bin/gpuculling.comp.spv
-
 glslc.exe src/evaluateDepthMinMax.comp -o bin/evaluateDepthMinMax.comp.spv
-
 glslc.exe src/cascadeShadowSetup.comp -o bin/cascadeShadowSetup.comp.spv
+glslc.exe src/brdflut.comp -o bin/brdflut.comp.spv
+glslc.exe src/irradiancecube.comp -o bin/irradiancecube.comp.spv
+glslc.exe src/hdri2cubemap.comp -o bin/hdri2cubemap.comp.spv
+glslc.exe src/prefilterspecularcube.comp -o bin/prefilterspecularcube.comp.spv

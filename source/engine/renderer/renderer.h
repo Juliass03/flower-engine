@@ -12,6 +12,7 @@ extern bool  reverseZOpen();
 extern float getEngineClearZFar();
 extern float getEngineClearZNear();
 extern VkCompareOp getEngineZTestFunc();
+extern float getExposure();
 
 class GraphicsPass;
 class GpuCullingPass;
@@ -81,6 +82,9 @@ public:
 
 	GraphicsPass*   m_lightingPass;
 	GraphicsPass*   m_tonemapperPass;
+
+private:
+	void prepareBasicTextures();
 };
 
 }

@@ -27,6 +27,7 @@ static const char* s_defaultBlackTextureName      = "./media/engine_texture/T_Bl
 static const char* s_defaultNormalTextureName     = "./media/engine_texture/T_DefaultNormal.tga";
 static const char* s_defaultCheckboardTextureName = "./media/engine_texture/T_Checkerboard_SRGB.tga";
 static const char* s_defaultEmissiveTextureName   = "./media/engine_texture/T_DefaultEmissive_SRGB.tga";
+static const char* s_defaultHdrEnvTextureName     = "./media/engine_texture/san_giuseppe_bridge_4k.hdr";
 
 static const char* s_engineMeshBox  = "./media/engine_mesh/box.mesh";
 

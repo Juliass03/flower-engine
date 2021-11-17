@@ -279,19 +279,19 @@ void VulkanRHI::submitAndResetFence(uint32 count,VkSubmitInfo* infos)
     vkCheck(vkQueueSubmit(getGraphicsQueue(),count,infos,m_inFlightFences[m_currentFrame]));
 }
 
-VulkanShaderModule* VulkanRHI::getShader(const std::string& path)
+VulkanShaderModule* VulkanRHI::getShader(const std::string& path,bool bReload)
 {
-    return m_shaderCache.getShader(path);
+    return m_shaderCache.getShader(path,bReload);
 }
 
-VkShaderModule VulkanRHI::getVkShader(const std::string& path)
+VkShaderModule VulkanRHI::getVkShader(const std::string& path,bool bReload)
 {
-    return m_shaderCache.getShader(path)->GetModule();
+    return m_shaderCache.getShader(path,bReload)->GetModule();
 }
 
-void VulkanRHI::addShaderModule(const std::string& path)
+void VulkanRHI::addShaderModule(const std::string& path,bool bReload)
 {
-    m_shaderCache.getShader(path);
+    m_shaderCache.getShader(path,bReload);
 }
 
 VkRenderPass VulkanRHI::createRenderpass(const VkRenderPassCreateInfo& info)

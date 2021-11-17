@@ -78,14 +78,6 @@ void engine::GpuCascadeSetupPass::record(uint32 backBufferIndex)
 	commandBufEnd(backBufferIndex);
 }
 
-void engine::GpuCascadeSetupPass::barrierUseStart()
-{
-}
-
-void engine::GpuCascadeSetupPass::barrierUseEnd()
-{
-}
-
 void engine::GpuCascadeSetupPass::createPipeline()
 {
 	if(bInitPipeline) return;
@@ -117,7 +109,7 @@ void engine::GpuCascadeSetupPass::createPipeline()
 
 		m_pipelineLayouts[index] = VulkanRHI::get()->createPipelineLayout(plci);
 
-		auto* shaderModule = VulkanRHI::get()->getShader("media/shader/fallback/bin/cascadeShadowSetup.comp.spv");
+		auto* shaderModule = VulkanRHI::get()->getShader("media/shader/fallback/bin/cascadeShadowSetup.comp.spv",true);
 		VkPipelineShaderStageCreateInfo shaderStageCI{};
 		shaderStageCI.module = shaderModule->GetModule();
 		shaderStageCI.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

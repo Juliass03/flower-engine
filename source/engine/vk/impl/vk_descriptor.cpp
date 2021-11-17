@@ -207,9 +207,10 @@ VulkanDescriptorFactory& VulkanDescriptorFactory::bindBuffer(uint32_t binding,Vk
 
     DescriptorWriteContainer descriptorWrite{};
     descriptorWrite.isImg = false;
-    descriptorWrite.bufInfo = *bufferInfo;
+    descriptorWrite.bufInfo = bufferInfo;
     descriptorWrite.type = type;
     descriptorWrite.binding = binding;
+    descriptorWrite.count = 1;
     m_descriptorWriteBufInfos.push_back(descriptorWrite);
 
     return *this;
@@ -233,9 +234,33 @@ VulkanDescriptorFactory& VulkanDescriptorFactory::bindImage(
 
     DescriptorWriteContainer descriptorWrite{};
     descriptorWrite.isImg = true;
-    descriptorWrite.imgInfo = *info;
+    descriptorWrite.imgInfo = info;
     descriptorWrite.type = type;
     descriptorWrite.binding = binding;
+    descriptorWrite.count = 1;
+    m_descriptorWriteBufInfos.push_back(descriptorWrite);
+
+    return *this;
+}
+
+VulkanDescriptorFactory& VulkanDescriptorFactory::bindImages(uint32_t binding,uint32_t count,VkDescriptorImageInfo* info,VkDescriptorType type,VkShaderStageFlags stageFlags)
+{
+    VkDescriptorSetLayoutBinding newBinding{};
+
+    newBinding.descriptorCount = count;
+    newBinding.descriptorType = type;
+    newBinding.pImmutableSamplers = nullptr;
+    newBinding.stageFlags = stageFlags;
+    newBinding.binding = binding;
+
+    m_bindings.push_back(newBinding);
+
+    DescriptorWriteContainer descriptorWrite{};
+    descriptorWrite.isImg = true;
+    descriptorWrite.imgInfo = info;
+    descriptorWrite.type = type;
+    descriptorWrite.binding = binding;
+    descriptorWrite.count = count;
     m_descriptorWriteBufInfos.push_back(descriptorWrite);
 
     return *this;
@@ -263,14 +288,14 @@ bool VulkanDescriptorFactory::build(VulkanDescriptorSetReference& set,VulkanDesc
         VkWriteDescriptorSet newWrite{};
         newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         newWrite.pNext = nullptr;
-        newWrite.descriptorCount = 1;
+        newWrite.descriptorCount = dc.count;
 
         newWrite.descriptorType = dc.type;
 
         if(dc.isImg)
-            newWrite.pImageInfo = &dc.imgInfo;
+            newWrite.pImageInfo = dc.imgInfo;
         else
-            newWrite.pBufferInfo = &dc.bufInfo;
+            newWrite.pBufferInfo = dc.bufInfo;
 
         newWrite.dstBinding = dc.binding;
         newWrite.dstSet = set.set;
@@ -311,16 +336,16 @@ bool VulkanDescriptorFactory::build(VkDescriptorSet* set)
         VkWriteDescriptorSet newWrite{};
         newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         newWrite.pNext = nullptr;
-        newWrite.descriptorCount = 1;
+        newWrite.descriptorCount = dc.count;
         newWrite.descriptorType = dc.type;
 
         if(dc.isImg)
         {
-            newWrite.pImageInfo = &dc.imgInfo;
+            newWrite.pImageInfo = dc.imgInfo;
         }
         else
         {
-            newWrite.pBufferInfo = &dc.bufInfo;
+            newWrite.pBufferInfo = dc.bufInfo;
         }
 
         newWrite.dstBinding = dc.binding;

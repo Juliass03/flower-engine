@@ -10,7 +10,7 @@ void engine::TextureLibrary::createBindlessTextureDescriptorHeap()
 {
 	VkDescriptorSetLayoutBinding binding{};
 	binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+	binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 	binding.binding = 0;
 	binding.descriptorCount = VulkanRHI::get()->getPhysicalDeviceDescriptorIndexingProperties().maxDescriptorSetUpdateAfterBindSampledImages;
 	
@@ -74,6 +74,7 @@ bool engine::TextureLibrary::existTexture(const std::string& name)
 
 std::pair<ERequestTextureResult /*use temp texture */,CombineTexture&> engine::TextureLibrary::getCombineTextureByName(const std::string& gameName)
 {
+	
 	if(!std::filesystem::exists(gameName))
 	{
 		LOG_WARN("Texture {0} no exists! Will replace with default white texture!",gameName);

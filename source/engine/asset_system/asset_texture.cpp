@@ -892,7 +892,7 @@ bool asset_system::AssetSystem::loadTexture2DImage(CombineTexture& inout,const s
 }
 
 
-Texture2DImage* loadFromFile(const std::string& path,VkFormat format,uint32 req,bool flip)
+Texture2DImage* loadFromFile(const std::string& path,VkFormat format,uint32 req,bool flip,bool bGenMipmaps = true)
 {
     int32 texWidth, texHeight, texChannels;
     stbi_set_flip_vertically_on_load(flip);  
@@ -918,7 +918,53 @@ Texture2DImage* loadFromFile(const std::string& path,VkFormat format,uint32 req,
         VulkanRHI::get()->getGraphicsCommandPool(),
         VulkanRHI::get()->getGraphicsQueue(),
         pixelData,
-        texWidth,texHeight,VK_IMAGE_ASPECT_COLOR_BIT,format
+        texWidth,
+        texHeight,
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        format,
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        false,
+        bGenMipmaps ? -1 : 1
+    );
+
+    return ret;
+}
+
+Texture2DImage* loadFromFileHdr(const std::string& path,VkFormat format,uint32 req,bool flip,bool bGenMipmaps = true)
+{
+    int32 texWidth, texHeight, texChannels;
+    stbi_set_flip_vertically_on_load(flip);  
+
+    float* pixels = stbi_loadf(path.c_str(), &texWidth, &texHeight, &texChannels,req);
+
+    if (!pixels) 
+    {
+        LOG_IO_FATAL("Fail to load image {0}.",path);
+    }
+
+    int32 imageSize = texWidth * texHeight * req * 4;
+
+
+    std::vector<uint8> pixelData{};
+    pixelData.resize(imageSize);
+
+    memcpy(pixelData.data(),reinterpret_cast<uint8*>(pixels),imageSize);
+
+    stbi_image_free(pixels);
+    stbi_set_flip_vertically_on_load(false);  
+
+    Texture2DImage* ret = Texture2DImage::createAndUpload(
+        VulkanRHI::get()->getVulkanDevice(),
+        VulkanRHI::get()->getGraphicsCommandPool(),
+        VulkanRHI::get()->getGraphicsQueue(),
+        pixelData,
+        texWidth,
+        texHeight,
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        format,
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        false,
+        bGenMipmaps ? -1 : 1
     );
 
     return ret;
@@ -1013,6 +1059,13 @@ void asset_system::AssetSystem::loadEngineTextures()
     emissiveTexture.texture = loadFromFile(s_defaultEmissiveTextureName,VK_FORMAT_R8G8B8A8_SRGB,4,false);
     emissiveTexture.bReady = true;
     TextureLibrary::get()->updateTextureToBindlessDescriptorSet(emissiveTexture);
+
+    textureLibrary->m_textureContainer[s_defaultHdrEnvTextureName] = {};
+    auto& hdrEnvTexture = textureLibrary->m_textureContainer[s_defaultHdrEnvTextureName];
+    hdrEnvTexture.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
+    hdrEnvTexture.texture = loadFromFileHdr(s_defaultHdrEnvTextureName,VK_FORMAT_R32G32B32A32_SFLOAT,4,false,true);
+    hdrEnvTexture.bReady = true;
+    TextureLibrary::get()->updateTextureToBindlessDescriptorSet(hdrEnvTexture);
 }
 
 

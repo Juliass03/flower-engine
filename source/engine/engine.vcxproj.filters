@@ -50,6 +50,11 @@
     <ClCompile Include="renderer\compute_passes\gpu_culling.cpp" />
     <ClCompile Include="renderer\compute_passes\depth_evaluate_minmax.cpp" />
     <ClCompile Include="renderer\compute_passes\cascade_setup.cpp" />
+    <ClCompile Include="renderer\compute_passes\brdf_lut.cpp" />
+    <ClCompile Include="renderer\frame_graph\frame_graph.cpp" />
+    <ClCompile Include="renderer\compute_passes\irradiance_prefiltercube.cpp" />
+    <ClCompile Include="renderer\compute_passes\hdri2cubemap.cpp" />
+    <ClCompile Include="renderer\compute_passes\specular_prefilter.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\cvar.h" />
@@ -114,5 +119,11 @@
     <ClInclude Include="renderer\frustum.h" />
     <ClInclude Include="renderer\compute_passes\depth_evaluate_minmax.h" />
     <ClInclude Include="renderer\compute_passes\cascade_setup.h" />
+    <ClInclude Include="renderer\compute_passes\brdf_lut.h" />
+    <ClInclude Include="renderer\frame_graph\define.h" />
+    <ClInclude Include="renderer\frame_graph\frame_graph.h" />
+    <ClInclude Include="renderer\compute_passes\irradiance_prefiltercube.h" />
+    <ClInclude Include="renderer\compute_passes\hdri2cubemap.h" />
+    <ClInclude Include="renderer\compute_passes\specular_prefilter.h" />
   </ItemGroup>
 </Project>

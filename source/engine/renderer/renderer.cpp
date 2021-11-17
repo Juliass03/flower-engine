@@ -14,6 +14,10 @@
 #include "render_prepare.h"
 #include "mesh.h"
 #include "compute_passes/gpu_culling.h"
+#include "compute_passes/brdf_lut.h"
+#include "compute_passes/irradiance_prefiltercube.h"
+#include "compute_passes/hdri2cubemap.h"
+#include "compute_passes/specular_prefilter.h"
 #include "frustum.h"
 
 using namespace engine;
@@ -23,8 +27,21 @@ static AutoCVarInt32 cVarReverseZ(
 	"Enable reverse z. 0 is off, others are on.",
 	"Shading",
 	1,
-	CVarFlags::ReadAndWrite
+	CVarFlags::InitOnce | CVarFlags::ReadOnly
 );
+
+static AutoCVarFloat cVarExposure(
+	"r.Shading.Exposure",
+	"Exposure value.",
+	"Shading",
+	3.14f,
+	CVarFlags::InitOnce | CVarFlags::ReadOnly
+);
+
+float engine::getExposure()
+{
+	return cVarExposure.get();
+}
 
 bool engine::reverseZOpen()
 {
@@ -70,6 +87,7 @@ bool Renderer::init()
 	m_renderScene->init(this);
 	m_uiPass->initImgui();
 
+	prepareBasicTextures();
 	
 
 	// ×¢²áRenderPasses
@@ -366,8 +384,8 @@ void Renderer::updateGPUData(float dt)
 	m_gpuFrameData.cameraInfo = glm::vec4(
 		sceneViewCameraComponent->getFoVy(),
 		float(m_screenViewportWidth) / float(m_screenViewportHeight),
-		sceneViewCameraComponent->getZNear(),
-		sceneViewCameraComponent->getZFar()
+		reverseZOpen() ? sceneViewCameraComponent->getZFar() : sceneViewCameraComponent->getZNear(),
+		reverseZOpen() ? sceneViewCameraComponent->getZNear() : sceneViewCameraComponent->getZFar()
 	);
 
 	Frustum camFrusum{};
@@ -391,4 +409,112 @@ VulkanDescriptorAllocator& Renderer::getDynamicDescriptorAllocator(uint32 i)
 VulkanDescriptorFactory Renderer::vkDynamicDescriptorFactoryBegin(uint32 i)
 { 
 	return VulkanDescriptorFactory::begin(&VulkanRHI::get()->getDescriptorLayoutCache(), m_dynamicDescriptorAllocator[i]); 
+}
+
+void engine::Renderer::prepareBasicTextures()
+{
+	Ref<shaderCompiler::ShaderCompiler> shader_compiler = m_moduleManager->getRuntimeModule<shaderCompiler::ShaderCompiler>();
+	VulkanSubmitInfo submitInfo{};
+
+	{
+		m_renderScene->getSceneTextures().getBRDFLut()->transitionLayoutImmediately(
+			VulkanRHI::get()->getGraphicsCommandPool(),
+			VulkanRHI::get()->getGraphicsQueue(),
+			VK_IMAGE_LAYOUT_GENERAL
+		);
+
+		GpuBRDFLutPass* brdflutPass = new GpuBRDFLutPass(this,m_renderScene,shader_compiler, "BRDFLutPass");
+		brdflutPass->init();
+		
+		brdflutPass->record(0);
+		submitInfo.setCommandBuffer(brdflutPass->getCommandBuf(0),1);
+		vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&submitInfo.get(),nullptr));
+		vkQueueWaitIdle(VulkanRHI::get()->getGraphicsQueue());
+		
+		brdflutPass->release();
+		delete brdflutPass;
+
+		m_renderScene->getSceneTextures().getBRDFLut()->transitionLayoutImmediately(
+			VulkanRHI::get()->getGraphicsCommandPool(),
+			VulkanRHI::get()->getGraphicsQueue(),
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		);
+	}
+
+#if 0
+	{
+		m_renderScene->getSceneTextures().getEnvCube()->transitionLayoutImmediately(
+			VulkanRHI::get()->getGraphicsCommandPool(),
+			VulkanRHI::get()->getGraphicsQueue(),
+			VK_IMAGE_LAYOUT_GENERAL
+		);
+
+		GpuHDRI2CubemapPass* hdri2CubePass = new GpuHDRI2CubemapPass(this,m_renderScene,shader_compiler, "HDRI2Cubemap");
+		hdri2CubePass->init();
+
+		hdri2CubePass->record(0);
+		submitInfo.setCommandBuffer(hdri2CubePass->getCommandBuf(0),1);
+		vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&submitInfo.get(),nullptr));
+		vkQueueWaitIdle(VulkanRHI::get()->getGraphicsQueue());
+
+		hdri2CubePass->release();
+		delete hdri2CubePass;
+
+		m_renderScene->getSceneTextures().getEnvCube()->transitionLayoutImmediately(
+			VulkanRHI::get()->getGraphicsCommandPool(),
+			VulkanRHI::get()->getGraphicsQueue(),
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		);
+	}
+#endif
+	
+	{
+		m_renderScene->getSceneTextures().getIrradiancePrefilterCube()->transitionLayoutImmediately(
+			VulkanRHI::get()->getGraphicsCommandPool(),
+			VulkanRHI::get()->getGraphicsQueue(),
+			VK_IMAGE_LAYOUT_GENERAL
+		);
+
+		GpuIrradiancePrefilterPass* irradiancePass = new GpuIrradiancePrefilterPass(this,m_renderScene,shader_compiler, "IrradiancePrefilterPass");
+		irradiancePass->init();
+
+		irradiancePass->record(0);
+		submitInfo.setCommandBuffer(irradiancePass->getCommandBuf(0),1);
+		vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&submitInfo.get(),nullptr));
+		vkQueueWaitIdle(VulkanRHI::get()->getGraphicsQueue());
+
+		irradiancePass->release();
+		delete irradiancePass;
+
+		m_renderScene->getSceneTextures().getIrradiancePrefilterCube()->transitionLayoutImmediately(
+			VulkanRHI::get()->getGraphicsCommandPool(),
+			VulkanRHI::get()->getGraphicsQueue(),
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		);
+	}
+
+	{
+		m_renderScene->getSceneTextures().getSpecularPrefilterCube()->transitionLayoutImmediately(
+			VulkanRHI::get()->getGraphicsCommandPool(),
+			VulkanRHI::get()->getGraphicsQueue(),
+			VK_IMAGE_LAYOUT_GENERAL
+		);
+
+		GpuSpecularPrefilterPass* specularPass = new GpuSpecularPrefilterPass(this,m_renderScene,shader_compiler, "SpecularPrefilterPass");
+		specularPass->init();
+
+		specularPass->record(0);
+		submitInfo.setCommandBuffer(specularPass->getCommandBuf(0),1);
+		vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&submitInfo.get(),nullptr));
+		vkQueueWaitIdle(VulkanRHI::get()->getGraphicsQueue());
+
+		specularPass->release();
+		delete specularPass;
+
+		m_renderScene->getSceneTextures().getSpecularPrefilterCube()->transitionLayoutImmediately(
+			VulkanRHI::get()->getGraphicsCommandPool(),
+			VulkanRHI::get()->getGraphicsQueue(),
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		);
+	}
 }

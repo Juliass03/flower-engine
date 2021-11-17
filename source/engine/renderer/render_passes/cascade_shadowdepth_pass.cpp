@@ -279,8 +279,8 @@ void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer cmd,uint32 backBuffe
 	vkCmdSetScissor(cmd,0,1,&scissor);
 	vkCmdSetViewport(cmd,0,1,&viewport);
 
-	const float depthBiasSlope = cVarShadowDepthHardwareSlope.get();
-	const float depthBiasFactor = cVarShadowDepthBias.get();
+	const float depthBiasSlope = reverseZOpen() ? -cVarShadowDepthHardwareSlope.get() : cVarShadowDepthHardwareSlope.get();
+	const float depthBiasFactor = reverseZOpen() ? -cVarShadowDepthBias.get() : cVarShadowDepthBias.get();
 	vkCmdSetDepthBias(cmd,depthBiasFactor,0,depthBiasSlope);
 
 	std::vector<VkDescriptorSet> meshPassSets = {

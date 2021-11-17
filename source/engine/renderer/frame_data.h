@@ -65,6 +65,7 @@ struct GpuDepthEvaluteMinMaxBuffer
 
 struct GpuCascadeInfo
 {
+    float splitPosition;
     glm::mat4 cascadeViewProjMatrix;
 };
 

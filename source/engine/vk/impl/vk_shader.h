@@ -89,11 +89,18 @@ public:
 class VulkanShaderCache
 {
 public:
-    VulkanShaderModule* getShader(const std::string& path)
+    VulkanShaderModule* getShader(const std::string& path,bool reload)
     {
         auto it = m_moduleCache.find(path);
         if(it == m_moduleCache.end())
         {
+            VulkanShaderModule* newShader = VulkanShaderModule::create(m_device,path);
+            m_moduleCache[path] = newShader;
+        }
+        else if(reload)
+        {
+            delete m_moduleCache[path];
+
             VulkanShaderModule* newShader = VulkanShaderModule::create(m_device,path);
             m_moduleCache[path] = newShader;
         }

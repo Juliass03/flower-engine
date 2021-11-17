@@ -48,11 +48,6 @@ void main()
 
     float nearClip = frameData.camInfo.z; // nearZ
     float farClip = frameData.camInfo.w;  // farZ
-    if(pushConstant.bReverseZ != 0)// reverse z
-    {
-        nearClip = frameData.camInfo.w;
-        farClip = frameData.camInfo.z;
-    }
 
     float clipRange = farClip - nearClip;
 
@@ -68,6 +63,7 @@ void main()
     minDistance = clamp((linearizeDepth(minDistance, nearClip, farClip) - nearClip) / clipRange,0.0f,1.0f);
     maxDistance = clamp((linearizeDepth(maxDistance, nearClip, farClip) - nearClip) / clipRange,0.0f,1.0f);
     
+    /*
     if(pushConstant.bReverseZ != 0)
     {
         float tempMin = minDistance;
@@ -79,6 +75,12 @@ void main()
         minDistance = pushConstant.bFixCascade != 0 ? 0.0f : minDistance;
         maxDistance = pushConstant.bFixCascade != 0 ? 1.0f : maxDistance;
     }
+    */
+
+    // Now always reverse z.
+    float tempMin = minDistance;
+    minDistance = pushConstant.bFixCascade != 0 ? 1.0f : maxDistance;
+    maxDistance = pushConstant.bFixCascade != 0 ? 0.0f : tempMin;
 
     // split cascade
     float cascadeSplits[4];
@@ -89,7 +91,7 @@ void main()
         float minZ = nearClip + minDistance * clipRange;
         float maxZ = nearClip + maxDistance * clipRange;
 
-        float range = maxZ - minZ;
+        float range = maxZ - minZ; 
         float ratio = maxZ / minZ;
 
         for(uint i = 0; i < WORK_CASCADE_SIZE; ++i)
@@ -154,14 +156,18 @@ void main()
     sphereRadius = ceil(sphereRadius * 16.0f) / 16.0f;
     vec3 maxExtents = vec3(sphereRadius);
     vec3 minExtents = -maxExtents;
+    vec3 cascadeExtents = maxExtents - minExtents;
 
     // create temporary view project matrix for cascade.
     vec3 upDir = vec3(0.0f, 1.0f, 0.0f);
-    vec3 shadowCameraPos = frustumCenter - frameData.sunLightDir.xyz * -minExtents.z;
+    vec3 shadowCameraPos = frustumCenter - normalize(frameData.sunLightDir.xyz) * cascadeExtents.z * 0.5f;
 
-    vec3 cascadeExtents = maxExtents - minExtents;
-    float nearZProj = pushConstant.bReverseZ != 0 ? cascadeExtents.z : 0.0f;
-    float farZProj  = pushConstant.bReverseZ != 0 ? 0.0f : cascadeExtents.z;
+    //float nearZProj = pushConstant.bReverseZ != 0 ? cascadeExtents.z : 0.0f;
+    //float farZProj  = pushConstant.bReverseZ != 0 ? 0.0f : cascadeExtents.z;    
+
+    // Now always reverse z.
+    float nearZProj =  cascadeExtents.z;
+    float farZProj  =  0.0f;    
 
     mat4 shadowView = lookAtRH(shadowCameraPos,frustumCenter,upDir);
     mat4 shadowProj = orthoRH_ZO(
@@ -190,4 +196,5 @@ void main()
     mat4 shadowFinalViewProj = shadowProj * shadowView;
 
     cascadeInfos[cascadeIdx].cascadeViewProjMatrix = shadowFinalViewProj;
+    cascadeInfos[cascadeIdx].splitPosition = cascadeSplits[cascadeIdx];
 }
