@@ -76,7 +76,7 @@ void engine::TAAPass::record(uint32 backBufferIndex)
 	m_renderScene->getSceneTextures().getHistory()->transitionLayout(cmd,VK_IMAGE_LAYOUT_GENERAL);
 
 	auto extent = m_renderScene->getSceneTextures().getHDRSceneColor()->getExtent();
-	vkCmdDispatch(cmd, getGroupCount(extent.width , 16),getGroupCount(extent.height, 16), 1);
+	vkCmdDispatch(cmd, getGroupCount(extent.width , 8),getGroupCount(extent.height, 8), 1);
 
 	std::array<VkImageMemoryBarrier,2> imageBarriers {};
 	imageBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -113,6 +113,7 @@ void engine::TAAPass::record(uint32 backBufferIndex)
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelinesSharpen[backBufferIndex]);
 
 	std::vector<VkDescriptorSet> compPassSetsSharpen = {
+		m_renderer->getFrameData().m_frameDataDescriptorSets[backBufferIndex].set,
 		m_descriptorSetsSharpen[backBufferIndex].set
 	};
 
@@ -126,7 +127,7 @@ void engine::TAAPass::record(uint32 backBufferIndex)
 		0, 
 		nullptr
 	);
-	vkCmdDispatch(cmd, getGroupCount(extent.width , 16),getGroupCount(extent.height, 16), 1);
+	vkCmdDispatch(cmd, getGroupCount(extent.width , 8),getGroupCount(extent.height, 8), 1);
 	m_renderScene->getSceneTextures().getHDRSceneColor()->transitionLayout(cmd,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	commandBufEnd(backBufferIndex);
@@ -154,7 +155,7 @@ void engine::TAAPass::createPipeline()
 			VkDescriptorImageInfo depthImage = {};
 			depthImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			depthImage.imageView = m_renderScene->getSceneTextures().getDepthStencil()->getImageView();
-			depthImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
+			depthImage.sampler = VulkanRHI::get()->getLinearClampSampler();
 
 			VkDescriptorImageInfo historyImage = {};
 			historyImage.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -169,7 +170,7 @@ void engine::TAAPass::createPipeline()
 			VkDescriptorImageInfo hdrImage = {};
 			hdrImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			hdrImage.imageView = m_renderScene->getSceneTextures().getHDRSceneColor()->getImageView();
-			hdrImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
+			hdrImage.sampler = VulkanRHI::get()->getLinearClampSampler();
 
 			m_renderer->vkDynamicDescriptorFactoryBegin(index)
 				.bindImage(0,&outTAAImage,   VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          VK_SHADER_STAGE_COMPUTE_BIT)
@@ -248,6 +249,7 @@ void engine::TAAPass::createPipeline()
 			plci.pushConstantRangeCount = 0; 
 
 			std::vector<VkDescriptorSetLayout> setLayouts = {
+				m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout,
 				m_descriptorSetLayoutsSharpen[index].layout
 			};
 

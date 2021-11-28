@@ -11,7 +11,7 @@ layout (set = 1, binding = 2) uniform sampler2D inHistory;
 layout (set = 1, binding = 3) uniform sampler2D inVelocity;
 layout (set = 1, binding = 4) uniform sampler2D inHdrColor;
 
-#define GROUP_SIZE  16
+#define GROUP_SIZE  8
 #define TILE_DIM    (2 * RADIUS + GROUP_SIZE)
 #define RADIUS      1
 #define FLT_MIN     0.00000001f
@@ -107,6 +107,44 @@ vec3 Reinhard(vec3 hdr)
 vec3 ReinhardInverse(vec3 sdr)
 {
     return 1.0f * sdr / (1.0f - sdr);
+}
+
+float luminance(vec3 color)
+{
+    return max(dot(color, vec3(0.299f, 0.587f, 0.114f)), 0.0001f);
+}
+
+const float KarisToneMapAlpha = 0.5f;
+vec3 KarisToneMap(vec3 color)
+{
+	float luma = luminance(color);
+    const float alpha = KarisToneMapAlpha;
+	if (luma <= alpha)
+	{
+		return color;
+	}
+	else
+	{
+		return color * (alpha * alpha - luma) / (luma * (2 * alpha - 1 - luma));
+	}
+}
+
+vec3 KarisToneMapInverse(vec3 color)
+{
+	float luma = luminance(color);
+	if (luma <= KarisToneMapAlpha)
+	{
+		return color;
+	}
+	else
+	{
+		return color * (KarisToneMapAlpha * KarisToneMapAlpha - (2 * KarisToneMapAlpha - 1) * luma) / (luma * (1 - luma));
+	}
+}
+
+vec3 restrictTonemapper(vec3 color)
+{
+    return color / (1 + color.r);
 }
 
 vec3 sampleHistoryCatmullRom(in vec2 uv, in vec2 texelSize)
@@ -279,10 +317,7 @@ vec3 sampleCurrent(vec2 uv)
     return texture(inHdrColor, uv).rgb;
 }
 
-float luminance(vec3 color)
-{
-    return max(dot(color, vec3(0.299f, 0.587f, 0.114f)), 0.0001f);
-}
+
 
 float getLinearDepth(vec2 uv)
 {
@@ -373,10 +408,14 @@ void main()
     {
         const ivec2 anchor = ivec2(gl_WorkGroupID.xy) * GROUP_SIZE - RADIUS;
 
-        const ivec2 coord1 = anchor + ivec2( gl_LocalInvocationIndex % TILE_DIM, gl_LocalInvocationIndex / TILE_DIM);
-        const ivec2 coord2 = anchor + ivec2((gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 4) % TILE_DIM, (gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 4) / TILE_DIM);
-        const ivec2 coord3 = anchor + ivec2((gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 2) % TILE_DIM, (gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 2) / TILE_DIM);
-        const ivec2 coord4 = anchor + ivec2((gl_LocalInvocationIndex + TILE_DIM * TILE_DIM * 3 / 4) % TILE_DIM, (gl_LocalInvocationIndex + TILE_DIM * TILE_DIM * 3 / 4) / TILE_DIM);
+        const ivec2 coord1 = anchor + 
+            ivec2( gl_LocalInvocationIndex % TILE_DIM, gl_LocalInvocationIndex / TILE_DIM);
+        const ivec2 coord2 = anchor + 
+            ivec2((gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 4) % TILE_DIM, (gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 4) / TILE_DIM);
+        const ivec2 coord3 = anchor + 
+            ivec2((gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 2) % TILE_DIM, (gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 2) / TILE_DIM);
+        const ivec2 coord4 = anchor + 
+            ivec2((gl_LocalInvocationIndex + TILE_DIM * TILE_DIM * 3 / 4) % TILE_DIM, (gl_LocalInvocationIndex + TILE_DIM * TILE_DIM * 3 / 4) / TILE_DIM);
 
         const vec2 uv1 = (coord1 + 0.5f) * texelSize;
         const vec2 uv2 = (coord2 + 0.5f) * texelSize;
@@ -388,10 +427,22 @@ void main()
         const vec3 color2 = texture(inHdrColor, uv3).xyz;
         const vec3 color3 = texture(inHdrColor, uv4).xyz;
 
+        /*
         Tile[gl_LocalInvocationIndex]                               = Reinhard(color0);
         Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 4]     = Reinhard(color1);
         Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 2]     = Reinhard(color2);
         Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM * 3 / 4] = Reinhard(color3);
+        */
+
+        Tile[gl_LocalInvocationIndex]                               = restrictTonemapper(color0);
+        Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 4]     = restrictTonemapper(color1);
+        Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 2]     = restrictTonemapper(color2);
+        Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM * 3 / 4] = restrictTonemapper(color3);
+
+        // Tile[gl_LocalInvocationIndex]                               = KarisToneMap(color0); // Reinhard(color0);
+        // Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 4]     = KarisToneMap(color1); // Reinhard(color1);
+        // Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 2]     = KarisToneMap(color2); // Reinhard(color2);
+        // Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM * 3 / 4] = KarisToneMap(color3); // Reinhard(color3);
     }
     groupMemoryBarrier();
     barrier();
@@ -419,6 +470,7 @@ void main()
         }
     }
         
+    // nVidia variance clip.
     const vec3 ex = vsum / wsum;
     const vec3 ex2 = vsum2 / wsum;
     const vec3 dev = sqrt(max(ex2 - ex * ex, 0.0f));
@@ -426,14 +478,50 @@ void main()
     bool isSkyPixel;
     const vec2 velocity = getClosestVelocity(uv, texelSize, isSkyPixel);
 
+    
+
     const float boxSize = mix(0.5f, 2.5f, isSkyPixel ? 0.0f : smoothstep(0.02f, 0.0f, length(velocity)));
     const vec3 nmin = ex - dev * boxSize;
     const vec3 nmax = ex + dev * boxSize;
     const vec3 history = sampleHistory(uv - velocity, texelSize);
     const vec3 clampedHistory = clamp(history, nmin, nmax);
     const vec3 center = Tap(tilePos, texelSize); 
-    vec3 result = mix(clampedHistory, center, 1.0f / 16.0f);
 
+    float lenVelocity = length(velocity);
+    if(lenVelocity < 0.00000001f && !isSkyPixel) // 
+    {
+        vec3 result = mix(history, center, 1.0f / 16.0f);
+        imageStore(outHdrColor, ivec2(gl_GlobalInvocationID.xy), vec4(result,1.0f));
+        return;
+    }
+
+    // note: use velocity * linear depth as blend factor to solve blur problem when moving.
+    float blendFactor = 1.0f;
+    {   
+        const float threshold   = 0.5f;
+        const float base        = 0.5f;
+        const float gather      = 0.1666;
+
+        float depth             = getLinearDepth(uv);
+        float texel_vel_mag     = length(velocity * vec2(dims.xy)) * depth;
+        float subpixel_motion   = clamp(threshold / (texel_vel_mag + FLT_MIN), 0.0f, 1.0f);
+        blendFactor *= texel_vel_mag * base + subpixel_motion * gather;
+
+        vec3 color_history = clampedHistory;
+        vec3 color_current = center;
+        float luminance_history     = luminance(color_history);
+        float luminance_current     = luminance(color_current);
+        float unbiased_difference   = abs(luminance_current - luminance_history) / ((max(luminance_current, luminance_history) + 0.3));
+        blendFactor *= 1.0 - unbiased_difference;
+
+        // Clamp
+        blendFactor = clamp(blendFactor, g_taa_blend_min, g_taa_blend_max);
+    }
+
+    vec3 result = mix(clampedHistory, center, blendFactor);
+    imageStore(outHdrColor, ivec2(gl_GlobalInvocationID.xy), vec4(result,1.0f));
+
+#if 0
     const float MaxHalfFloat = 65504.0f;
     vec4 FinalOutput = min(MaxHalfFloat.xxxx, vec4(result,1.0f));
 
@@ -444,9 +532,8 @@ void main()
 	vec2 E = Hammersley16(0, 1, Random);
     vec3 OutputQuantizationError = vec3(0.00098, 0.00098, 0.00098);
     FinalOutput.rgb += FinalOutput.rgb * (E.x * OutputQuantizationError);
-
-
     imageStore(outHdrColor, ivec2(gl_GlobalInvocationID.xy), FinalOutput);
+#endif
 
 #else
     vec4 taaResult = TemporalAntialiasing(gl_GlobalInvocationID.xy, gl_LocalInvocationIndex, gl_WorkGroupID, inHistory, inHdrColor);

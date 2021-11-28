@@ -7,3 +7,5 @@ glslc.exe src/hdri2cubemap.comp -o bin/hdri2cubemap.comp.spv
 glslc.exe src/prefilterspecularcube.comp -o bin/prefilterspecularcube.comp.spv
 glslc.exe src/taa.comp -o bin/taa.comp.spv
 glslc.exe src/taa_sharpen.comp -o bin/taa_sharpen.comp.spv
+glslc.exe src/downsample.comp -o bin/downsample.comp.spv
+glslc.exe src/blur.comp -o bin/blur.comp.spv

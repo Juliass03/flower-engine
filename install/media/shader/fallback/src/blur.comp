@@ -1,0 +1,60 @@
+#version 460
+
+struct PushConstantData
+{
+    vec2 u_dir;
+};
+
+layout(push_constant) uniform block
+{
+	PushConstantData pushConstant;
+};
+
+layout (set = 0, binding = 0, rgba16f) uniform image2D outColor;
+layout (set=0, binding=1) uniform sampler2D inputSampler;
+
+layout (local_size_x = 16,local_size_y = 16,local_size_z = 1) in;
+void main()
+{
+    int s_lenght = 16;
+    float s_coeffs[] = { 
+        0.074693, 
+        0.073396, 
+        0.069638, 
+        0.063796, 
+        0.056431, 
+        0.048197,
+        0.039746, 
+        0.031648,
+        0.024332, 
+        0.018063, 
+        0.012947, 
+        0.008961, 
+        0.005988, 
+        0.003864, 
+        0.002407, 
+        0.001448, 
+    }; // norm = 0.996416
+
+
+    uvec2 pos = gl_GlobalInvocationID.xy;
+    ivec2 dims = textureSize(inputSampler, 0).xy;
+    const vec2 texelSize = 1.0f / vec2(dims.xy);
+
+    vec2 uv = (vec2(pos) + vec2(0.5)) * texelSize; 
+
+    vec4 accum = s_coeffs[0] * texture(inputSampler, uv);  
+    for(int i=1; i < s_lenght; i++)
+    {
+        float f= i;
+        accum += s_coeffs[i] * texture(inputSampler, uv + pushConstant.u_dir * f);
+        accum += s_coeffs[i] * texture(inputSampler, uv - pushConstant.u_dir * f);
+    }
+
+    ivec2 ggId = ivec2(gl_GlobalInvocationID.xy);
+    if (ggId.x < dims.x && ggId.y < dims.y)
+    {
+        imageStore(outColor, ivec2(gl_GlobalInvocationID.xy), accum);
+        return; 
+    }
+}
