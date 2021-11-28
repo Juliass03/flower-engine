@@ -156,6 +156,7 @@ void RenderScene::meshCollect()
 				// NOTE: 无论可见与否都创建对应的SSBO
 				GPUObjectData objData{};
 				objData.model = subMesh.modelMatrix;
+				objData.preModel = subMesh.modelMatrix; // 静态网格的Model矩阵不变
 				objData.sphereBounds = glm::vec4(subMesh.renderBounds.origin,subMesh.renderBounds.radius);
 				objData.extents = glm::vec4(subMesh.renderBounds.extents,1.0f);
 				objData.firstInstance = 0;

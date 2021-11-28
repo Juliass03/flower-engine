@@ -105,7 +105,8 @@ float evaluateDirectShadow(
     float linearZ, 
     float NoLSafe, 
     vec3 fragWorldPos,
-    vec3 normal)
+    vec3 normal,
+    out uint outIndex)
 {
     ivec2 texDim = textureSize(inShadowDepthBilinearTexture,0).xy;
 	vec2 texelSize = 1.0f / vec2(texDim);
@@ -178,6 +179,8 @@ float evaluateDirectShadow(
                 );
 
                 shadowFactor = mix(shadowFactor, nextShadowFactor, cascadeFade);
+
+                outIndex = cascadeIndex;
             }
             break;
         }
@@ -202,15 +205,18 @@ void main()
     vec3 Lr   = 2.0 * NoV * n - v; // 反射向量
     vec3 F0   = gData.F0; 
 
+    uint cascadeIndex = 0;
     float directShadow = evaluateDirectShadow(
         gData.linearZ, 
         NoL, 
         gData.worldPos,
-        n
+        n,
+        cascadeIndex
     );  
-    directShadow = max(0.0f,directShadow);
+    vec3 debugColor = getCascadeDebugColor(cascadeIndex);
+    directShadow = max(0.0,directShadow);
 
-    vec3 lightRadiance = frameData.sunLightColor.xyz * directShadow * 3.14;
+    vec3 lightRadiance = frameData.sunLightColor.xyz * directShadow * 3.14f;
 
     vec3 directLighting = vec3(0.0);
     {
@@ -241,8 +247,8 @@ void main()
 
 		ambientLighting = (diffuseIBL + specularIBL);
     }
-    //ambientLighting *= directShadow;
 
     outHdrSceneColor.rgb = directLighting + ambientLighting + gData.emissiveColor;
+    float rr = texture(inShadowDepthBilinearTexture,vec3(inUV0,0)).r;
     outHdrSceneColor.a = 1.0f;
 }

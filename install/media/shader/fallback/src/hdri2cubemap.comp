@@ -10,7 +10,6 @@ layout (set = 1, binding = 0) uniform sampler2D BindlessSampler2D[];
 struct GPUPushConstants
 {
 	uint envId;
-	float exposure;
 };	
 
 layout(push_constant) uniform block
@@ -20,8 +19,7 @@ layout(push_constant) uniform block
 
 vec3 sampleEnvColor(uint id,vec2 uv)
 {
-	vec3 hdrColor = textureLod(BindlessSampler2D[nonuniformEXT(id)],uv,0.0).rgb;
-	return vec3(1.0) - exp(-hdrColor * constants.exposure);
+	return textureLod(BindlessSampler2D[nonuniformEXT(id)],uv,0.0).rgb;
 }
 
 vec3 cubeCoordToWorld(ivec3 cubeCoord, vec2 cubemapSize)

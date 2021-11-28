@@ -1,0 +1,455 @@
+#version 460
+
+#define TAA_MODE 0
+
+#include "../../glsl/common.glsl"
+#include "../../glsl/common_framedata.glsl"
+
+layout (set = 1, binding = 0, rgba16f) uniform image2D outHdrColor;
+layout (set = 1, binding = 1) uniform sampler2D inDepth;  
+layout (set = 1, binding = 2) uniform sampler2D inHistory; 
+layout (set = 1, binding = 3) uniform sampler2D inVelocity;
+layout (set = 1, binding = 4) uniform sampler2D inHdrColor;
+
+#define GROUP_SIZE  16
+#define TILE_DIM    (2 * RADIUS + GROUP_SIZE)
+#define RADIUS      1
+#define FLT_MIN     0.00000001f
+#define FLT_EPS     0.00000001f
+#define FLT_MAX_16  65500.0f
+const float g_taa_blend_min = 0.0f;
+const float g_taa_blend_max = 0.4f;
+
+shared vec3 Tile[TILE_DIM * TILE_DIM];
+layout (local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) in;
+
+void Bicubic2DCatmullRom(in vec2 UV, in vec2 Size, in vec2 InvSize, out vec2 Sample[3], out vec2 Weight[3])
+{
+	UV *= Size;
+
+	vec2 tc = floor(UV - 0.5) + 0.5;
+	vec2 f = UV - tc;
+	vec2 f2 = f * f;
+	vec2 f3 = f2 * f;
+
+	vec2 w0 = f2 - 0.5 * (f3 + f);
+	vec2 w1 = 1.5 * f3 - 2.5 * f2 + 1;
+	vec2 w3 = 0.5 * (f3 - f2);
+	vec2 w2 = 1 - w0 - w1 - w3;
+
+	Weight[0] = w0;
+	Weight[1] = w1 + w2;
+	Weight[2] = w3;
+
+	Sample[0] = tc - 1;
+	Sample[1] = tc + w2 / Weight[1];
+	Sample[2] = tc + 2;
+
+	Sample[0] *= InvSize;
+	Sample[1] *= InvSize;
+	Sample[2] *= InvSize;
+}
+
+#define BICUBIC_CATMULL_ROM_SAMPLES 5
+struct CatmullRomSamples
+{
+	uint Count;
+	ivec2 UVDir[BICUBIC_CATMULL_ROM_SAMPLES];
+	vec2 UV[BICUBIC_CATMULL_ROM_SAMPLES];
+	float Weight[BICUBIC_CATMULL_ROM_SAMPLES];
+	float FinalMultiplier;
+};
+
+CatmullRomSamples GetBicubic2DCatmullRomSamples(vec2 UV, vec2 Size, in vec2 InvSize)
+{
+	CatmullRomSamples Samples;
+	Samples.Count = BICUBIC_CATMULL_ROM_SAMPLES;
+
+	vec2 Weight[3];
+	vec2 Sample[3];
+
+	Bicubic2DCatmullRom(UV, Size, InvSize, Sample, Weight);
+
+	Samples.UV[0] = vec2(Sample[1].x, Sample[0].y);
+	Samples.UV[1] = vec2(Sample[0].x, Sample[1].y);
+	Samples.UV[2] = vec2(Sample[1].x, Sample[1].y);
+	Samples.UV[3] = vec2(Sample[2].x, Sample[1].y);
+	Samples.UV[4] = vec2(Sample[1].x, Sample[2].y);
+
+	Samples.Weight[0] = Weight[1].x * Weight[0].y;
+	Samples.Weight[1] = Weight[0].x * Weight[1].y;
+	Samples.Weight[2] = Weight[1].x * Weight[1].y;
+	Samples.Weight[3] = Weight[2].x * Weight[1].y;
+	Samples.Weight[4] = Weight[1].x * Weight[2].y;
+
+	Samples.UVDir[0] = ivec2(0, -1);
+	Samples.UVDir[1] = ivec2(-1, 0);
+	Samples.UVDir[2] = ivec2(0, 0);
+	Samples.UVDir[3] = ivec2(1, 0);
+	Samples.UVDir[4] = ivec2(0, 1);
+
+	float CornerWeights;
+	CornerWeights  = Samples.Weight[0];
+	CornerWeights += Samples.Weight[1];
+	CornerWeights += Samples.Weight[2];
+	CornerWeights += Samples.Weight[3];
+	CornerWeights += Samples.Weight[4];
+	Samples.FinalMultiplier = 1.0f / CornerWeights;
+
+	return Samples;
+}
+
+vec3 Reinhard(vec3 hdr)
+{
+    return hdr / (hdr + 1.0f);
+}
+
+vec3 ReinhardInverse(vec3 sdr)
+{
+    return 1.0f * sdr / (1.0f - sdr);
+}
+
+vec3 sampleHistoryCatmullRom(in vec2 uv, in vec2 texelSize)
+{
+    vec2 samplePos = uv / texelSize;
+    vec2 texPos1 = floor(samplePos - 0.5f) + 0.5f;
+    vec2 f = samplePos - texPos1;
+    vec2 w0 = f * (-0.5f + f * (1.0f - 0.5f * f));
+    vec2 w1 = 1.0f + f * f * (-2.5f + 1.5f * f);
+    vec2 w2 = f * (0.5f + f * (2.0f - 1.5f * f));
+    vec2 w3 = f * f * (-0.5f + 0.5f * f);
+    vec2 w12 = w1 + w2;
+    vec2 offset12 = w2 / (w1 + w2);
+    vec2 texPos0 = texPos1 - 1.0f;
+    vec2 texPos3 = texPos1 + 2.0f;
+    vec2 texPos12 = texPos1 + offset12;
+    texPos0 *= texelSize;
+    texPos3 *= texelSize;
+    texPos12 *= texelSize;
+    vec3 result = vec3(0.0f, 0.0f, 0.0f);
+    result += texture(inHistory, vec2(texPos0.x, texPos0.y)).xyz * w0.x * w0.y;
+    result += texture(inHistory, vec2(texPos12.x, texPos0.y)).xyz * w12.x * w0.y;
+    result += texture(inHistory, vec2(texPos3.x, texPos0.y)).xyz * w3.x * w0.y;
+    result += texture(inHistory, vec2(texPos0.x, texPos12.y)).xyz * w0.x * w12.y;
+    result += texture(inHistory, vec2(texPos12.x, texPos12.y)).xyz * w12.x * w12.y;
+    result += texture(inHistory, vec2(texPos3.x, texPos12.y)).xyz * w3.x * w12.y;
+    result += texture(inHistory, vec2(texPos0.x, texPos3.y)).xyz * w0.x * w3.y;
+    result += texture(inHistory, vec2(texPos12.x, texPos3.y)).xyz * w12.x * w3.y;
+    result += texture(inHistory, vec2(texPos3.x, texPos3.y)).xyz * w3.x * w3.y;
+    return max(result, 0.0f);
+}
+
+vec3 Tap(in vec2 pos, vec2 texelSize)
+{
+    return Tile[int(pos.x) + TILE_DIM * int(pos.y)];
+}
+
+vec2 getClosestVelocity(in vec2 uv, in vec2 texelSize, out bool isSkyPixel)
+{
+    vec2 velocity;
+    float closestDepth = 0.0f;
+    for (int y = -1; y <= 1; ++y)
+    {
+        for (int x = -1; x <= 1; ++x)
+        {
+            const vec2 st = uv + vec2(x, y) * texelSize;
+            const float depth = texture(inDepth, st).x;
+            if (depth >= closestDepth) // now always reverse z
+            {
+                velocity = texture(inVelocity, st).xy;
+                closestDepth = depth;
+            }
+        }
+    }
+    isSkyPixel = (closestDepth <= 0.0f);
+    return velocity;
+}
+
+vec3 clipAABB(vec3 aabb_min, vec3 aabb_max, vec3 p, vec3 q)
+{
+#if USE_OPTIMIZATIONS
+    // note: only clips towards aabb center (but fast!)
+    vec3 p_clip = 0.5f * (aabb_max + aabb_min);
+    vec3 e_clip = 0.5f * (aabb_max - aabb_min) + FLT_EPS;
+    vec3 v_clip = q - p_clip;
+    vec3 v_unit = v_clip.xyz / e_clip;
+    vec3 a_unit = abs(v_unit);
+    float ma_unit = max(a_unit.x, max(a_unit.y, a_unit.z));
+    if (ma_unit > 1.0)
+    {
+        return p_clip + v_clip / ma_unit;
+    }
+    else
+    {
+        return q;// point inside aabb
+    }
+#else
+    vec3 r = q - p;
+    vec3 rmax = aabb_max - p.xyz;
+    vec3 rmin = aabb_min - p.xyz;
+
+    if (r.x > rmax.x + FLT_MIN)
+        r *= (rmax.x / r.x);
+    if (r.y > rmax.y + FLT_MIN)
+        r *= (rmax.y / r.y);
+    if (r.z > rmax.z + FLT_MIN)
+        r *= (rmax.z / r.z);
+    if (r.x < rmin.x - FLT_MIN)
+        r *= (rmin.x / r.x);
+    if (r.y < rmin.y - FLT_MIN)
+        r *= (rmin.y / r.y);
+    if (r.z < rmin.z - FLT_MIN)
+        r *= (rmin.z / r.z);
+
+    return p + r;
+#endif
+}
+
+vec3 clipHistory(uvec2 thread_id, uint group_index, uvec3 group_id, sampler2D tex, vec3 color_history, vec2 texelSize)
+{
+    uvec2 du = uvec2(1, 0);
+    uvec2 dv = uvec2(0, 1);
+
+    vec3 ctl = texture(tex, texelSize * vec2(thread_id - dv - du)).rgb;
+    vec3 ctc = texture(tex, texelSize * vec2(thread_id - dv)).rgb;
+    vec3 ctr = texture(tex, texelSize * vec2(thread_id - dv + du)).rgb;
+    vec3 cml = texture(tex, texelSize * vec2(thread_id - du)).rgb;
+    vec3 cmc = texture(tex, texelSize * vec2(thread_id)).rgb;
+    vec3 cmr = texture(tex, texelSize * vec2(thread_id + du)).rgb;
+    vec3 cbl = texture(tex, texelSize * vec2(thread_id + dv - du)).rgb;
+    vec3 cbc = texture(tex, texelSize * vec2(thread_id + dv)).rgb;
+    vec3 cbr = texture(tex, texelSize * vec2(thread_id + dv + du)).rgb;
+
+    vec3 color_min = min(ctl, min(ctc, min(ctr, min(cml, min(cmc, min(cmr, min(cbl, min(cbc, cbr))))))));
+    vec3 color_max = max(ctl, max(ctc, max(ctr, max(cml, max(cmc, max(cmr, max(cbl, max(cbc, cbr))))))));
+    vec3 color_avg = (ctl + ctc + ctr + cml + cmc + cmr + cbl + cbc + cbr) / 9.0f;
+
+    return clamp(clipAABB(color_min, color_max, clamp(color_avg, color_min, color_max), color_history), FLT_MIN, FLT_MAX_16);
+}
+
+vec3 sampleHistory(vec2 uv,vec2 inTexelSize)
+{
+    return sampleHistoryCatmullRom(uv,inTexelSize);
+
+    ivec2 dims = textureSize(inHistory, 0).xy;
+    vec2 texelSize = 1.0f / vec2(dims.xy);
+
+    vec4 RawHistory0 = vec4(0.0f);
+    vec4 HistoryBufferUVMinMax;
+    HistoryBufferUVMinMax.xy = vec2(dims.xy);
+    HistoryBufferUVMinMax.zw = texelSize;
+
+    CatmullRomSamples Samples = GetBicubic2DCatmullRomSamples(
+        uv, 
+        vec2(dims.xy), 
+        texelSize
+    );
+
+    for (uint i = 0; i < Samples.Count; i++)
+	{
+		vec2 SampleUV = Samples.UV[i];
+		if (Samples.UVDir[i].x < 0)
+        {
+            SampleUV.x = max(SampleUV.x, HistoryBufferUVMinMax.x);
+        }
+        else if (Samples.UVDir[i].x > 0)
+        {
+            SampleUV.x = min(SampleUV.x, HistoryBufferUVMinMax.z);
+        }
+
+        if (Samples.UVDir[i].y < 0)
+        {
+            SampleUV.y = max(SampleUV.y, HistoryBufferUVMinMax.y);
+        }
+        else if (Samples.UVDir[i].y > 0)
+        {
+            SampleUV.y = min(SampleUV.y, HistoryBufferUVMinMax.w);
+        }
+ 
+        // history is billinear sampler.
+		RawHistory0 += texture(inHistory, SampleUV) * Samples.Weight[i];
+	}
+    RawHistory0 *= Samples.FinalMultiplier;
+
+    return RawHistory0.xyz;
+}
+
+vec3 sampleCurrent(vec2 uv)
+{
+    return texture(inHdrColor, uv).rgb;
+}
+
+float luminance(vec3 color)
+{
+    return max(dot(color, vec3(0.299f, 0.587f, 0.114f)), 0.0001f);
+}
+
+float getLinearDepth(vec2 uv)
+{
+    float deviceZ = texture(inDepth,uv).r;
+
+    float near = frameData.camInfo.z;
+    float far = frameData.camInfo.w;
+
+    float z_b = deviceZ;
+    float z_n = 2.0f * z_b - 1.0f;
+    return 2.0f * far * near / (near + far - z_n * (near - far));
+}
+
+vec4 TemporalAntialiasing(uvec2 thread_id, uint group_index, uvec3 group_id, sampler2D tex_accumulation, sampler2D tex_current)
+{
+    uvec2 pos = gl_GlobalInvocationID.xy;
+    ivec2 dims = textureSize(inHdrColor, 0).xy;
+    const vec2 texelSize = 1.0f / vec2(dims.xy);
+    vec2 uv = (vec2(pos) + vec2(0.5)) * texelSize; 
+
+    // Get history and current colors
+    bool bSkyPiexel;
+    vec2 velocity         = getClosestVelocity(uv, texelSize, bSkyPiexel);
+    vec2 uv_reprojected   = uv - velocity;
+
+    vec3 color_history    = sampleHistory(uv_reprojected, texelSize);
+    vec3 color_current    = sampleCurrent(uv);
+
+    // If re-projected UV is out of screen, converge to current color immediately
+    if (uv_reprojected.x < 0.0f || uv_reprojected.y < 0.0f || uv_reprojected.x > 1.0f || uv_reprojected.y > 1.0f)
+    {
+        return vec4(color_current, 1.0f);
+    }
+
+    // Clip history to the neighbourhood of the current sample
+    color_history = clipHistory(thread_id.xy, group_index, group_id, inHdrColor, color_history, texelSize);
+
+    // Compute blend factor
+    float blend_factor = 1.0f;
+    {   
+        // Decrease blend factor when motion gets sub-pixel
+        const float threshold   = 0.5f;
+        const float base        = 0.5f;
+        const float gather      = 0.1666;
+
+        float depth             = getLinearDepth(uv);
+
+        float texel_vel_mag     = length(velocity * vec2(dims.xy)) * depth;
+        float subpixel_motion   = clamp(threshold / (texel_vel_mag + FLT_MIN), 0.0f, 1.0f);
+        blend_factor *= texel_vel_mag * base + subpixel_motion * gather;
+
+        // Decrease blend factor when contrast is high
+        float luminance_history     = luminance(color_history);
+        float luminance_current     = luminance(color_current);
+        float unbiased_difference   = abs(luminance_current - luminance_history) / ((max(luminance_current, luminance_history) + 0.3));
+        blend_factor *= 1.0 - unbiased_difference;
+
+        // Clamp
+        blend_factor = clamp(blend_factor, g_taa_blend_min, g_taa_blend_max);
+    }
+    
+    // Tonemap
+    color_history = Reinhard(color_history);
+    color_current = Reinhard(color_current);
+    
+    // Resolve
+    vec3 resolved = mix(color_history, color_current, blend_factor);
+    
+    // Inverse tonemap
+    resolved = ReinhardInverse(resolved);
+    
+    return vec4(resolved, 1.0f);
+}
+
+
+void main() 
+{
+#if TAA_MODE == 0
+    uvec2 pos = gl_GlobalInvocationID.xy;
+    ivec2 dims = textureSize(inHdrColor, 0).xy;
+    const vec2 texelSize = 1.0f / vec2(dims.xy);
+    vec2 uv = (vec2(pos) + vec2(0.5)) * texelSize; 
+
+    const vec2 tilePos = gl_LocalInvocationID.xy + RADIUS + 0.5f;
+
+    // Populate local memory
+    if (gl_LocalInvocationIndex < TILE_DIM * TILE_DIM / 4)
+    {
+        const ivec2 anchor = ivec2(gl_WorkGroupID.xy) * GROUP_SIZE - RADIUS;
+
+        const ivec2 coord1 = anchor + ivec2( gl_LocalInvocationIndex % TILE_DIM, gl_LocalInvocationIndex / TILE_DIM);
+        const ivec2 coord2 = anchor + ivec2((gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 4) % TILE_DIM, (gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 4) / TILE_DIM);
+        const ivec2 coord3 = anchor + ivec2((gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 2) % TILE_DIM, (gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 2) / TILE_DIM);
+        const ivec2 coord4 = anchor + ivec2((gl_LocalInvocationIndex + TILE_DIM * TILE_DIM * 3 / 4) % TILE_DIM, (gl_LocalInvocationIndex + TILE_DIM * TILE_DIM * 3 / 4) / TILE_DIM);
+
+        const vec2 uv1 = (coord1 + 0.5f) * texelSize;
+        const vec2 uv2 = (coord2 + 0.5f) * texelSize;
+        const vec2 uv3 = (coord3 + 0.5f) * texelSize;
+        const vec2 uv4 = (coord4 + 0.5f) * texelSize;
+
+        const vec3 color0 = texture(inHdrColor, uv1).xyz;
+        const vec3 color1 = texture(inHdrColor, uv2).xyz;
+        const vec3 color2 = texture(inHdrColor, uv3).xyz;
+        const vec3 color3 = texture(inHdrColor, uv4).xyz;
+
+        Tile[gl_LocalInvocationIndex]                               = Reinhard(color0);
+        Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 4]     = Reinhard(color1);
+        Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM / 2]     = Reinhard(color2);
+        Tile[gl_LocalInvocationIndex + TILE_DIM * TILE_DIM * 3 / 4] = Reinhard(color3);
+    }
+    groupMemoryBarrier();
+    barrier();
+
+    ivec2 ggId = ivec2(gl_GlobalInvocationID.xy);
+
+    if (ggId.x >= dims.x || ggId.y >= dims.y)
+    {
+        imageStore(outHdrColor, ivec2(gl_GlobalInvocationID.xy), vec4(0.0f,0.0f,0.0f,1.0f));
+        return; 
+    }
+
+    float wsum = 0.0f;
+    vec3 vsum = vec3(0.0f, 0.0f, 0.0f);
+    vec3 vsum2 = vec3(0.0f, 0.0f, 0.0f);
+    for (float y = -RADIUS; y <= RADIUS; ++y)
+    {
+        for (float x = -RADIUS; x <= RADIUS; ++x)
+        {
+            const vec3 neigh = Tap(tilePos + vec2(x, y), texelSize);
+            const float w = exp(-3.0f * (x * x + y * y) / ((RADIUS + 1.0f) * (RADIUS + 1.0f)));
+            vsum2 += neigh * neigh * w;
+            vsum += neigh * w;
+            wsum += w;
+        }
+    }
+        
+    const vec3 ex = vsum / wsum;
+    const vec3 ex2 = vsum2 / wsum;
+    const vec3 dev = sqrt(max(ex2 - ex * ex, 0.0f));
+
+    bool isSkyPixel;
+    const vec2 velocity = getClosestVelocity(uv, texelSize, isSkyPixel);
+
+    const float boxSize = mix(0.5f, 2.5f, isSkyPixel ? 0.0f : smoothstep(0.02f, 0.0f, length(velocity)));
+    const vec3 nmin = ex - dev * boxSize;
+    const vec3 nmax = ex + dev * boxSize;
+    const vec3 history = sampleHistory(uv - velocity, texelSize);
+    const vec3 clampedHistory = clamp(history, nmin, nmax);
+    const vec3 center = Tap(tilePos, texelSize); 
+    vec3 result = mix(clampedHistory, center, 1.0f / 16.0f);
+
+    const float MaxHalfFloat = 65504.0f;
+    vec4 FinalOutput = min(MaxHalfFloat.xxxx, vec4(result,1.0f));
+
+    int frameIndexMod8 = int(frameData.frameIndex.x)  % 8;
+    int frameIndexMod16 = int(frameData.frameIndex.x) % 16;
+
+    uvec2 Random = Rand3DPCG16(ivec3(ivec2(gl_GlobalInvocationID.xy), frameIndexMod16)).xy;
+	vec2 E = Hammersley16(0, 1, Random);
+    vec3 OutputQuantizationError = vec3(0.00098, 0.00098, 0.00098);
+    FinalOutput.rgb += FinalOutput.rgb * (E.x * OutputQuantizationError);
+
+
+    imageStore(outHdrColor, ivec2(gl_GlobalInvocationID.xy), FinalOutput);
+
+#else
+    vec4 taaResult = TemporalAntialiasing(gl_GlobalInvocationID.xy, gl_LocalInvocationIndex, gl_WorkGroupID, inHistory, inHdrColor);
+    imageStore(outHdrColor, ivec2(gl_GlobalInvocationID.xy), taaResult);
+#endif
+}

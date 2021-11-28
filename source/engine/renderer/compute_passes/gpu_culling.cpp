@@ -34,7 +34,6 @@ void engine::GpuCullingPass::gbuffer_record(uint32 backBufferIndex)
     gpuPushConstant.cullIndex = static_cast<uint32>(ECullIndex::GBUFFER);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelines[backBufferIndex]);
-
     vkCmdPushConstants(cmd, m_pipelineLayouts[backBufferIndex], VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(GPUCullingPushConstants), &gpuPushConstant);
     
     std::vector<VkDescriptorSet> compPassSets = {
@@ -56,7 +55,6 @@ void engine::GpuCullingPass::gbuffer_record(uint32 backBufferIndex)
     );
 
     vkCmdDispatch(cmd, (gpuPushConstant.drawCount / 256) + 1, 1, 1);
-    
     commandBufEnd(backBufferIndex);
 }
 
@@ -64,6 +62,24 @@ void engine::GpuCullingPass::cascade_record(uint32 backBufferIndex)
 {
     VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
     commandBufBegin(backBufferIndex);
+
+    std::array<VkBufferMemoryBarrier,1> bufferBarriers {};
+    bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    bufferBarriers[0].buffer = m_renderScene->m_cascadeSetupBuffer.buffer->GetVkBuffer();
+    bufferBarriers[0].size = m_renderScene->m_cascadeSetupBuffer.size;
+    bufferBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    bufferBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(
+        cmd,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+        0,
+        0,
+        nullptr,
+        (uint32)bufferBarriers.size(),bufferBarriers.data(),
+        0,
+        nullptr
+    );
 
     for(size_t i = 0; i < CASCADE_MAX_COUNT; i++)
     {
@@ -73,7 +89,7 @@ void engine::GpuCullingPass::cascade_record(uint32 backBufferIndex)
     commandBufEnd(backBufferIndex);
 }
 
-void engine::GpuCullingPass::cascade_record(VkCommandBuffer cmd,uint32 backBufferIndex,ECullIndex cullIndex)
+void engine::GpuCullingPass::cascade_record(VkCommandBuffer& cmd,uint32 backBufferIndex,ECullIndex cullIndex)
 {
     uint32 cascasdeIndex = cullingIndexToCasacdeIndex(cullIndex);
 

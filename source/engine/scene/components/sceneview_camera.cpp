@@ -6,6 +6,8 @@
 
 namespace engine
 {
+   
+
     // NOTE: 该相机为场景预览相机，不具备在游戏中实例化的一些功能。
     namespace CameraUtils
     {
@@ -171,6 +173,7 @@ namespace engine
             Up = glm::normalize(glm::cross(Right,Front));
         }
     };
+   
 }
 
 void engine::SceneViewCamera::tick(float dt,uint32 viewWidth,uint32 viewHeight)

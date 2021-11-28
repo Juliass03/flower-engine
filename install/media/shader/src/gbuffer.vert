@@ -15,27 +15,36 @@ layout (location = 1) out vec2 outUV0;
 layout (location = 2) out vec3 outWorldPos;
 layout (location = 3) out vec3 outViewPos;
 layout (location = 4) out vec4 outTangent;
-layout (location = 5) out flat uint outMaterialId;
+layout (location = 5) out vec4 outPrevPosNoJitter;
+layout (location = 6) out vec4 outCurPosNoJitter;
+layout (location = 7) out flat uint outMaterialId;
 
 void main()
 {
 	outUV0 = inUV0;
+	
+	mat4 curJitterMat = mat4(1.0f);
+	curJitterMat[3][0] += frameData.jitterData.x;
+	curJitterMat[3][1] += frameData.jitterData.y;
 
 	uint objId = drawIndirectBuffer.indirectDraws[gl_DrawID].objectId;
 	uint materialId = drawIndirectBuffer.indirectDraws[gl_DrawID].materialId;
+	outMaterialId = materialId;
 
     mat4 modelMatrix  = perObjectBuffer.objects[objId].model;
 	vec4 worldPos = modelMatrix * vec4(inPosition,1.0f);
 
 	outWorldPos = vec3(worldPos);
 	outViewPos = (frameData.camView * worldPos).xyz;
+	outCurPosNoJitter =  frameData.camViewProj * worldPos;
 
-	mat4 mvp = frameData.camViewProj * modelMatrix;
-	gl_Position = mvp * vec4(inPosition, 1.0f);
+	gl_Position = curJitterMat * outCurPosNoJitter;
 
 	mat3 normalMatrix = transpose(inverse(mat3(modelMatrix)));
 	outWorldNormal = normalMatrix * normalize(inNormal);
 	outTangent =  vec4(normalMatrix * normalize(inTangent.xyz),inTangent.w);
 
-	outMaterialId = materialId;
+	mat4 prevTransMatrix = perObjectBuffer.objects[objId].preModel;
+	vec3 worldPrevPos = (prevTransMatrix * vec4(inPosition, 1.0f)).xyz;
+	outPrevPosNoJitter = frameData.camViewProjLast * vec4(worldPrevPos, 1);
 }

@@ -7,6 +7,7 @@ const float g_max_mipmap = 12.0f;
 struct PerObjectData   // SSBO upload each draw call mesh data
 {
 	mat4 model;         // model matrix
+    mat4 preModel;      // last frame model matrix
 
     vec4 sphereBounds;  // .xyz localspace center pos
                         // .w   sphere radius
@@ -168,4 +169,35 @@ mat4 orthoLH_ZO(float left, float right, float bottom, float top, float zNear, f
     Result[3][2] = - zNear / (zFar - zNear);
     return Result;
 }
+
+uvec3 Rand3DPCG16(ivec3 p)
+{
+	uvec3 v = uvec3(p);
+	v = v * 1664525u + 1013904223u;
+	v.x += v.y*v.z;
+	v.y += v.z*v.x;
+	v.z += v.x*v.y;
+	v.x += v.y*v.z;
+	v.y += v.z*v.x;
+	v.z += v.x*v.y;
+	return v >> 16u;
+}
+
+uint ReverseBits32(uint bits)
+{
+	bits = ( bits << 16) | ( bits >> 16);
+	bits = ( (bits & 0x00ff00ff) << 8 ) | ( (bits & 0xff00ff00) >> 8 );
+	bits = ( (bits & 0x0f0f0f0f) << 4 ) | ( (bits & 0xf0f0f0f0) >> 4 );
+	bits = ( (bits & 0x33333333) << 2 ) | ( (bits & 0xcccccccc) >> 2 );
+	bits = ( (bits & 0x55555555) << 1 ) | ( (bits & 0xaaaaaaaa) >> 1 );
+	return bits;
+}
+
+vec2 Hammersley16( uint Index, uint NumSamples, uvec2 Random )
+{
+	float E1 = fract( float(Index) / float(NumSamples) + float(Random.x) * (1.0 / 65536.0));
+	float E2 = float( ( ReverseBits32(Index) >> 16 ) ^ Random.y ) * (1.0 / 65536.0);
+	return vec2( E1, E2 );
+}
+
 #endif

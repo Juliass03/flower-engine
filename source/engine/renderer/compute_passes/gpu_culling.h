@@ -46,7 +46,7 @@ private:
 	void createPipeline();
 	void destroyPipeline();
 
-	void cascade_record(VkCommandBuffer cmd,uint32 backBufferIndex,ECullIndex cullIndex);
+	void cascade_record(VkCommandBuffer& cmd,uint32 backBufferIndex,ECullIndex cullIndex);
 
 public:
 	std::vector<VkPipeline> m_pipelines = {};

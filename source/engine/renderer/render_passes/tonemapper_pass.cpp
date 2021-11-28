@@ -82,12 +82,14 @@ void engine::TonemapperPass::dynamicRecord(uint32 backBufferIndex)
         &m_renderer->getFrameData().m_frameDataDescriptorSets[backBufferIndex].set,0,nullptr
     );
 
+    const bool bIsHistory = m_renderScene->getSceneTextures().IsUseSecondTAART();
     vkCmdBindDescriptorSets(
         cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
         m_pipelineLayouts[backBufferIndex],
         1, // PassSet #1
         1,
-        &m_tonemapperPassDescriptorSets[backBufferIndex].set,0,nullptr
+        &m_tonemapperPassDescriptorSets[backBufferIndex].set
+        ,0,nullptr
     );
     vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,m_pipelines[backBufferIndex]);
     vkCmdDraw(cmd, 3, 1, 0, 0);

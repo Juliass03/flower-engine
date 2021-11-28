@@ -10,11 +10,14 @@ layout (location = 1) in  vec2 inUV0;
 layout (location = 2) in  vec3 inWorldPos;
 layout (location = 3) in  vec3 inViewPos;
 layout (location = 4) in  vec4 inTangent;
-layout (location = 5) in  flat uint InMaterialId;
+layout (location = 5) in vec4 inPrevPosNoJitter;
+layout (location = 6) in vec4 inCurPosNoJitter;
+layout (location = 7) in  flat uint InMaterialId;
 
 layout (location = 0) out vec4 outGbufferBaseColorMetal; 
 layout (location = 1) out vec4 outGbufferNormalRoughness; 
 layout (location = 2) out vec4 outGbufferEmissiveAo; 
+layout (location = 3) out vec2 outVelocity;
 
 vec3 getNormalFromVertexAttribute(vec3 tangentVec3) 
 {
@@ -52,4 +55,11 @@ void main()
     outGbufferBaseColorMetal.a  = specularTex.b; // metal
     outGbufferNormalRoughness.a = specularTex.g; // roughness
     outGbufferEmissiveAo.a      = specularTex.r; // ao
+
+    // remove camera jitter velocity factor. 
+    vec2 curPosNDC = inCurPosNoJitter.xy  /  inCurPosNoJitter.w;
+    vec2 prePosNDC = inPrevPosNoJitter.xy / inPrevPosNoJitter.w;
+
+    outVelocity = (curPosNDC - prePosNDC) * 0.5f;
+    outVelocity.y *= -1.0f;
 }

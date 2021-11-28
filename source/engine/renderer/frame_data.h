@@ -11,6 +11,8 @@ constexpr int32 MAX_SSBO_OBJECTS      = 50000;
 struct GPUObjectData
 {
     glm::mat4 model;
+    glm::mat4 preModel;
+
     glm::vec4 sphereBounds;
     glm::vec4 extents;
 
@@ -30,6 +32,7 @@ struct GPUMaterialData
 
 struct GPUFrameData
 {
+    glm::uvec4 frameIndex;
 	glm::vec4 appTime;
 
     glm::vec4 sunLightDir;
@@ -39,6 +42,9 @@ struct GPUFrameData
 	glm::mat4 camProj;
 	glm::mat4 camViewProj;
     glm::mat4 camInvertViewProj;
+
+    glm::mat4 camViewProjLast;
+    glm::vec4 jitterData;
 
     glm::vec4 camWorldPos;
 	glm::vec4 cameraInfo; // .x fovy .y aspect_ratio .z nearZ .w farZ

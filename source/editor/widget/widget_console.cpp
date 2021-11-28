@@ -37,7 +37,7 @@ struct WidgetConsoleApp
     bool                  AutoScroll = true;
     bool                  ScrollToBottom;
     int CurPos;
-   
+
 
     std::vector<const char*> activeCommands;
 
@@ -458,11 +458,12 @@ struct WidgetConsoleApp
                 {
                     val = CVarSystem::get()->getStringArray().getCurrent(arrayIndex);
                 }
-                std::string outHelp = u8"命令帮助：" + std::string(cVar->description);
 
-                AddLog(outHelp.c_str());
-                AddLog((u8"当前值：" + tokens[0] + " " +val).c_str());
-
+                {
+					std::string outHelp = u8"命令帮助："+std::string(cVar->description);
+					AddLog(outHelp.c_str());
+					AddLog((u8"当前值："+tokens[0]+" "+val).c_str());
+                }
             }
             else if(tokens.size()==2)
             {

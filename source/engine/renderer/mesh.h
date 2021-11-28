@@ -146,7 +146,6 @@ private: // upload gpu
 
 public:
     Mesh& getUnitBox();
-
     Mesh& getMeshByName(const std::string& gameName);
 
     void init();

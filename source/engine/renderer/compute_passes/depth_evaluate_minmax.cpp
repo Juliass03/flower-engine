@@ -33,12 +33,25 @@ void engine::GpuDepthEvaluateMinMaxPass::record(uint32 backBufferIndex)
 {
 	VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
 	commandBufBegin(backBufferIndex);
+	std::array<VkImageMemoryBarrier,1> imageBarriers {};
+	imageBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	imageBarriers[0].image = m_renderScene->getSceneTextures().getDepthStencil()->getImage();
+	imageBarriers[0].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	imageBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	imageBarriers[0].subresourceRange.levelCount = 1;
+	imageBarriers[0].subresourceRange.layerCount = 1;
+	imageBarriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	imageBarriers[0].oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	imageBarriers[0].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; 
+	vkCmdPipelineBarrier(cmd,
+		VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+		0,0,nullptr,0,nullptr,(uint32)imageBarriers.size(), imageBarriers.data());
 
 	GpuDepthEvaluateMinMaxPushConstant gpuPushConstant = {};
 	auto depthImageExtent = m_renderScene->getSceneTextures().getDepthStencil()->getExtent();
 	gpuPushConstant.imageSize.x = float(depthImageExtent.width);
 	gpuPushConstant.imageSize.y = float(depthImageExtent.height);
-
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelines[backBufferIndex]);
 

@@ -39,18 +39,20 @@ void engine::GBufferPass::dynamicRecord(uint32 backBufferIndex)
     VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
     commandBufBegin(backBufferIndex);
 
+
     auto sceneTextureExtent = m_renderScene->getSceneTextures().getHDRSceneColor()->getExtent();
     VkExtent2D sceneTextureExtent2D{};
     sceneTextureExtent2D.width = sceneTextureExtent.width;
     sceneTextureExtent2D.height = sceneTextureExtent.height;
 
     VkRenderPassBeginInfo rpInfo = vkRenderpassBeginInfo(getRenderpass(),sceneTextureExtent2D,m_framebuffers[backBufferIndex]);
-    std::array<VkClearValue,4> clearValues{};
+    std::array<VkClearValue,5> clearValues{};
 
     clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
     clearValues[1].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
     clearValues[2].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
-    clearValues[3].depthStencil = { getEngineClearZFar(), 1 };
+    clearValues[3].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
+    clearValues[4].depthStencil = { getEngineClearZFar(), 1 };
 
     rpInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     rpInfo.pClearValues = &clearValues[0];
@@ -80,7 +82,7 @@ void engine::GBufferPass::dynamicRecord(uint32 backBufferIndex)
     }
 
     MeshLibrary::get()->bindIndexBuffer(cmd);
-	MeshLibrary::get()->bindVertexBuffer(cmd);
+    MeshLibrary::get()->bindVertexBuffer(cmd);
 
     vkCmdBeginRenderPass(cmd,&rpInfo,VK_SUBPASS_CONTENTS_INLINE);
 
@@ -124,7 +126,7 @@ void engine::GBufferPass::dynamicRecord(uint32 backBufferIndex)
 
 void engine::GBufferPass::createRenderpass()
 {
-    const size_t attachmentCount = 4;
+    const size_t attachmentCount = 5;
     const size_t depthAttachmentIndex = attachmentCount - 1;
     std::array<VkAttachmentDescription,attachmentCount> attachmentDescs{};
     for(size_t i = 0; i < depthAttachmentIndex; i++)
@@ -143,11 +145,13 @@ void engine::GBufferPass::createRenderpass()
     attachmentDescs[0].format = SceneTextures::getGbufferBaseColorRoughnessFormat();
     attachmentDescs[1].format = SceneTextures::getGbufferNormalMetalFormat();
     attachmentDescs[2].format = SceneTextures::getGbufferEmissiveAoFormat();
+    attachmentDescs[3].format = SceneTextures::getVelocityFormat();
     attachmentDescs[depthAttachmentIndex].format = SceneTextures::getDepthStencilFormat();
 
     attachmentDescs[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     attachmentDescs[1].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     attachmentDescs[2].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    attachmentDescs[3].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     attachmentDescs[depthAttachmentIndex].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescs[depthAttachmentIndex].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -155,12 +159,13 @@ void engine::GBufferPass::createRenderpass()
     attachmentDescs[depthAttachmentIndex].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDescs[depthAttachmentIndex].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDescs[depthAttachmentIndex].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
-    attachmentDescs[depthAttachmentIndex].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    attachmentDescs[depthAttachmentIndex].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     std::vector<VkAttachmentReference> colorReferences;
     colorReferences.push_back({ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
     colorReferences.push_back({ 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
     colorReferences.push_back({ 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
+    colorReferences.push_back({ 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL });
 
     VkAttachmentReference depthReference = {};
     depthReference.attachment = depthAttachmentIndex; // depth放在最后一个
@@ -224,6 +229,7 @@ void engine::GBufferPass::createFramebuffers()
            .addAttachment(m_renderScene->getSceneTextures().getGbufferBaseColorRoughness())
            .addAttachment(m_renderScene->getSceneTextures().getGbufferNormalMetal())
            .addAttachment(m_renderScene->getSceneTextures().getGbufferEmissiveAo())
+           .addAttachment(m_renderScene->getSceneTextures().getVelocity())
            .addAttachment(m_renderScene->getSceneTextures().getDepthStencil());
         m_framebuffers[i] = fbf.create(VulkanRHI::get()->getDevice());
     }
@@ -282,6 +288,7 @@ void engine::GBufferPass::createPipeline()
         gpf.rasterizer.cullMode = VK_CULL_MODE_NONE;
 
         gpf.multisampling = vkMultisamplingStateCreateInfo();
+        gpf.colorBlendAttachments.push_back(vkColorBlendAttachmentState());
         gpf.colorBlendAttachments.push_back(vkColorBlendAttachmentState());
         gpf.colorBlendAttachments.push_back(vkColorBlendAttachmentState());
         gpf.colorBlendAttachments.push_back(vkColorBlendAttachmentState());

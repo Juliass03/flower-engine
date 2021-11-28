@@ -44,6 +44,7 @@ void engine::GpuCascadeSetupPass::record(uint32 backBufferIndex)
 	VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
 	commandBufBegin(backBufferIndex);
 
+
 	GpuCascadeSetupPushConstant gpuPushConstant = {}; 
 	static auto* cVarShadowMapSize = CVarSystem::get()->getInt32CVar("r.Shadow.ShadowMapSize");
 	CHECK(cVarShadowMapSize);

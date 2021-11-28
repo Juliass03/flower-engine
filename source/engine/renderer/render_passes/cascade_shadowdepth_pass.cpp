@@ -229,7 +229,7 @@ void engine::ShadowDepthPass::dynamicRecord(uint32 backBufferIndex)
 	commandBufEnd(backBufferIndex);
 }
 
-void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer cmd,uint32 backBufferIndex,ECullIndex cullIndexType)
+void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer& cmd,uint32 backBufferIndex,ECullIndex cullIndexType)
 {
 	uint32 cascadeIndex = cullingIndexToCasacdeIndex(cullIndexType);
 	CHECK(cascadeIndex < 4);

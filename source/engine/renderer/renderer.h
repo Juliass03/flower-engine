@@ -13,12 +13,16 @@ extern float getEngineClearZFar();
 extern float getEngineClearZNear();
 extern VkCompareOp getEngineZTestFunc();
 extern float getExposure();
+extern bool TAAOpen();
 
 class GraphicsPass;
 class GpuCullingPass;
 class ShadowDepthPass;
 class GpuDepthEvaluateMinMaxPass;
 class GpuCascadeSetupPass;
+class TAAPass;
+
+extern bool gRenderDocCapture;
 
 class Renderer : public IRuntimeModule
 {
@@ -66,6 +70,8 @@ private:
 	GPUFrameData m_gpuFrameData { };
 	void updateGPUData(float dt);
 
+	uint32 m_frameCount = 0;
+
 public:
 	VulkanDescriptorAllocator& getDynamicDescriptorAllocator(uint32 i);
 	VulkanDescriptorFactory vkDynamicDescriptorFactoryBegin(uint32 i);
@@ -81,6 +87,8 @@ public:
 	ShadowDepthPass* m_shadowdepthPasses;
 
 	GraphicsPass*   m_lightingPass;
+
+	TAAPass* m_taaPass;
 	GraphicsPass*   m_tonemapperPass;
 
 private:

@@ -10,7 +10,11 @@ class SceneTextures
 {
 private:
 	VulkanImage* m_gbufferBaseColorRoughness; // R8G8B8A8 rgb存基础色，a通道存粗糙度
+
+
 	VulkanImage* m_gbufferNormalMetal;        // r16g16b16a16 rgb存世界空间法线，a通道存金属度
+	// Also use as taa texture in PostProcess;
+
 	VulkanImage* m_gbufferEmissiveAo;         // R8G8B8A8 rgb存自发光颜色，a通道存模型AO
 
 	VulkanImage* m_sceneColorTexture;        // HDR SceneColor Texture. R16G16B16A16 SFLOAT
@@ -21,6 +25,12 @@ private:
 
 	VulkanImage* m_irradiancePrefilterTextureCube; // R16G16B16A16
 	VulkanImage* m_specularPrefilterTextureCube; // R16G16B16A16
+
+	VulkanImage* m_historyTexture;  //  R16G16B16A16
+	VulkanImage* m_taaTexture;
+	VulkanImage* m_velocityTexture; //  R16G16
+
+	bool bLastFrameHistory = false; // History Texture PingPong
 
 #if 0
 	VulkanImage* m_envTextureCube; // R16G16B16A16
@@ -50,6 +60,10 @@ public:
 	static VkFormat getSpecularPrefilterCubeFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
 	static VkFormat getBRDFLutFormat() { return VK_FORMAT_R16G16_SFLOAT; }
 
+	static VkFormat getHistoryFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
+	static VkFormat getVelocityFormat() { return VK_FORMAT_R16G16_SFLOAT; }
+	static VkFormat getTAAFormat() { return getHistoryFormat(); }
+
 	static uint32 getBRDFLutDim() { return 512; }
 	static uint32 getPrefilterCubeDim() { return 128; }
 	static uint32 getSpecularPrefilterCubeDim() { return 1024; }
@@ -70,6 +84,11 @@ public:
 	Ref<VulkanImage> getIrradiancePrefilterCube() { return m_irradiancePrefilterTextureCube; }
 	Ref<VulkanImage> getSpecularPrefilterCube() { return m_specularPrefilterTextureCube; }
 
+	Ref<VulkanImage> getHistory();
+	Ref<VulkanImage> getVelocity() { return m_velocityTexture; }
+	Ref<VulkanImage> getTAA();
+
+	bool IsUseSecondTAART() { return bLastFrameHistory; }
 #if 0
 	Ref<VulkanImage> getEnvCube() { return m_envTextureCube; }
 	static uint32 getEnvCubeDim() { return 1024; }
@@ -104,6 +123,8 @@ public:
 	{
 		this->m_callbackAfterSceneTextureRecreate.erase(name);
 	}
+
+	void frameBegin();
 };
 
 }

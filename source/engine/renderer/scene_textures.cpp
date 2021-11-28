@@ -73,37 +73,69 @@ void SceneTextures::allocate(uint32 width,uint32 height,bool forceAllocate)
         
 	m_sceneColorTexture = RenderTexture::create(
         VulkanRHI::get()->getVulkanDevice(),
-        width,height,
-        getHDRSceneColorFormat()
+        width,
+        height,
+        getHDRSceneColorFormat(),
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_STORAGE_BIT
     );
 
     m_depthStencilTexture = DepthOnlyImage::create(
         VulkanRHI::get()->getVulkanDevice(),
-        width,height
+        width,
+        height
     );
 
     m_finalColorTexture = RenderTexture::create(
         VulkanRHI::get()->getVulkanDevice(),
-        width,height,
+        width,
+        height,
         getLDRSceneColorFormat() 
     );
 
     m_gbufferBaseColorRoughness = RenderTexture::create(
         VulkanRHI::get()->getVulkanDevice(),
-        width,height,
+        width,
+        height,
         getGbufferBaseColorRoughnessFormat()
     );
 
     m_gbufferEmissiveAo = RenderTexture::create(
         VulkanRHI::get()->getVulkanDevice(),
-        width,height,
+        width,
+        height,
         getGbufferEmissiveAoFormat()
     );
 
     m_gbufferNormalMetal = RenderTexture::create(
         VulkanRHI::get()->getVulkanDevice(),
-        width,height,
-        getGbufferNormalMetalFormat()
+        width,
+        height,
+        getGbufferNormalMetalFormat(),
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
+    );
+
+	m_historyTexture = RenderTexture::create(
+		VulkanRHI::get()->getVulkanDevice(),
+		width,
+        height,
+		getHistoryFormat(),
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
+	);
+
+    m_velocityTexture = RenderTexture::create(
+		VulkanRHI::get()->getVulkanDevice(),
+		width,
+        height,
+		getVelocityFormat(),
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
+    );
+
+    m_taaTexture = RenderTexture::create(
+        VulkanRHI::get()->getVulkanDevice(),
+        width,
+        height,
+        getTAAFormat(),
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
     );
 
     if(m_needPrepareTexture)
@@ -201,8 +233,26 @@ void SceneTextures::release(bool bAll)
     delete m_gbufferEmissiveAo;
     delete m_gbufferNormalMetal;
     delete m_cascadeShadowDepthMapArray;
+    delete m_historyTexture;
+    delete m_velocityTexture;
+    delete m_taaTexture;
 
     m_init = false;
+}
+
+Ref<VulkanImage> SceneTextures::getHistory()
+{
+    return m_historyTexture;
+}
+
+Ref<VulkanImage> SceneTextures::getTAA()
+{
+   return m_taaTexture;
+}
+
+void SceneTextures::frameBegin()
+{
+    bLastFrameHistory = !bLastFrameHistory;
 }
 
 }

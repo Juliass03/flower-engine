@@ -115,6 +115,7 @@
     <ClCompile Include="renderer\compute_passes\hdri2cubemap.cpp" />
     <ClCompile Include="renderer\compute_passes\irradiance_prefiltercube.cpp" />
     <ClCompile Include="renderer\compute_passes\specular_prefilter.cpp" />
+    <ClCompile Include="renderer\compute_passes\taa.cpp" />
     <ClCompile Include="renderer\frame_data.cpp" />
     <ClCompile Include="renderer\frame_graph\frame_graph.cpp" />
     <ClCompile Include="renderer\material.cpp" />
@@ -178,6 +179,7 @@
     <ClInclude Include="renderer\compute_passes\hdri2cubemap.h" />
     <ClInclude Include="renderer\compute_passes\irradiance_prefiltercube.h" />
     <ClInclude Include="renderer\compute_passes\specular_prefilter.h" />
+    <ClInclude Include="renderer\compute_passes\taa.h" />
     <ClInclude Include="renderer\frame_data.h" />
     <ClInclude Include="renderer\frame_graph\define.h" />
     <ClInclude Include="renderer\frame_graph\frame_graph.h" />

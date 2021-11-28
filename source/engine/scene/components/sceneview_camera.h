@@ -7,6 +7,8 @@ namespace engine{
 constexpr glm::vec3 CAMERA_FORWARD = glm::vec3(0.0f,0.0f,1.0f);
 constexpr glm::vec3 CAMERA_UP = glm::vec3(0.0f,1.0f,0.0f);
 
+
+
 class SceneViewCamera : public Component
 {
 private:

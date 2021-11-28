@@ -45,7 +45,7 @@ public:
 	
 private:
 	std::vector<std::vector<VkFramebuffer>> m_cascadeFramebuffers = {};
-	void cascadeRecord(VkCommandBuffer cmd,uint32 backBufferIndex, ECullIndex);
+	void cascadeRecord(VkCommandBuffer& cmd,uint32 backBufferIndex, ECullIndex);
 
 private:
 	bool bInitPipeline = false;

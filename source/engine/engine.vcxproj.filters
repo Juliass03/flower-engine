@@ -55,6 +55,7 @@
     <ClCompile Include="renderer\compute_passes\irradiance_prefiltercube.cpp" />
     <ClCompile Include="renderer\compute_passes\hdri2cubemap.cpp" />
     <ClCompile Include="renderer\compute_passes\specular_prefilter.cpp" />
+    <ClCompile Include="renderer\compute_passes\taa.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\cvar.h" />
@@ -125,5 +126,6 @@
     <ClInclude Include="renderer\compute_passes\irradiance_prefiltercube.h" />
     <ClInclude Include="renderer\compute_passes\hdri2cubemap.h" />
     <ClInclude Include="renderer\compute_passes\specular_prefilter.h" />
+    <ClInclude Include="renderer\compute_passes\taa.h" />
   </ItemGroup>
 </Project>

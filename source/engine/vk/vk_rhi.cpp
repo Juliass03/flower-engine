@@ -506,11 +506,11 @@ void VulkanRHI::createCommandPool()
 void VulkanRHI::createSyncObjects()
 {
     const auto imageNums = m_swapchain.getImageViews().size();
-    m_semaphoresImageAvailable.resize(m_maxFramesInFlight);
-    m_semaphoresRenderFinished.resize(m_maxFramesInFlight);
+    m_semaphoresImageAvailable.resize(imageNums);
+    m_semaphoresRenderFinished.resize(imageNums);
     m_staticGraphicsCommandExecuteSemaphores.resize(imageNums);
     m_dynamicGraphicsCommandExecuteSemaphores.resize(imageNums);
-    m_inFlightFences.resize(m_maxFramesInFlight);
+    m_inFlightFences.resize(imageNums);
     m_imagesInFlight.resize(imageNums);
     for(auto& fence : m_imagesInFlight)
     {
@@ -524,7 +524,7 @@ void VulkanRHI::createSyncObjects()
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for(size_t i = 0; i < m_maxFramesInFlight; i++)
+    for(size_t i = 0; i < imageNums; i++)
     {
         if(
             vkCreateSemaphore(m_device,&semaphoreInfo,nullptr,&m_semaphoresImageAvailable[i])!=VK_SUCCESS||
@@ -635,7 +635,7 @@ void VulkanRHI::releaseCommandPool()
 
 void VulkanRHI::releaseSyncObjects()
 {
-    for(size_t i = 0; i < m_maxFramesInFlight; i++)
+    for(size_t i = 0; i < m_semaphoresImageAvailable.size(); i++)
     {
         vkDestroySemaphore(m_device,m_semaphoresImageAvailable[i],nullptr);
         vkDestroySemaphore(m_device,m_semaphoresRenderFinished[i],nullptr);

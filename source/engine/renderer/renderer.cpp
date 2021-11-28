@@ -19,6 +19,8 @@
 #include "compute_passes/hdri2cubemap.h"
 #include "compute_passes/specular_prefilter.h"
 #include "frustum.h"
+#include <renderdoc/renderdoc_app.h>
+#include "compute_passes/taa.h"
 
 using namespace engine;
 
@@ -26,7 +28,7 @@ static AutoCVarInt32 cVarReverseZ(
 	"r.Shading.ReverseZ",
 	"Enable reverse z. 0 is off, others are on.",
 	"Shading",
-	1,
+	1, // Now ReverseZ Always Open, Don't Change Value Please.
 	CVarFlags::InitOnce | CVarFlags::ReadOnly
 );
 
@@ -34,9 +36,95 @@ static AutoCVarFloat cVarExposure(
 	"r.Shading.Exposure",
 	"Exposure value.",
 	"Shading",
-	3.14f,
+	1.0f,
 	CVarFlags::InitOnce | CVarFlags::ReadOnly
 );
+
+static AutoCVarInt32 cVarRenderDocCapture(
+	"RenderDoc.Capture",
+	"Capture Renderdoc.",
+	"RenderDoc",
+	0,
+	CVarFlags::ReadAndWrite
+);
+
+static AutoCVarInt32 cVarTAAOpen(
+	"r.TAA",
+	"Open TAA. 0 is off, 1 is on.",
+	"Shading",
+	1,
+	CVarFlags::ReadAndWrite
+);
+
+bool engine::TAAOpen()
+{
+	return cVarTAAOpen.get() != 0;
+}
+
+RENDERDOC_API_1_0_0* getRenderDocApi()
+{
+	RENDERDOC_API_1_0_0* rdoc = nullptr;
+	HMODULE module = GetModuleHandleA("renderdoc.dll");
+
+	if(module==NULL)
+	{
+		return nullptr;
+	}
+
+	pRENDERDOC_GetAPI getApi = nullptr;
+	getApi = (pRENDERDOC_GetAPI)GetProcAddress(module,"RENDERDOC_GetAPI");
+	if(getApi == nullptr)
+	{
+		return nullptr;
+	}
+	if(getApi(eRENDERDOC_API_Version_1_0_0,(void**)&rdoc)!=1)
+	{
+		return nullptr;
+	}
+	return rdoc;
+}
+
+static RENDERDOC_API_1_0_0* rdc = nullptr;
+static bool bRenderDocCaptureing = false;
+void renderDocProcess()
+{
+	if(rdc==nullptr)
+	{
+		rdc = getRenderDocApi();
+	}
+
+	if(rdc && cVarRenderDocCapture.get() != 0)
+	{
+		if(bRenderDocCaptureing)
+		{
+			cVarRenderDocCapture.set(0);
+			rdc->EndFrameCapture(nullptr, nullptr); 
+			bRenderDocCaptureing = false;
+		}
+		else
+		{
+			rdc->StartFrameCapture(nullptr, nullptr); 
+			bRenderDocCaptureing = true;
+		}
+	}
+}
+
+inline float Halton(uint64_t index, uint64_t base)
+{
+	float f = 1; float r = 0;
+	while (index > 0)
+	{
+		f = f / static_cast<float>(base);
+		r = r + f * (index % base);
+		index = index / base;
+	}
+	return r;
+}
+
+inline glm::vec2 Halton2D(uint64_t index, uint64_t baseA, uint64_t baseB)
+{
+	return glm::vec2(Halton(index, baseA), Halton(index, baseB));
+}
 
 float engine::getExposure()
 {
@@ -62,7 +150,6 @@ VkCompareOp engine::getEngineZTestFunc()
 {
     return reverseZOpen() ? VK_COMPARE_OP_GREATER : VK_COMPARE_OP_LESS;
 }
-
 
 Renderer::Renderer(Ref<ModuleManager> in) : IRuntimeModule(in)
 {
@@ -103,6 +190,8 @@ bool Renderer::init()
 	m_cascadeSetupPass = new GpuCascadeSetupPass(this,m_renderScene,shader_compiler, "CascadeSetup");
 
 	m_lightingPass = new LightingPass(this,m_renderScene,shader_compiler,"Lighting");
+
+	m_taaPass = new TAAPass(this,m_renderScene,shader_compiler,"TAA");
 	m_tonemapperPass = new TonemapperPass(this,m_renderScene,shader_compiler,"ToneMapper");
 
 	// 首先调用PerframeData的初始化函数确保全局的PerframeData正确初始化
@@ -119,6 +208,8 @@ bool Renderer::init()
 	m_shadowdepthPasses->init();
 
 	m_lightingPass->init();
+
+	m_taaPass->init();
 	m_tonemapperPass->init();
 
 	return true;
@@ -126,6 +217,8 @@ bool Renderer::init()
 
 void Renderer::tick(float dt)
 {
+	renderDocProcess();
+
 	Ref<shaderCompiler::ShaderCompiler> shader_compiler = m_moduleManager->getRuntimeModule<shaderCompiler::ShaderCompiler>();
 	CHECK(shader_compiler);
 
@@ -156,14 +249,13 @@ void Renderer::tick(float dt)
 
 	m_frameData.updateFrameData(m_gpuFrameData);
 	m_renderScene->renderPrepare(m_gpuFrameData);
-
-
+	m_renderScene->getSceneTextures().frameBegin();
 	
 	m_gbufferCullingPass->gbuffer_record(backBufferIndex); // gbuffer culling
-
 	m_gbufferPass->dynamicRecord(backBufferIndex); // gbuffer rendering
-
 	m_depthEvaluateMinMaxPass->record(backBufferIndex); // depth evaluate min max
+
+	// TODO: barrier
 	m_cascadeSetupPass->record(backBufferIndex);// cascade setup.
 
 	m_cascasdeCullingPasses->cascade_record(backBufferIndex); // cascade culling
@@ -172,14 +264,14 @@ void Renderer::tick(float dt)
 
 	m_lightingPass->dynamicRecord(backBufferIndex); // lighting pass
 
+	m_taaPass->record(backBufferIndex);
 	m_tonemapperPass->dynamicRecord(backBufferIndex); // tonemapper pass
-
 
 	uiRecord(backBufferIndex);
 	m_uiPass->renderFrame(backBufferIndex);
 
-// TODO: 使用 rendergraph 简化这部分
-// 提交部分
+	// TODO: 使用 rendergraph 简化这部分
+	// 提交部分
 	auto frameStartSemaphore = VulkanRHI::get()->getCurrentFrameWaitSemaphoreRef();
 	auto frameEndSemaphore = VulkanRHI::get()->getCurrentFrameFinishSemaphore();
 
@@ -211,7 +303,7 @@ void Renderer::tick(float dt)
 		.setSignalSemaphore(&gbufferRenderingSemaphore,1) 
 		.setCommandBuffer(&gbufferRenderingBuf,1);
 	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&gbufferRenderingSubmitInfo.get(),nullptr));
-	
+
 	// 3. depth evaluate min max
 	VulkanSubmitInfo depthEvaluateMinMaxSubmitInfo{};
 	auto depthEvaluateMinMaxSemaphore = m_depthEvaluateMinMaxPass->getSemaphore(backBufferIndex);
@@ -262,17 +354,27 @@ void Renderer::tick(float dt)
 		.setCommandBuffer(&lightingBuf,1);
 	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&lightingSubmitInfo.get(),nullptr));
 
-	// 8. tonemapping
+	// 8. taa
+	VulkanSubmitInfo taaSubmitInfo{};
+	auto taaSemaphore = m_taaPass->getSemaphore(backBufferIndex);
+	VkCommandBuffer taaBuf = m_taaPass->getCommandBuf(backBufferIndex)->getInstance();
+	taaSubmitInfo.setWaitStage(graphicsWaitFlags)
+		.setWaitSemaphore(&lightingSemaphore,1)
+		.setSignalSemaphore(&taaSemaphore,1) 
+		.setCommandBuffer(&taaBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&taaSubmitInfo.get(),nullptr));
+
+	// 9. tonemapping
 	VulkanSubmitInfo tonemapperSubmitInfo{};
 	auto tonemapperSemaphore = m_tonemapperPass->getSemaphore(backBufferIndex);
 	VkCommandBuffer tonemapperBuf = m_tonemapperPass->getCommandBuf(backBufferIndex)->getInstance();
-	tonemapperSubmitInfo.setWaitStage(graphicsWaitFlags)
-		.setWaitSemaphore(&lightingSemaphore,1)
+	tonemapperSubmitInfo.setWaitStage(computeWaitFlags)
+		.setWaitSemaphore(&taaSemaphore,1)
 		.setSignalSemaphore(&tonemapperSemaphore,1) 
 		.setCommandBuffer(&tonemapperBuf,1);
 	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&tonemapperSubmitInfo.get(),nullptr));
 
-	// 9. imgui
+	// 10. imgui
 	VulkanSubmitInfo imguiPassSubmitInfo{};
 	VkCommandBuffer cmd_uiPass = m_uiPass->getCommandBuffer(backBufferIndex);
 	imguiPassSubmitInfo.setWaitStage(graphicsWaitFlags)
@@ -285,6 +387,7 @@ void Renderer::tick(float dt)
 	VulkanRHI::get()->resetFence();
 	VulkanRHI::get()->submit((uint32_t)submitInfos.size(),submitInfos.data());
 	m_uiPass->updateAfterSubmit();
+
 
 	VulkanRHI::get()->present();
 }
@@ -299,6 +402,8 @@ void Renderer::release()
 	m_cascadeSetupPass->release(); delete m_cascadeSetupPass;
 
 	m_lightingPass->release(); delete m_lightingPass;
+
+	m_taaPass->release(); delete m_taaPass;
 	m_tonemapperPass->release(); delete m_tonemapperPass;
 	m_gbufferCullingPass->release(); delete m_gbufferCullingPass;
 
@@ -374,11 +479,43 @@ void Renderer::updateGPUData(float dt)
 	// 更新场景相机
 	sceneViewCameraComponent->tick(dt,m_screenViewportWidth,m_screenViewportHeight);
 
+	m_gpuFrameData.frameIndex.r = m_frameCount;
+	m_gpuFrameData.camViewProjLast = m_gpuFrameData.camViewProj;
+
 	m_gpuFrameData.camView = sceneViewCameraComponent->getView();
 	m_gpuFrameData.camProj = sceneViewCameraComponent->getProjection();
+
+	if(TAAOpen())
+	{
+		m_gpuFrameData.jitterData.z = m_gpuFrameData.jitterData.x;
+		m_gpuFrameData.jitterData.w = m_gpuFrameData.jitterData.y;
+
+		const float scale               = 1.0f;
+		const uint8_t samples           = 16;
+		const uint64_t index            = m_frameCount % samples;
+		glm::vec2 taaJitter  = Halton2D(index, 2, 3) * 2.0f - 1.0f;
+
+		m_gpuFrameData.jitterData.x   = (taaJitter.x / (float)m_screenViewportWidth)  * scale;
+		m_gpuFrameData.jitterData.y   = (taaJitter.y / (float)m_screenViewportHeight) * scale;
+
+#if 0
+		glm::mat4 jitterMat = glm::mat4(1.0f);
+		jitterMat[3][0] = m_gpuFrameData.jitterData.x;
+		jitterMat[3][1] = m_gpuFrameData.jitterData.y;
+		m_gpuFrameData.camProj = jitterMat * m_gpuFrameData.camProj;
+
+		//m_gpuFrameData.camProj[2][0] += m_gpuFrameData.jitterData.x;
+		//m_gpuFrameData.camProj[2][1] += m_gpuFrameData.jitterData.y;
+#endif	
+	}
+	else
+	{
+		m_gpuFrameData.jitterData = glm::vec4(0.0f);
+	}
+	
 	m_gpuFrameData.camViewProj = m_gpuFrameData.camProj * m_gpuFrameData.camView;
 	m_gpuFrameData.camInvertViewProj = glm::inverse(m_gpuFrameData.camViewProj);
-
+	
 	m_gpuFrameData.camWorldPos = glm::vec4(sceneViewCameraComponent->getPosition(),1.0f);
 
 	m_gpuFrameData.cameraInfo = glm::vec4(
@@ -398,6 +535,8 @@ void Renderer::updateGPUData(float dt)
 	m_gpuFrameData.camFrustumPlanes[3] = camFrusum.planes[3];
 	m_gpuFrameData.camFrustumPlanes[4] = camFrusum.planes[4];
 	m_gpuFrameData.camFrustumPlanes[5] = camFrusum.planes[5];
+
+	m_frameCount ++;
 }
 
 
