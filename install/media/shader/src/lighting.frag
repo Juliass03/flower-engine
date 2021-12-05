@@ -247,8 +247,11 @@ void main()
 
 		ambientLighting = (diffuseIBL + specularIBL);
     }
+    // ambientLighting *= lightRadiance;
 
-    outHdrSceneColor.rgb = directLighting + ambientLighting + gData.emissiveColor;
+    outHdrSceneColor.rgb = directLighting + ambientLighting + gData.emissiveColor * 3.14f;
     float rr = texture(inShadowDepthBilinearTexture,vec3(inUV0,0)).r;
     outHdrSceneColor.a = 1.0f;
+    outHdrSceneColor.rgb = max(vec3(0.0f), outHdrSceneColor.rgb);
+
 }

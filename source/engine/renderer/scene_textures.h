@@ -3,7 +3,8 @@
 
 namespace engine{
 
-constexpr auto ScreenTextureInitSize = 10u;
+constexpr auto ScreenTextureInitSize = 64u;
+constexpr auto g_downsampleCount = 5; // 下采样五次
 
 // 一个Scene中需求的所有Global纹理
 class SceneTextures
@@ -26,11 +27,14 @@ private:
 	VulkanImage* m_irradiancePrefilterTextureCube; // R16G16B16A16
 	VulkanImage* m_specularPrefilterTextureCube; // R16G16B16A16
 
+	// note: use for bloom.
+	//       maybe i should put it on bloom pass.
+	// note: after bloom pass, all downsample chain texture will blend with blur.
+	VulkanImage* m_downsampleChainTexture;
+
 	VulkanImage* m_historyTexture;  //  R16G16B16A16
 	VulkanImage* m_taaTexture;
 	VulkanImage* m_velocityTexture; //  R16G16
-
-	bool bLastFrameHistory = false; // History Texture PingPong
 
 #if 0
 	VulkanImage* m_envTextureCube; // R16G16B16A16
@@ -60,6 +64,8 @@ public:
 	static VkFormat getSpecularPrefilterCubeFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
 	static VkFormat getBRDFLutFormat() { return VK_FORMAT_R16G16_SFLOAT; }
 
+	static VkFormat getDownSampleFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
+
 	static VkFormat getHistoryFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
 	static VkFormat getVelocityFormat() { return VK_FORMAT_R16G16_SFLOAT; }
 	static VkFormat getTAAFormat() { return getHistoryFormat(); }
@@ -83,12 +89,12 @@ public:
 	Ref<VulkanImage> getBRDFLut() { return m_brdflutTexture; }
 	Ref<VulkanImage> getIrradiancePrefilterCube() { return m_irradiancePrefilterTextureCube; }
 	Ref<VulkanImage> getSpecularPrefilterCube() { return m_specularPrefilterTextureCube; }
+	Ref<VulkanImage> getDownSampleChain() { return m_downsampleChainTexture; }
 
 	Ref<VulkanImage> getHistory();
 	Ref<VulkanImage> getVelocity() { return m_velocityTexture; }
 	Ref<VulkanImage> getTAA();
 
-	bool IsUseSecondTAART() { return bLastFrameHistory; }
 #if 0
 	Ref<VulkanImage> getEnvCube() { return m_envTextureCube; }
 	static uint32 getEnvCubeDim() { return 1024; }

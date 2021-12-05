@@ -193,6 +193,7 @@ struct VulkanGraphicsPipelineFactory
     VkPipelineDepthStencilStateCreateInfo depthStencil;
 
     VkPipeline buildMeshDrawPipeline(VkDevice device,VkRenderPass pass);
+    VkPipeline buildMeshDrawPipeline(VkDevice device,VkRenderPass pass, VkPipelineColorBlendStateCreateInfo cb);
 };
 
 class VulkanFrameBufferFactory

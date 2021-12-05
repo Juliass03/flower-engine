@@ -1,5 +1,5 @@
 shader Engine/GBuffer
 pass GBuffer    
-           
+            
 vert :/src/gbuffer.vert                         
-frag :/src/gbuffer.frag                          
+frag :/src/gbuffer.frag                           

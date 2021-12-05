@@ -416,9 +416,31 @@ VkSampler VulkanRHI::getLinearClampSampler()
     sfa.MagFilter(VK_FILTER_LINEAR)
         .MinFilter(VK_FILTER_LINEAR)
         .MipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR)
-        .AddressModeU(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
-        .AddressModeV(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
-        .AddressModeW(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
+        .AddressModeU(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+        .AddressModeV(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+        .AddressModeW(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+        .CompareOp(VK_COMPARE_OP_LESS)
+        .CompareEnable(VK_FALSE)
+        .BorderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE)
+        .UnnormalizedCoordinates(VK_FALSE)
+        .MaxAnisotropy(1.0f)
+        .AnisotropyEnable(VK_FALSE)
+        .MinLod(0.0f)
+        .MaxLod(MAX_TEXTURE_LOD)
+        .MipLodBias(0.0f);
+
+    return VulkanRHI::get()->createSampler(sfa.getCreateInfo());
+}
+
+VkSampler VulkanRHI::getLinearClampNoMipSampler()
+{
+    SamplerFactory sfa{};
+    sfa. MagFilter(VK_FILTER_LINEAR)
+        .MinFilter(VK_FILTER_LINEAR)
+        .MipmapMode(VK_SAMPLER_MIPMAP_MODE_NEAREST)
+        .AddressModeU(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+        .AddressModeV(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+        .AddressModeW(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
         .CompareOp(VK_COMPARE_OP_LESS)
         .CompareEnable(VK_FALSE)
         .BorderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE)

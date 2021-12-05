@@ -108,7 +108,6 @@
     <ClCompile Include="core\runtime_module.cpp" />
     <ClCompile Include="core\timer.cpp" />
     <ClCompile Include="launch\glfw_window.cpp" />
-    <ClCompile Include="renderer\compute_passes\bloom.cpp" />
     <ClCompile Include="renderer\compute_passes\brdf_lut.cpp" />
     <ClCompile Include="renderer\compute_passes\cascade_setup.cpp" />
     <ClCompile Include="renderer\compute_passes\depth_evaluate_minmax.cpp" />
@@ -122,6 +121,7 @@
     <ClCompile Include="renderer\frame_graph\frame_graph.cpp" />
     <ClCompile Include="renderer\material.cpp" />
     <ClCompile Include="renderer\mesh.cpp" />
+    <ClCompile Include="renderer\render_passes\bloom.cpp" />
     <ClCompile Include="renderer\render_passes\gbuffer_pass.cpp" />
     <ClCompile Include="renderer\render_passes\lighting_pass.cpp" />
     <ClCompile Include="renderer\pass_interface.cpp" />
@@ -192,6 +192,7 @@
     <ClInclude Include="renderer\material.h" />
     <ClInclude Include="renderer\mesh.h" />
     <ClInclude Include="renderer\renderer.h" />
+    <ClInclude Include="renderer\render_passes\bloom.h" />
     <ClInclude Include="renderer\render_passes\gbuffer_pass.h" />
     <ClInclude Include="renderer\render_passes\lighting_pass.h" />
     <ClInclude Include="renderer\pass_interface.h" />

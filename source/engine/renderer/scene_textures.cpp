@@ -138,6 +138,18 @@ void SceneTextures::allocate(uint32 width,uint32 height,bool forceAllocate)
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
     );
 
+    m_downsampleChainTexture = RenderTexture::create(
+		VulkanRHI::get()->getVulkanDevice(),
+		std::max(1u, width   / 2), // 第0级从半分辨率开始
+        std::max(1u, height  / 2), // 第0级从半分辨率开始
+        g_downsampleCount,
+        true,
+		getDownSampleFormat(),
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
+    );
+
+    m_downsampleChainTexture->transitionLayoutImmediately(VulkanRHI::get()->getGraphicsCommandPool(),VulkanRHI::get()->getGraphicsQueue(),VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
     if(m_needPrepareTexture)
     {
         m_brdflutTexture = RenderTexture::create(
@@ -236,6 +248,7 @@ void SceneTextures::release(bool bAll)
     delete m_historyTexture;
     delete m_velocityTexture;
     delete m_taaTexture;
+    delete m_downsampleChainTexture;
 
     m_init = false;
 }
@@ -252,7 +265,7 @@ Ref<VulkanImage> SceneTextures::getTAA()
 
 void SceneTextures::frameBegin()
 {
-    bLastFrameHistory = !bLastFrameHistory;
+
 }
 
 }

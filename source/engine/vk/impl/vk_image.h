@@ -47,6 +47,12 @@ namespace engine{
         void clear(VkCommandBuffer cb, glm::vec4 colour = {0, 0, 0, 0});
         void upload(std::vector<uint8>& bytes,VkCommandPool pool,VkQueue queue,VkImageAspectFlagBits flag = VK_IMAGE_ASPECT_COLOR_BIT);
         void release();
+
+        // Tip: All image view create by these function manage by yourself, so make sure all resource release.
+		void CreateRTV(VkImageView* pRV,int mipLevel = -1);
+		void CreateSRV(VkImageView* pImageView,int mipLevel = -1);
+		void CreateDSV(VkImageView* pView);
+		void CreateCubeSRV(VkImageView* pImageView);
     };
 
     class VulkanImageArray: public VulkanImage
@@ -139,9 +145,27 @@ namespace engine{
     class RenderTexture : public VulkanImage
     {
         RenderTexture() = default;
+        bool bInitMipmapViews = false;
+        std::vector<VkImageView> m_perMipmapTextureView{};
+
+        void release()
+        {
+            for(auto& view : m_perMipmapTextureView)
+            {
+                CHECK(bInitMipmapViews);
+                vkDestroyImageView(*m_device,view,nullptr);
+            }
+        }
     public:
-        virtual ~RenderTexture() = default;
+        virtual ~RenderTexture()
+        {
+            release();
+        }
+
         static RenderTexture* create(VulkanDevice*device,uint32_t width,uint32_t height,VkFormat format,VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+        static RenderTexture* create(VulkanDevice*device,uint32_t width,uint32_t height,uint32_t mipmapCount,bool bCreateMipmaps,VkFormat format,VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+       
+        VkImageView getMipmapView(uint32 level);
     };
 
     class RenderTextureCube : public VulkanImage

@@ -480,11 +480,11 @@ struct WidgetConsoleApp
                 }
                 else if(cVar->type==CVarType::Double)
                 {
-                    CVarSystem::get()->getDoubleArray().setCurrent((double)std::stoi(tokens[1]),cVar->arrayIndex);
+                    CVarSystem::get()->getDoubleArray().setCurrent((double)std::stod(tokens[1]),cVar->arrayIndex);
                 }
                 else if(cVar->type==CVarType::Float)
                 {
-                    CVarSystem::get()->getFloatArray().setCurrent((float)std::stoi(tokens[1]),cVar->arrayIndex);
+                    CVarSystem::get()->getFloatArray().setCurrent((float)std::stof(tokens[1]),cVar->arrayIndex);
                 }
                 else if(cVar->type==CVarType::String)
                 {

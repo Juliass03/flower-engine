@@ -158,6 +158,7 @@ public:
     VkSampler getPointClampEdgeSampler();
     VkSampler getPointRepeatSampler();
     VkSampler getLinearClampSampler();
+    VkSampler getLinearClampNoMipSampler();
     VkSampler getLinearRepeatSampler();
     VkPhysicalDeviceDescriptorIndexingPropertiesEXT getPhysicalDeviceDescriptorIndexingProperties() const { return m_descriptorIndexingProperties; }
 

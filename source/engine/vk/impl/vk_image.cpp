@@ -618,6 +618,68 @@ RenderTexture* RenderTexture::create(VulkanDevice* device,uint32_t width,uint32_
     return ret;
 }
 
+RenderTexture* RenderTexture::create(VulkanDevice* device,uint32_t width,uint32_t height,uint32_t mipmapCount,bool bCreateMipmaps,VkFormat format,VkImageUsageFlags usage)
+{
+    RenderTexture* ret = new RenderTexture();
+
+    VkImageCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    info.flags = {};
+    info.imageType = VK_IMAGE_TYPE_2D;
+    info.format = format;
+    info.extent.width = width;
+    info.extent.height = height;
+    info.extent.depth = 1;
+    info.mipLevels = mipmapCount;
+    info.arrayLayers = 1;
+    info.samples = VK_SAMPLE_COUNT_1_BIT;
+    info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    info.usage = usage;
+    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    info.queueFamilyIndexCount = 0;
+    info.pQueueFamilyIndices = nullptr;
+    info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    ret->VulkanImage::create(device, info,VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, false);
+
+    if(bCreateMipmaps)
+    {
+        std::vector<VkImageViewCreateInfo> viewsInfo;
+        viewsInfo.resize(mipmapCount);
+        for(uint32 index = 0; index < mipmapCount; index++)
+        {
+            VkImageViewCreateInfo viewInfo{};
+            viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            viewInfo.format = info.format;
+            viewInfo.subresourceRange = {};
+            viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            viewInfo.subresourceRange.baseMipLevel = index;
+            viewInfo.subresourceRange.levelCount = 1;
+            viewInfo.subresourceRange.baseArrayLayer = 0;
+            viewInfo.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+            viewInfo.image = ret->m_image;
+            viewsInfo[index] = viewInfo;
+        }
+
+        ret->m_perMipmapTextureView.resize(viewsInfo.size());
+        for(uint32 index = 0; index < viewsInfo.size(); index++)
+        {
+            ret->m_perMipmapTextureView[index] = VK_NULL_HANDLE;
+            vkCheck(vkCreateImageView(VulkanRHI::get()->getDevice(),&viewsInfo[index],nullptr,& ret->m_perMipmapTextureView[index]));
+        }
+
+        ret->bInitMipmapViews = true;
+    }
+
+    return ret;
+}
+
+VkImageView RenderTexture::getMipmapView(uint32 level)
+{
+    CHECK(level < m_createInfo.mipLevels && bInitMipmapViews);
+    return m_perMipmapTextureView[level];
+}
+
 void VulkanImageArray::InitViews(const std::vector<VkImageViewCreateInfo> infos)
 {
     mPerTextureView.resize(infos.size());
@@ -696,7 +758,6 @@ RenderTextureCube* RenderTextureCube::create(
 VkImageView RenderTextureCube::getMipmapView(uint32 level)
 {
     CHECK(level < m_createInfo.mipLevels && bInitMipmapViews);
-
     return m_perMipmapTextureView[level];
 }
 

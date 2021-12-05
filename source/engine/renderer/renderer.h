@@ -21,6 +21,8 @@ class ShadowDepthPass;
 class GpuDepthEvaluateMinMaxPass;
 class GpuCascadeSetupPass;
 class TAAPass;
+class DownSamplePass;
+class BloomPass;
 
 extern bool gRenderDocCapture;
 
@@ -87,6 +89,8 @@ public:
 	ShadowDepthPass* m_shadowdepthPasses;
 
 	GraphicsPass*   m_lightingPass;
+	DownSamplePass* m_downsamplePass;
+	BloomPass* m_bloomPass;
 
 	TAAPass* m_taaPass;
 	GraphicsPass*   m_tonemapperPass;

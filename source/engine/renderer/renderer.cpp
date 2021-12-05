@@ -21,6 +21,8 @@
 #include "frustum.h"
 #include <renderdoc/renderdoc_app.h>
 #include "compute_passes/taa.h"
+#include "compute_passes/downsample.h"
+#include "render_passes/bloom.h"
 
 using namespace engine;
 
@@ -190,7 +192,8 @@ bool Renderer::init()
 	m_cascadeSetupPass = new GpuCascadeSetupPass(this,m_renderScene,shader_compiler, "CascadeSetup");
 
 	m_lightingPass = new LightingPass(this,m_renderScene,shader_compiler,"Lighting");
-
+	m_downsamplePass = new DownSamplePass(this,m_renderScene,shader_compiler,"Downsample");
+	m_bloomPass = new BloomPass(this,m_renderScene,shader_compiler,"Bloom");
 	m_taaPass = new TAAPass(this,m_renderScene,shader_compiler,"TAA");
 	m_tonemapperPass = new TonemapperPass(this,m_renderScene,shader_compiler,"ToneMapper");
 
@@ -208,6 +211,8 @@ bool Renderer::init()
 	m_shadowdepthPasses->init();
 
 	m_lightingPass->init();
+	m_downsamplePass->init();
+	m_bloomPass->init();
 
 	m_taaPass->init();
 	m_tonemapperPass->init();
@@ -255,7 +260,6 @@ void Renderer::tick(float dt)
 	m_gbufferPass->dynamicRecord(backBufferIndex); // gbuffer rendering
 	m_depthEvaluateMinMaxPass->record(backBufferIndex); // depth evaluate min max
 
-	// TODO: barrier
 	m_cascadeSetupPass->record(backBufferIndex);// cascade setup.
 
 	m_cascasdeCullingPasses->cascade_record(backBufferIndex); // cascade culling
@@ -263,6 +267,9 @@ void Renderer::tick(float dt)
 	m_shadowdepthPasses->dynamicRecord(backBufferIndex); // shadow rendering
 
 	m_lightingPass->dynamicRecord(backBufferIndex); // lighting pass
+
+	m_downsamplePass->record(backBufferIndex);
+	m_bloomPass->dynamicRecord(backBufferIndex);
 
 	m_taaPass->record(backBufferIndex);
 	m_tonemapperPass->dynamicRecord(backBufferIndex); // tonemapper pass
@@ -354,17 +361,37 @@ void Renderer::tick(float dt)
 		.setCommandBuffer(&lightingBuf,1);
 	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&lightingSubmitInfo.get(),nullptr));
 
-	// 8. taa
+	// 8. downsample
+	VulkanSubmitInfo downsampleSubmitInfo{};
+	auto downsampleSemaphore = m_downsamplePass->getSemaphore(backBufferIndex);
+	VkCommandBuffer downsampleBuf = m_downsamplePass->getCommandBuf(backBufferIndex)->getInstance();
+	downsampleSubmitInfo.setWaitStage(graphicsWaitFlags)
+		.setWaitSemaphore(&lightingSemaphore,1)
+		.setSignalSemaphore(&downsampleSemaphore,1)
+		.setCommandBuffer(&downsampleBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&downsampleSubmitInfo.get(),nullptr));
+
+	// 8.5 bloom
+	VulkanSubmitInfo bloomSubmitInfo{};
+	auto bloomSemaphore = m_bloomPass->getSemaphore(backBufferIndex);
+	VkCommandBuffer bloomBuf = m_bloomPass->getCommandBuf(backBufferIndex)->getInstance();
+	bloomSubmitInfo.setWaitStage(computeWaitFlags)
+		.setWaitSemaphore(&downsampleSemaphore,1)
+		.setSignalSemaphore(&bloomSemaphore,1)
+		.setCommandBuffer(&bloomBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&bloomSubmitInfo.get(),nullptr));
+
+	// 9. taa
 	VulkanSubmitInfo taaSubmitInfo{};
 	auto taaSemaphore = m_taaPass->getSemaphore(backBufferIndex);
 	VkCommandBuffer taaBuf = m_taaPass->getCommandBuf(backBufferIndex)->getInstance();
 	taaSubmitInfo.setWaitStage(graphicsWaitFlags)
-		.setWaitSemaphore(&lightingSemaphore,1)
+		.setWaitSemaphore(&bloomSemaphore,1)
 		.setSignalSemaphore(&taaSemaphore,1) 
 		.setCommandBuffer(&taaBuf,1);
 	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&taaSubmitInfo.get(),nullptr));
 
-	// 9. tonemapping
+	// 10. tonemapping
 	VulkanSubmitInfo tonemapperSubmitInfo{};
 	auto tonemapperSemaphore = m_tonemapperPass->getSemaphore(backBufferIndex);
 	VkCommandBuffer tonemapperBuf = m_tonemapperPass->getCommandBuf(backBufferIndex)->getInstance();
@@ -374,7 +401,7 @@ void Renderer::tick(float dt)
 		.setCommandBuffer(&tonemapperBuf,1);
 	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&tonemapperSubmitInfo.get(),nullptr));
 
-	// 10. imgui
+	// 11. imgui
 	VulkanSubmitInfo imguiPassSubmitInfo{};
 	VkCommandBuffer cmd_uiPass = m_uiPass->getCommandBuffer(backBufferIndex);
 	imguiPassSubmitInfo.setWaitStage(graphicsWaitFlags)
@@ -403,6 +430,9 @@ void Renderer::release()
 
 	m_lightingPass->release(); delete m_lightingPass;
 
+	m_downsamplePass->release(); delete m_downsamplePass;
+	m_bloomPass->release(); delete m_bloomPass;
+
 	m_taaPass->release(); delete m_taaPass;
 	m_tonemapperPass->release(); delete m_tonemapperPass;
 	m_gbufferCullingPass->release(); delete m_gbufferCullingPass;
@@ -421,8 +451,8 @@ void Renderer::release()
 
 void Renderer::UpdateScreenSize(uint32 width,uint32 height)
 {
-	const uint32 renderSceneWidth = glm::max(width,10u);
-	const uint32 renderSceneHeight = glm::max(height,10u);
+	const uint32 renderSceneWidth = glm::max(width,ScreenTextureInitSize);
+	const uint32 renderSceneHeight = glm::max(height,ScreenTextureInitSize);
 	m_screenViewportWidth = renderSceneWidth;
 	m_screenViewportHeight = renderSceneHeight;
 }
@@ -499,6 +529,8 @@ void Renderer::updateGPUData(float dt)
 		m_gpuFrameData.jitterData.y   = (taaJitter.y / (float)m_screenViewportHeight) * scale;
 
 #if 0
+		// we jitter in vertex shader.
+		// it looks like more convenience.
 		glm::mat4 jitterMat = glm::mat4(1.0f);
 		jitterMat[3][0] = m_gpuFrameData.jitterData.x;
 		jitterMat[3][1] = m_gpuFrameData.jitterData.y;
