@@ -12,3 +12,4 @@
 - Gpu Dispatch Sample Distribution Shadow Maps.
 - Fast Downsample Guassian Blur Bloom.
 - TAA.
+- FXAA.
