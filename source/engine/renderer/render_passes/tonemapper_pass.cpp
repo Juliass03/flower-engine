@@ -34,7 +34,7 @@ void engine::TonemapperPass::dynamicRecord(uint32 backBufferIndex)
     VkCommandBuffer cmd = m_commandbufs[backBufferIndex]->getInstance();
     commandBufBegin(backBufferIndex);
 
-    auto sceneTextureExtent = m_renderScene->getSceneTextures().getLDRSceneColor()->getExtent();
+    auto sceneTextureExtent = m_renderScene->getSceneTextures().getTonemapper()->getExtent();
     VkExtent2D sceneTextureExtent2D{};
     sceneTextureExtent2D.width = sceneTextureExtent.width;
     sceneTextureExtent2D.height = sceneTextureExtent.height;
@@ -102,7 +102,7 @@ void engine::TonemapperPass::createRenderpass()
     VkAttachmentDescription colorAttachment = {};
 
     // NOTE: TonemapperäÖÈ¾µ½LDRÍ¼ÉÏ
-    colorAttachment.format =  SceneTextures::getLDRSceneColorFormat();
+    colorAttachment.format =  SceneTextures::getToneMapperFormat();
 
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -157,7 +157,7 @@ void engine::TonemapperPass::destroyRenderpass()
 
 void engine::TonemapperPass::createFramebuffers()
 {
-    auto extent = m_renderScene->getSceneTextures().getLDRSceneColor()->getExtent();
+    auto extent = m_renderScene->getSceneTextures().getTonemapper()->getExtent();
 
     VkExtent2D extent2D{};
     extent2D.width = extent.width;
@@ -171,7 +171,7 @@ void engine::TonemapperPass::createFramebuffers()
     {
         fbf.setRenderpass(m_renderpass)
             .addAttachment(
-                m_renderScene->getSceneTextures().getLDRSceneColor()->getImageView(),
+                m_renderScene->getSceneTextures().getTonemapper()->getImageView(),
                 extent2D
             );
         m_framebuffers[i] = fbf.create(VulkanRHI::get()->getDevice());
@@ -248,7 +248,7 @@ void engine::TonemapperPass::createPipeline()
         gpf.inputAssembly = vkInputAssemblyCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
         gpf.depthStencil = vkDepthStencilCreateInfo(false, false, VK_COMPARE_OP_ALWAYS);
 
-        auto sceneTextureExtent = m_renderScene->getSceneTextures().getLDRSceneColor()->getExtent();
+        auto sceneTextureExtent = m_renderScene->getSceneTextures().getTonemapper()->getExtent();
         VkExtent2D sceneTextureExtent2D{};
         sceneTextureExtent2D.width = sceneTextureExtent.width;
         sceneTextureExtent2D.height = sceneTextureExtent.height;

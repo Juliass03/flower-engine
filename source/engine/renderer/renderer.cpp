@@ -24,6 +24,10 @@
 #include "compute_passes/downsample.h"
 #include "render_passes/bloom.h"
 
+#ifdef FXAA_EFFECT
+	#include "compute_passes/fxaa.h"
+#endif
+
 using namespace engine;
 
 static AutoCVarInt32 cVarReverseZ(
@@ -197,6 +201,10 @@ bool Renderer::init()
 	m_taaPass = new TAAPass(this,m_renderScene,shader_compiler,"TAA");
 	m_tonemapperPass = new TonemapperPass(this,m_renderScene,shader_compiler,"ToneMapper");
 
+#ifdef FXAA_EFFECT
+	m_fxaaPass = new FXAAPass(this,m_renderScene,shader_compiler,"FXAA");
+#endif
+
 	// 首先调用PerframeData的初始化函数确保全局的PerframeData正确初始化
 	m_frameData.init();
 	m_frameData.buildPerFrameDataDescriptorSets(this);
@@ -216,6 +224,10 @@ bool Renderer::init()
 
 	m_taaPass->init();
 	m_tonemapperPass->init();
+
+#ifdef FXAA_EFFECT
+	m_fxaaPass->init();
+#endif
 
 	return true;
 }
@@ -273,6 +285,10 @@ void Renderer::tick(float dt)
 
 	m_taaPass->record(backBufferIndex);
 	m_tonemapperPass->dynamicRecord(backBufferIndex); // tonemapper pass
+
+#ifdef FXAA_EFFECT
+	m_fxaaPass->record(backBufferIndex);
+#endif
 
 	uiRecord(backBufferIndex);
 	m_uiPass->renderFrame(backBufferIndex);
@@ -401,11 +417,27 @@ void Renderer::tick(float dt)
 		.setCommandBuffer(&tonemapperBuf,1);
 	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&tonemapperSubmitInfo.get(),nullptr));
 
+#ifdef FXAA_EFFECT
+	// 10.5 fxaa
+	VulkanSubmitInfo fxaaSubmitInfo{};
+	auto fxaaSemaphore = m_fxaaPass->getSemaphore(backBufferIndex);
+	VkCommandBuffer fxaaBuf = m_fxaaPass->getCommandBuf(backBufferIndex)->getInstance();
+	fxaaSubmitInfo.setWaitStage(graphicsWaitFlags)
+		.setWaitSemaphore(&tonemapperSemaphore,1)
+		.setSignalSemaphore(&fxaaSemaphore,1) 
+		.setCommandBuffer(&fxaaBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&fxaaSubmitInfo.get(),nullptr));
+#endif
+
 	// 11. imgui
 	VulkanSubmitInfo imguiPassSubmitInfo{};
 	VkCommandBuffer cmd_uiPass = m_uiPass->getCommandBuffer(backBufferIndex);
 	imguiPassSubmitInfo.setWaitStage(graphicsWaitFlags)
+#ifdef FXAA_EFFECT
+		.setWaitSemaphore(&fxaaSemaphore,1)
+#else
 		.setWaitSemaphore(&tonemapperSemaphore,1)
+#endif // FXAA_EFFECT
 		.setSignalSemaphore(frameEndSemaphore,1)
 		.setCommandBuffer(&cmd_uiPass,1);
 
@@ -437,6 +469,9 @@ void Renderer::release()
 	m_tonemapperPass->release(); delete m_tonemapperPass;
 	m_gbufferCullingPass->release(); delete m_gbufferCullingPass;
 
+#ifdef FXAA_EFFECT
+	m_fxaaPass->release(); delete m_fxaaPass;
+#endif
 	m_uiPass->release(); delete m_uiPass;
 
 	m_renderScene->release(); delete m_renderScene;

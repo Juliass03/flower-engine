@@ -10,5 +10,5 @@ glslc.exe src/taa_sharpen.comp -o bin/taa_sharpen.comp.spv
 glslc.exe src/downsample.comp -o bin/downsample.comp.spv
 glslc.exe src/blur.frag -o bin/blur.frag.spv
 glslc.exe src/blend.frag -o bin/blend.frag.spv
-
+::glslc.exe src/fxaa.comp -o bin/fxaa.comp.spv
 glslc.exe src/fullscreen.vert -o bin/fullscreen.vert.spv

@@ -10,20 +10,25 @@ constexpr auto g_downsampleCount = 5; // 下采样五次
 class SceneTextures
 {
 private:
+	// full screen r8g8b8a8
 	VulkanImage* m_gbufferBaseColorRoughness; // R8G8B8A8 rgb存基础色，a通道存粗糙度
-
-
-	VulkanImage* m_gbufferNormalMetal;        // r16g16b16a16 rgb存世界空间法线，a通道存金属度
-	// Also use as taa texture in PostProcess;
-
 	VulkanImage* m_gbufferEmissiveAo;         // R8G8B8A8 rgb存自发光颜色，a通道存模型AO
+	VulkanImage* m_tonemapper;                // LDR SceneColor Texture. R8G8B8A8 
 
+#ifdef FXAA_EFFECT
+	VulkanImage* m_fxaaColorTexture;          // LDR SceneColor Texture. R8G8B8A8
+#endif
+
+	// full screen r16g16b16a16
 	VulkanImage* m_sceneColorTexture;        // HDR SceneColor Texture. R16G16B16A16 SFLOAT
+	VulkanImage* m_gbufferNormalMetal;        // r16g16b16a16 rgb存世界空间法线，a通道存金属度
+	VulkanImage* m_historyTexture;  //  R16G16B16A16
+	VulkanImage* m_taaTexture;
+	
 	VulkanImage* m_depthStencilTexture;      // DepthStencil Texture.
-	VulkanImage* m_finalColorTexture;        // LDR SceneColor Texture. R8G8B8A8 
 
+	// global cache.
 	VulkanImage* m_brdflutTexture; // R16G16
-
 	VulkanImage* m_irradiancePrefilterTextureCube; // R16G16B16A16
 	VulkanImage* m_specularPrefilterTextureCube; // R16G16B16A16
 
@@ -31,9 +36,8 @@ private:
 	//       maybe i should put it on bloom pass.
 	// note: after bloom pass, all downsample chain texture will blend with blur.
 	VulkanImage* m_downsampleChainTexture;
-
-	VulkanImage* m_historyTexture;  //  R16G16B16A16
-	VulkanImage* m_taaTexture;
+	
+	// full screen r16g16
 	VulkanImage* m_velocityTexture; //  R16G16
 
 #if 0
@@ -55,10 +59,12 @@ public:
 
 	static VkFormat getHDRSceneColorFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
 	static VkFormat getDepthStencilFormat();
-	static VkFormat getLDRSceneColorFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
+	static VkFormat getToneMapperFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
 	static VkFormat getGbufferBaseColorRoughnessFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
 	static VkFormat getGbufferNormalMetalFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
 	static VkFormat getGbufferEmissiveAoFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
+
+
 
 	static VkFormat getIrradiancePrefilterCubeFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
 	static VkFormat getSpecularPrefilterCubeFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
@@ -82,7 +88,7 @@ public:
 
 	Ref<VulkanImage> getHDRSceneColor() { return m_sceneColorTexture; }
 	Ref<VulkanImage> getDepthStencil() { return m_depthStencilTexture; }
-	Ref<VulkanImage> getLDRSceneColor() { return m_finalColorTexture; }
+	Ref<VulkanImage> getTonemapper() { return m_tonemapper; }
 	Ref<VulkanImage> getGbufferBaseColorRoughness() { return m_gbufferBaseColorRoughness; }
 	Ref<VulkanImage> getGbufferNormalMetal() { return m_gbufferNormalMetal; }
 	Ref<VulkanImage> getGbufferEmissiveAo() { return m_gbufferEmissiveAo; }
@@ -90,6 +96,11 @@ public:
 	Ref<VulkanImage> getIrradiancePrefilterCube() { return m_irradiancePrefilterTextureCube; }
 	Ref<VulkanImage> getSpecularPrefilterCube() { return m_specularPrefilterTextureCube; }
 	Ref<VulkanImage> getDownSampleChain() { return m_downsampleChainTexture; }
+
+#ifdef FXAA_EFFECT
+	static VkFormat getFXAAFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
+	Ref<VulkanImage> getFXAA() { return m_fxaaColorTexture; }
+#endif
 
 	Ref<VulkanImage> getHistory();
 	Ref<VulkanImage> getVelocity() { return m_velocityTexture; }

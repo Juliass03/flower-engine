@@ -37,7 +37,9 @@ struct GbufferData
 {
     vec3 baseColor;
     vec3 emissiveColor;
+
     vec3 worldNormal;
+    vec3 worldNormalVertex;
 
     vec3 worldPos;
 
@@ -75,6 +77,11 @@ GbufferData loadGbufferData()
     gData.linearZ = gData.linearDepth / abs(frameData.camInfo.z - frameData.camInfo.w);
     gData.worldPos = getWorldPosition(gData.deviceDepth,inUV0,frameData.camInvertViewProjection);
 
+    vec3 ddxWorldPos = normalize(dFdxFine(gData.worldPos));
+    vec3 ddyWorldPos = normalize(dFdyFine(gData.worldPos));
+
+    gData.worldNormalVertex = -normalize(cross(ddxWorldPos,ddyWorldPos));
+
     
     gData.F0 = mix(vec3(0.04f), gData.baseColor, vec3(gData.metal));
 
@@ -101,12 +108,32 @@ vec3 getCascadeDebugColor(uint index)
     }
 }
 
+bool unValid(vec3 vector)
+{
+    return isnan(vector.x) || isnan(vector.y) || isnan(vector.z) || isinf(vector.x) || isinf(vector.y) || isinf(vector.z);
+}
+
+vec3 biasNormalOffset(vec3 vertexNormal, float NoLSafe, float bias, float texelSize)
+{
+    return vertexNormal * (1.0f - NoLSafe) * bias * texelSize * 10.0f;
+}
+
+float autoBias(float safeNoL,float biasMul, float bias)
+{
+    float fixedFactor = 0.0001f;
+    float slopeFactor = 1.0f - safeNoL;
+
+    return fixedFactor * slopeFactor * bias * biasMul;
+}
+
 float evaluateDirectShadow(
     float linearZ, 
     float NoLSafe, 
     vec3 fragWorldPos,
     vec3 normal,
-    out uint outIndex)
+    out uint outIndex,
+    vec3 lightDirection,
+    vec3 vertexNormal)
 {
     ivec2 texDim = textureSize(inShadowDepthBilinearTexture,0).xy;
 	vec2 texelSize = 1.0f / vec2(texDim);
@@ -114,9 +141,15 @@ float evaluateDirectShadow(
     float shadowFactor = 1.0f;
     const uint cascadeCount = 4;
 
+    float VertexNoLSafe = clamp(dot(vertexNormal,lightDirection), 0.0f, 1.0f);
+
+    const float biasFactor = 10.0f;
+    
+    vec3 worldPosProcess = fragWorldPos + biasNormalOffset(vertexNormal, VertexNoLSafe, biasFactor, texelSize.x);
+
     for(uint cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex ++)
 	{
-        vec4 shadowClipPos = cascadeInfosbuffer[cascadeIndex].cascadeViewProjMatrix * vec4(fragWorldPos, 1.0);
+        vec4 shadowClipPos = cascadeInfosbuffer[cascadeIndex].cascadeViewProjMatrix * vec4(worldPosProcess, 1.0);
         vec4 shadowCoordNdc = shadowClipPos / shadowClipPos.w;
         vec4 shadowCoord = shadowCoordNdc;
 		shadowCoord.st = shadowCoord.st * 0.5f + 0.5f;
@@ -132,6 +165,12 @@ float evaluateDirectShadow(
             const float pcfDilation = 2.0f;
             const float minPcfDialtion = 0.0f;
             const float pcssDilation = 40.0f;
+
+            float bias = autoBias(VertexNoLSafe,cascadeIndex + 1, biasFactor);
+            
+            // float bias = max(0.05 * (1.0 - NoLSafe), 0.005);
+            
+            shadowCoord.z += bias;
 
             /*
             shadowFactor = shadowPcss(
@@ -163,10 +202,13 @@ float evaluateDirectShadow(
             if (cascadeFade > 0.0f && cascadeIndex < cascadeCount - 1)
             {
                 uint nextIndexCascade = cascadeIndex + 1;
-                vec4 nextShadowClipPos = cascadeInfosbuffer[nextIndexCascade].cascadeViewProjMatrix * vec4(fragWorldPos, 1.0);
+                vec4 nextShadowClipPos = cascadeInfosbuffer[nextIndexCascade].cascadeViewProjMatrix * vec4(worldPosProcess, 1.0);
                 vec4 nextShadowCoord = nextShadowClipPos / nextShadowClipPos.w;
                 nextShadowCoord.st = nextShadowCoord.st * 0.5f + 0.5f;
                 nextShadowCoord.y = 1.0f - nextShadowCoord.y;
+
+                bias = autoBias(VertexNoLSafe,nextIndexCascade + 1, biasFactor);
+                nextShadowCoord.z += bias;
 
                 float nextShadowFactor = shadowPcf(
                     nextIndexCascade,
@@ -211,7 +253,9 @@ void main()
         NoL, 
         gData.worldPos,
         n,
-        cascadeIndex
+        cascadeIndex,
+        l,
+        gData.worldNormalVertex
     );  
     vec3 debugColor = getCascadeDebugColor(cascadeIndex);
     directShadow = max(0.0,directShadow);
@@ -247,11 +291,12 @@ void main()
 
 		ambientLighting = (diffuseIBL + specularIBL);
     }
-    // ambientLighting *= lightRadiance;
+    ambientLighting *= lightRadiance;
 
     outHdrSceneColor.rgb = directLighting + ambientLighting + gData.emissiveColor * 3.14f;
     float rr = texture(inShadowDepthBilinearTexture,vec3(inUV0,0)).r;
     outHdrSceneColor.a = 1.0f;
-    outHdrSceneColor.rgb = max(vec3(0.0f), outHdrSceneColor.rgb);
 
+
+    outHdrSceneColor.rgb = max(vec3(0.0f), outHdrSceneColor.rgb);
 }

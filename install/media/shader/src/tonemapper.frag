@@ -174,12 +174,16 @@ void main()
     const float exposure = 1.0f;
 
     vec3 hdrColor = texture(scenecolorTex, inUV0).xyz;
-
     hdrColor *= exposure;
+
     vec3 mapped = TimothyTonemapper(hdrColor); 
-    // vec3 mapped = toneMapACES_Narkowicz(hdrColor);
+    //vec3 mapped = toneMapACES_Narkowicz(hdrColor);
     //vec3 mapped = toneMapACES_Hill(hdrColor);
     //vec3 mapped = aces(hdrColor);
-    
+
+#ifdef FXAA_ON
+    mapped = sqrt(mapped);
+#endif
+
     outColor = vec4(mapped,1.0f);
 }

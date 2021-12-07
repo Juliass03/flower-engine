@@ -56,9 +56,10 @@
     <ClCompile Include="renderer\compute_passes\hdri2cubemap.cpp" />
     <ClCompile Include="renderer\compute_passes\specular_prefilter.cpp" />
     <ClCompile Include="renderer\compute_passes\taa.cpp" />
-    <ClCompile Include="renderer\compute_passes\bloom.cpp" />
     <ClCompile Include="renderer\compute_passes\downsample.cpp" />
     <ClCompile Include="renderer\render_passes\bloom.cpp" />
+    <ClCompile Include="renderer\compute_passes\fxaa.cpp" />
+    <ClCompile Include="renderer\rendertarget_pool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\cvar.h" />
@@ -133,5 +134,7 @@
     <ClInclude Include="renderer\compute_passes\bloom.h" />
     <ClInclude Include="renderer\compute_passes\downsample.h" />
     <ClInclude Include="renderer\render_passes\bloom.h" />
+    <ClInclude Include="renderer\compute_passes\fxaa.h" />
+    <ClInclude Include="renderer\rendertarget_pool.h" />
   </ItemGroup>
 </Project>

@@ -22,7 +22,7 @@ float shadowPcf(
 		vec2 offsetUv = texelSize * poisson_disk_25[x] * dilation;
         float shadowMapDepth = texture(shadowdepthTex, vec3(shadowCoord.xy + offsetUv,cascadeIndex)).r;
 
-        shadowMaskColor += shadowMapDepth < (compareDepth + 0.005f) ? 1.0f : 0.0f;
+        shadowMaskColor += shadowMapDepth < compareDepth  ? 1.0f : 0.0f;
 
         /*
         if(bReverseZ)

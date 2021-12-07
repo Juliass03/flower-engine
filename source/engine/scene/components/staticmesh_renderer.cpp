@@ -61,6 +61,7 @@ std::vector<RenderSubMesh> engine::StaticMeshComponent::getRenderMesh(Ref<Render
 				renderSubMesh.indexCount = subMesh.indexCount;
 				renderSubMesh.indexStartPosition = subMesh.indexStartPosition;
 				renderSubMesh.renderBounds = subMesh.renderBounds;
+				renderSubMesh.preModelMatrix = transform->getPreWorldMatrix();
 				renderSubMesh.modelMatrix = modelMatrix;
 
 				if(m_materials[index] != "")

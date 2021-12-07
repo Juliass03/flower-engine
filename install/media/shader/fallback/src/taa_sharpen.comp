@@ -82,8 +82,9 @@ vec3 ReinhardInverse(in vec3 sdr)
 layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 void main()
 {
-    const vec3 center = imageLoad(inTAAImage,ivec2(gl_GlobalInvocationID.xy)).xyz;
-    imageStore(historyImage, ivec2(gl_GlobalInvocationID.xy), vec4(center,1.0f));
+    const vec4 colorIn = imageLoad(inTAAImage,ivec2(gl_GlobalInvocationID.xy)).xyzw;
+    const vec3 center = colorIn.xyz;
+    imageStore(historyImage, ivec2(gl_GlobalInvocationID.xy), colorIn);
 
 #if TAA_MODE == 0
     const vec3 top    = imageLoad(inTAAImage,ivec2(gl_GlobalInvocationID.xy + uvec2( 0,  1))).xyz;
@@ -91,8 +92,8 @@ void main()
     const vec3 right  = imageLoad(inTAAImage,ivec2(gl_GlobalInvocationID.xy + uvec2(-1,  0))).xyz;
     const vec3 bottom = imageLoad(inTAAImage,ivec2(gl_GlobalInvocationID.xy + uvec2( 0, -1))).xyz;
     const vec3 color = ApplySharpening(center, top, left, right, bottom);
-    // imageStore(hdrImage, ivec2(gl_GlobalInvocationID.xy), vec4(ReinhardInverse(color),1.0f));
-    imageStore(hdrImage, ivec2(gl_GlobalInvocationID.xy), vec4(restrictTonemapperInverse(color),1.0f));
+    imageStore(hdrImage, ivec2(gl_GlobalInvocationID.xy), vec4(ReinhardInverse(color),1.0f));
+    // imageStore(hdrImage, ivec2(gl_GlobalInvocationID.xy), vec4(restrictTonemapperInverse(color),1.0f));
     // imageStore(hdrImage, ivec2(gl_GlobalInvocationID.xy), vec4(KarisToneMapInverse(color),1.0f));
 #else
     imageStore(hdrImage, ivec2(gl_GlobalInvocationID.xy), vec4(center,1.0f));

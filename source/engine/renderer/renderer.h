@@ -24,6 +24,10 @@ class TAAPass;
 class DownSamplePass;
 class BloomPass;
 
+#ifdef FXAA_EFFECT
+	class FXAAPass;
+#endif
+
 extern bool gRenderDocCapture;
 
 class Renderer : public IRuntimeModule
@@ -94,6 +98,10 @@ public:
 
 	TAAPass* m_taaPass;
 	GraphicsPass*   m_tonemapperPass;
+
+#ifdef FXAA_EFFECT
+	FXAAPass* m_fxaaPass;
+#endif
 
 private:
 	void prepareBasicTextures();

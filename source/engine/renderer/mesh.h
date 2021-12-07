@@ -44,6 +44,7 @@ struct RenderSubMesh
     bool bCullingResult = true;
 
     glm::mat4 modelMatrix;
+    glm::mat4 preModelMatrix;
 };
 
 inline std::vector<EVertexAttribute> getStandardMeshAttributes()

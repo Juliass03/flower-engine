@@ -1,0 +1,70 @@
+#version 460
+#define FXAA_PC 1
+#define FXAA_GLSL_130 1
+#define FXAA_QUALITY__PRESET 39
+#define FXAA_GREEN_AS_LUMA 1
+
+#include "../../glsl/fxaa3.glsl"
+
+const float myFxaaSubPix            = 0.75f;  
+const float myFxaaEdgeThreshold     = 0.166f; 
+const float myFxaaEdgeThresholdMin  = 0.0833f; 
+
+struct PushConstantData
+{
+    vec2 u_invSize;
+    uvec2 u_size;
+    float u_open;
+};
+
+layout(push_constant) uniform block
+{
+	PushConstantData pushConstant;
+};
+
+layout (set = 0, binding = 0, rgba16f) uniform image2D outFXAAColor;
+layout (set = 0, binding = 1) uniform sampler2D scenecolorTex; // billinear
+
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+void main()
+{
+    uvec2 pos = gl_GlobalInvocationID.xy;
+    vec2 uv = (vec2(pos) + vec2(0.5)) * pushConstant.u_invSize; // current working uv
+
+    vec4 color = vec4(0.0f);
+    vec2 myFxaaQualityRcpFrame = pushConstant.u_invSize;
+
+    if(pushConstant.u_open < 0.5f)
+    {
+        color.rgb = texture(scenecolorTex,uv).rgb;
+    }
+    else
+    {
+        color.rgb = FxaaPixelShader(
+            uv, 
+            vec4(0.0f), 
+            scenecolorTex, 
+            scenecolorTex, 
+            scenecolorTex,
+            myFxaaQualityRcpFrame, 
+            vec4(0.0f), 
+            vec4(0.0f), 
+            vec4(0.0f),
+            myFxaaSubPix,
+            myFxaaEdgeThreshold,
+            myFxaaEdgeThresholdMin,
+            0.0f, 
+            0.0f, 
+            0.0f, 
+            vec4(0.0f)
+        ).rgb;
+    }
+
+    color.rgb = color.rgb * color.rgb;
+    color.a = 1.0f; 
+    
+    if(gl_GlobalInvocationID.x < pushConstant.u_size.x && gl_GlobalInvocationID.y < pushConstant.u_size.y)
+    {
+        imageStore(outFXAAColor, ivec2(gl_GlobalInvocationID.xy), color);
+    }
+}

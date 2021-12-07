@@ -19,7 +19,7 @@ static AutoCVarFloat cVarBloomIntensity(
 	"r.Bloom.Intensity",
 	"Bloom intensity",
 	"Bloom",
-	1.5f,
+	1.1f,
 	CVarFlags::ReadAndWrite
 );
 
@@ -72,8 +72,8 @@ void engine::BloomPass::dynamicRecord(uint32 backBufferIndex)
 	CHECK(m_verticalBlur.size() == g_downsampleCount);
 	CHECK(m_verticalBlur.size() == m_horizontalBlur.size());
 
-	uint32 loopWidth  = m_renderScene->getSceneTextures().getLDRSceneColor()->getExtent().width;
-	uint32 loopHeight = m_renderScene->getSceneTextures().getLDRSceneColor()->getExtent().height;
+	uint32 loopWidth  = m_renderScene->getSceneTextures().getTonemapper()->getExtent().width;
+	uint32 loopHeight = m_renderScene->getSceneTextures().getTonemapper()->getExtent().height;
 
 	uint32 widthChain[g_downsampleCount + 1] { };
 	uint32 heightChain[g_downsampleCount + 1] { };

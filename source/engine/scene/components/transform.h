@@ -16,7 +16,9 @@ private:
     glm::vec3 m_translation { .0f,.0f,.0f };
     glm::quat m_rotation = glm::quat(1.0, 0.0, 0.0, 0.0);
     glm::vec3 m_scale { 1.f, 1.f, 1.f };
+
 	glm::mat4 m_worldMatrix = glm::mat4(1.0);
+	glm::mat4 m_worldMatrixCache = glm::mat4(1.0); // cache for taa
 	
 
 private:
@@ -55,6 +57,9 @@ public:
 
 	// Lazy update transform.
 	glm::mat4 getWorldMatrix();
+
+	// Call this to get cache world matrix.
+	glm::mat4 getPreWorldMatrix() const;
 };
 
 template<>

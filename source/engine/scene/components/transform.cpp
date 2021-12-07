@@ -10,7 +10,9 @@ void Transform::updateWorldTransform()
 {
 	if(bUpdateFlag)
 	{
+		m_worldMatrixCache = m_worldMatrix;
 		m_worldMatrix = getMatrix();
+		
 		auto parent = getNode()->getParent();
 
 		if(parent)
@@ -97,8 +99,12 @@ glm::mat4 Transform::getMatrix() const
 
 glm::mat4 Transform::getWorldMatrix()
 {
-	updateWorldTransform();
 	return m_worldMatrix;
+}
+
+glm::mat4 Transform::getPreWorldMatrix() const
+{
+	return m_worldMatrixCache;
 }
 
 

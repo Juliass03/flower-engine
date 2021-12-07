@@ -36,10 +36,8 @@ void WidgetViewport::onVisibleTick(size_t i)
 	// 
 
 	m_renderer->UpdateScreenSize((uint32)width,(uint32)height);
-	
-	
 
-	m_cacheImageInfo.setIcon(m_renderer->getRenderScene().getSceneTextures().getLDRSceneColor());
+	m_cacheImageInfo.setIcon(m_renderer->getRenderScene().getSceneTextures().getTonemapper());
 	m_cacheImageInfo.setSampler(VulkanRHI::get()->getPointClampEdgeSampler());
 	
 	ImGui::Image(m_cacheImageInfo.getId(uint32_t(i)),ImVec2(width,height));

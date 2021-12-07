@@ -112,6 +112,7 @@
     <ClCompile Include="renderer\compute_passes\cascade_setup.cpp" />
     <ClCompile Include="renderer\compute_passes\depth_evaluate_minmax.cpp" />
     <ClCompile Include="renderer\compute_passes\downsample.cpp" />
+    <ClCompile Include="renderer\compute_passes\fxaa.cpp" />
     <ClCompile Include="renderer\compute_passes\gpu_culling.cpp" />
     <ClCompile Include="renderer\compute_passes\hdri2cubemap.cpp" />
     <ClCompile Include="renderer\compute_passes\irradiance_prefiltercube.cpp" />
@@ -121,6 +122,7 @@
     <ClCompile Include="renderer\frame_graph\frame_graph.cpp" />
     <ClCompile Include="renderer\material.cpp" />
     <ClCompile Include="renderer\mesh.cpp" />
+    <ClCompile Include="renderer\rendertarget_pool.cpp" />
     <ClCompile Include="renderer\render_passes\bloom.cpp" />
     <ClCompile Include="renderer\render_passes\gbuffer_pass.cpp" />
     <ClCompile Include="renderer\render_passes\lighting_pass.cpp" />
@@ -179,6 +181,7 @@
     <ClInclude Include="renderer\compute_passes\cascade_setup.h" />
     <ClInclude Include="renderer\compute_passes\depth_evaluate_minmax.h" />
     <ClInclude Include="renderer\compute_passes\downsample.h" />
+    <ClInclude Include="renderer\compute_passes\fxaa.h" />
     <ClInclude Include="renderer\compute_passes\gpu_culling.h" />
     <ClInclude Include="renderer\compute_passes\hdri2cubemap.h" />
     <ClInclude Include="renderer\compute_passes\irradiance_prefiltercube.h" />
@@ -192,6 +195,7 @@
     <ClInclude Include="renderer\material.h" />
     <ClInclude Include="renderer\mesh.h" />
     <ClInclude Include="renderer\renderer.h" />
+    <ClInclude Include="renderer\rendertarget_pool.h" />
     <ClInclude Include="renderer\render_passes\bloom.h" />
     <ClInclude Include="renderer\render_passes\gbuffer_pass.h" />
     <ClInclude Include="renderer\render_passes\lighting_pass.h" />
