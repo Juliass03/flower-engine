@@ -78,9 +78,21 @@ private:
 
 	uint32 m_frameCount = 0;
 
+	bool bStopMoveView = false;
+	uint32 m_cameraStopMoveFrameCount = 0;
+	float cameraStopFactor = 0.0f;
+
+	glm::mat4 m_lastVP;
+	glm::mat4 m_currentVP;
+	void updateCameraStopFactor();
+
 public:
 	VulkanDescriptorAllocator& getDynamicDescriptorAllocator(uint32 i);
 	VulkanDescriptorFactory vkDynamicDescriptorFactoryBegin(uint32 i);
+
+	uint32 getFrameCount() const;
+	float getCameraStopFactor() const;
+	bool cameraMove() const;
 
 public:
 

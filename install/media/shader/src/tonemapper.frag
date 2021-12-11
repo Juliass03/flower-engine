@@ -169,6 +169,11 @@ vec3 toneMapACES_Hill(vec3 color)
     return color;
 }
 
+float luminance(vec3 color)
+{
+    return max(dot(color, vec3(0.299f, 0.587f, 0.114f)), 0.0001f);
+}
+
 void main()
 {
     const float exposure = 1.0f;

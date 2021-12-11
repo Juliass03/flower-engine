@@ -211,15 +211,15 @@ struct WidgetConsoleApp
         };
 
         // Log category visibility buttons
-        button_log_type_visibility_toggle(0,LogType::Trace,u8"讯息");
+        button_log_type_visibility_toggle(0,LogType::Trace,u8"Message");
         ImGui::SameLine();
-        button_log_type_visibility_toggle(0,LogType::Info,u8"通知");
+        button_log_type_visibility_toggle(0,LogType::Info,u8"Info");
         ImGui::SameLine();
-        button_log_type_visibility_toggle(0,LogType::Warn,u8"警告");
+        button_log_type_visibility_toggle(0,LogType::Warn,u8"Warning");
         ImGui::SameLine();
-        button_log_type_visibility_toggle(0,LogType::Error,u8"错误");
+        button_log_type_visibility_toggle(0,LogType::Error,u8"Error");
         ImGui::SameLine();
-        button_log_type_visibility_toggle(0,LogType::Other,u8"其他");
+        button_log_type_visibility_toggle(0,LogType::Other,u8"Other");
         
         // Options menu
         //if (ImGui::BeginPopup("Options"))
@@ -232,15 +232,15 @@ struct WidgetConsoleApp
         //if (ImGui::Button("Options"))
         //    ImGui::OpenPopup("Options");
         ImGui::Separator();
-        Filter.Draw(u8"关键词过滤",180);
+        Filter.Draw(u8"Keyword Filter",180);
         ImGui::SameLine();
-        if (ImGui::SmallButton(u8"清除"))           
+        if (ImGui::SmallButton(u8"Clear"))           
         { 
             ClearLog(); 
         }
 
         ImGui::SameLine();
-        bool copy_to_clipboard = ImGui::SmallButton(u8"复制");
+        bool copy_to_clipboard = ImGui::SmallButton(u8"Copy");
         ImGui::Separator();
 
         // Reserve enough left-over height for 1 separator + 1 input text
@@ -248,7 +248,7 @@ struct WidgetConsoleApp
         ImGui::BeginChild("ScrollingRegion", ImVec2(0, -footer_height_to_reserve), false, ImGuiWindowFlags_HorizontalScrollbar);
         if (ImGui::BeginPopupContextWindow())
         {
-            if (ImGui::Selectable(u8"清除")) ClearLog();
+            if (ImGui::Selectable(u8"Clear")) ClearLog();
             ImGui::EndPopup();
         }
 
@@ -333,7 +333,7 @@ struct WidgetConsoleApp
                 color = ImVec4(1.0f, 0.8f, 0.6f, 1.0f); 
                 has_color = true; 
             }
-            else if (strncmp(item, u8"命令帮助：", 5) == 0) 
+            else if (strncmp(item, u8"Help: ", 5) == 0) 
             { 
                 if(!logVisible[size_t(LogType::Other)])
                     continue;
@@ -375,7 +375,7 @@ struct WidgetConsoleApp
         const float WindowHeight = ImGui::GetWindowHeight();
         const auto ItemSize = ImGui::GetTextLineHeightWithSpacing();
         TipPos.y = TipPos.y + WindowHeight - (activeCommands.size() + 2.5f) * ItemSize;
-        if (ImGui::InputText(u8" 输入命令", InputBuf, IM_ARRAYSIZE(InputBuf), input_text_flags, &TextEditCallbackStub, (void*)this))
+        if (ImGui::InputText(u8" Cvar Input", InputBuf, IM_ARRAYSIZE(InputBuf), input_text_flags, &TextEditCallbackStub, (void*)this))
         {
             char* s = InputBuf;
             Strtrim(s);
@@ -460,9 +460,9 @@ struct WidgetConsoleApp
                 }
 
                 {
-					std::string outHelp = u8"命令帮助："+std::string(cVar->description);
+					std::string outHelp = u8"Help: "+std::string(cVar->description);
 					AddLog(outHelp.c_str());
-					AddLog((u8"当前值："+tokens[0]+" "+val).c_str());
+					AddLog((u8"Current value: "+tokens[0]+" "+val).c_str());
                 }
             }
             else if(tokens.size()==2)
@@ -472,7 +472,7 @@ struct WidgetConsoleApp
 
                 if((flag&InitOnce)||(flag&ReadOnly))
                 {
-                    AddLog(u8"'%s'是一个只读的命令，不能在命令控制台修改它！\n", tokens[0].c_str());
+                    AddLog(u8"'%s' is a readonly value, can't change on console!\n", tokens[0].c_str());
                 }
                 else if(cVar->type==CVarType::Int32)
                 {
@@ -493,12 +493,12 @@ struct WidgetConsoleApp
             }
             else
             {
-                AddLog(u8"错误的命令参数，所有CVar的参数都只有1个，但是这次输入了'%d'个。\n", tokens.size() - 1);
+                AddLog(u8"Error command parameters, all CVar only keep one parameter, but '%d' paramters input this time.\n", tokens.size() - 1);
             }
         }
         else
         {
-            AddLog(u8"未知的命令：'%s'！\n", command_line);
+            AddLog(u8"Unkonwn command: '%s'!\n", command_line);
         }
 
         // On command input, we scroll to bottom even if AutoScroll==false
@@ -678,7 +678,7 @@ WidgetConsole::WidgetConsole(engine::Ref<engine::Engine> engine)
     : Widget(engine)
 {
     app = new WidgetConsoleApp();
-    m_title = u8"命令控制台";
+    m_title = u8"Console";
 
     // 在初始化后立即注册
     id = engine::Logger::getInstance()->getLogCache()->pushCallback([&](std::string info,engine::ELogType type){

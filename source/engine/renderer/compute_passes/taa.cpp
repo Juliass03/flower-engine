@@ -3,6 +3,13 @@
 
 using namespace engine;
 
+struct TAAPushConstants
+{
+	// Camera from move to stop.
+	// lerp from 0 - 1 ( 1 is full stop ).
+	float cameraStopFactor;
+};
+
 void engine::TAAPass::initInner()
 {
 	bInitPipeline = false;
@@ -71,6 +78,11 @@ void engine::TAAPass::record(uint32 backBufferIndex)
 		0, 
 		nullptr
 	);
+
+	TAAPushConstants pushConst{};
+	pushConst.cameraStopFactor = m_renderer->getCameraStopFactor();
+	vkCmdPushConstants(cmd, m_pipelineLayouts[backBufferIndex], 
+	VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(TAAPushConstants), &pushConst);
 
 	m_renderScene->getSceneTextures().getTAA()->transitionLayout(cmd,VK_IMAGE_LAYOUT_GENERAL);
 	m_renderScene->getSceneTextures().getHistory()->transitionLayout(cmd,VK_IMAGE_LAYOUT_GENERAL);
@@ -170,7 +182,12 @@ void engine::TAAPass::createPipeline()
 			VkDescriptorImageInfo hdrImage = {};
 			hdrImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			hdrImage.imageView = m_renderScene->getSceneTextures().getHDRSceneColor()->getImageView();
-			hdrImage.sampler = VulkanRHI::get()->getLinearClampSampler();
+			hdrImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
+
+			VkDescriptorImageInfo normalImage = {};
+			normalImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			normalImage.imageView = m_renderScene->getSceneTextures().getGbufferNormalMetal()->getImageView();
+			normalImage.sampler = VulkanRHI::get()->getPointClampEdgeSampler();
 
 			m_renderer->vkDynamicDescriptorFactoryBegin(index)
 				.bindImage(0,&outTAAImage,   VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          VK_SHADER_STAGE_COMPUTE_BIT)
@@ -178,6 +195,7 @@ void engine::TAAPass::createPipeline()
 				.bindImage(2,&historyImage,  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
 				.bindImage(3,&velocityImage, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
 				.bindImage(4,&hdrImage,      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
+				.bindImage(5,&normalImage,   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
 				.build(m_descriptorSets[index],m_descriptorSetLayouts[index]);
 		}
 		
@@ -216,7 +234,13 @@ void engine::TAAPass::createPipeline()
 		// TAA Main
 		{
 			VkPipelineLayoutCreateInfo plci = vkPipelineLayoutCreateInfo();
-			plci.pushConstantRangeCount = 0; 
+			plci.pushConstantRangeCount = 1; 
+
+			VkPushConstantRange push_constant{};
+			push_constant.offset = 0;
+			push_constant.size = sizeof(TAAPushConstants);
+			push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+			plci.pPushConstantRanges = &push_constant;
 
 			std::vector<VkDescriptorSetLayout> setLayouts = {
 				m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout,

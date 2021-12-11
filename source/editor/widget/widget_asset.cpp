@@ -33,7 +33,7 @@ struct CacheEntryInfoCompare
 WidgetAsset::WidgetAsset(engine::Ref<engine::Engine> engine)
 	: Widget(engine)
 {
-	m_title = u8"资源管理器";
+	m_title = u8"Asset";
 	m_projectDirectory = s_projectDirRaw;
 	m_assetSystem = engine->getRuntimeModule<AssetSystem>();
 
@@ -159,7 +159,7 @@ void WidgetAsset::onVisibleTick(size_t)
 	ImGui::SliderInt("ThumbnailSize", &thumbnailSize, 30, 100);
 	ImGui::Separator();
 
-	std::string searchName = u8"关键词过滤";
+	std::string searchName = u8"Keyword";
 	const float label_width = ImGui::CalcTextSize(searchName.c_str(), nullptr, true).x;
 	m_searchFilter.Draw(searchName.c_str(),180.0f);
 	ImGui::Separator();
@@ -315,7 +315,7 @@ void WidgetAsset::onVisibleTick(size_t)
 							// 单击
 							else if(ImGui::IsItemHovered()&&ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 							{
-								LOG_INFO("选择了{0}。",cacheInfo.filenameString.c_str());
+								LOG_INFO("Select {0}。",cacheInfo.filenameString.c_str());
 							}
 
 							if(!cacheInfo.bFolder)
@@ -341,7 +341,7 @@ void WidgetAsset::onVisibleTick(size_t)
 							if(ImGui::BeginPopup("##ItemRightClickContextMenu"))
 							{
 								ImGui::Separator();
-								if (ImGui::MenuItem(u8"重命名"))
+								if (ImGui::MenuItem(u8"Rename"))
 								{
 									m_renameingFile = cacheInfo.filenameString;
 									bRenaming = true;
@@ -450,7 +450,7 @@ void WidgetAsset::onVisibleTick(size_t)
 	{
 		const float offsetBottom = ImGui::GetTextLineHeight() * 1.2f;
 		ImGui::SetCursorPosY(ImGui::GetWindowSize().y - offsetBottom);
-		ImGui::Text(u8"%d 项", displayCount);
+		ImGui::Text(u8"%d Items", displayCount);
 	}
 
 	if(ImGui::IsMouseClicked(0) && !m_isHoveringItem && m_isHoveringWindow)
@@ -470,11 +470,11 @@ void WidgetAsset::onVisibleTick(size_t)
 	{
 		std::string suffix = FileSystem::getFileSuffixName(m_renameingFile);
 		
-		ImGui::Text(u8"新名字：");
+		ImGui::Text(u8"New Name");
 
 		ImGui::SetNextItemWidth(80.0f);
 		ImGui::InputText("##edit", &buf);
-		if (ImGui::Button(u8"确定")) 
+		if (ImGui::Button(u8"Ok")) 
 		{ 
 			if(buf != FileSystem::getFolderRawName(m_renameingFile))
 			{
@@ -507,7 +507,7 @@ void WidgetAsset::emptyAreaClickPopupMenu()
 	if(!ImGui::BeginPopup("##Content_ContextMenu"))
 		return;
 
-	if(ImGui::MenuItem(u8"新建材质"))
+	if(ImGui::MenuItem(u8"New Material"))
 	{
 		MaterialLibrary::get()->createEmptyMaterialAsset(m_projectDirectory.string() + "/newMaterial");
 		bNeedScan = true;

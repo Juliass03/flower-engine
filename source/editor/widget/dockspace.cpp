@@ -59,20 +59,20 @@ void DockSpace::showDockSpace()
 
     if (ImGui::BeginMenuBar())
     {
-        if (ImGui::BeginMenu(u8"开始"))
+        if (ImGui::BeginMenu(u8"File"))
         {
-            if(ImGui::MenuItem(u8"新建场景",NULL,false,true))
+            if(ImGui::MenuItem(u8"New Scene",NULL,false,true))
             {
                 LOG_INFO("NN");
             }
 
-            if(ImGui::MenuItem(u8"保存场景",NULL,false,true))
+            if(ImGui::MenuItem(u8"Save Scene",NULL,false,true))
             {
                 EditorFileBrowser::g_action = EFileBrowserAction::SaveScene;
                 g_fileDialogInstance.Open();
             }
 
-            if(ImGui::MenuItem(u8"加载场景",NULL,false,true))
+            if(ImGui::MenuItem(u8"Load Scene",NULL,false,true))
             {
                 if(m_sceneManager->getActiveScene().isDirty())
                 {
@@ -88,7 +88,7 @@ void DockSpace::showDockSpace()
 
             ImGui::Separator();
 
-            if(ImGui::MenuItem(u8"关闭",NULL,false,g_engineLoop.getRun()!=NULL))
+            if(ImGui::MenuItem(u8"Close",NULL,false,g_engineLoop.getRun()!=NULL))
             {
                 if(m_sceneManager->getActiveScene().isDirty())
                 {

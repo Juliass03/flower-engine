@@ -52,8 +52,15 @@ void main()
     float clipRange = farClip - nearClip;
 
     // uint float
-    const uint minDepthUint = range.minDepth;
-    const uint maxDepthUint = range.maxDepth;
+    uint minDepthUint = range.minDepth;
+    uint maxDepthUint = range.maxDepth;
+
+
+    // taa jitter adopt.
+    // todo: add history resolve.
+    uint taaJitterAdopt = 10000; 
+    minDepthUint = (max(1, minDepthUint / taaJitterAdopt) - 1) * taaJitterAdopt;
+    maxDepthUint = (maxDepthUint / taaJitterAdopt + 1) * taaJitterAdopt;
 
     // unpack to float
     float minDistance =  float(minDepthUint) / SCALE_UINT_7;

@@ -546,7 +546,7 @@ void Renderer::updateGPUData(float dt)
 
 	m_gpuFrameData.frameIndex.r = m_frameCount;
 	m_gpuFrameData.camViewProjLast = m_gpuFrameData.camViewProj;
-
+	m_lastVP = m_gpuFrameData.camViewProjLast;
 	m_gpuFrameData.camView = sceneViewCameraComponent->getView();
 	m_gpuFrameData.camProj = sceneViewCameraComponent->getProjection();
 
@@ -581,6 +581,7 @@ void Renderer::updateGPUData(float dt)
 	}
 	
 	m_gpuFrameData.camViewProj = m_gpuFrameData.camProj * m_gpuFrameData.camView;
+	m_currentVP = m_gpuFrameData.camViewProj;
 	m_gpuFrameData.camInvertViewProj = glm::inverse(m_gpuFrameData.camViewProj);
 	
 	m_gpuFrameData.camWorldPos = glm::vec4(sceneViewCameraComponent->getPosition(),1.0f);
@@ -603,6 +604,10 @@ void Renderer::updateGPUData(float dt)
 	m_gpuFrameData.camFrustumPlanes[4] = camFrusum.planes[4];
 	m_gpuFrameData.camFrustumPlanes[5] = camFrusum.planes[5];
 
+	updateCameraStopFactor();
+
+
+	// next frame count.
 	m_frameCount ++;
 }
 
@@ -723,4 +728,45 @@ void engine::Renderer::prepareBasicTextures()
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 		);
 	}
+}
+
+uint32 Renderer::getFrameCount() const
+{
+	return m_frameCount;
+}
+
+bool Renderer::cameraMove() const
+{
+	return m_lastVP != m_currentVP;
+}
+
+float Renderer::getCameraStopFactor() const
+{
+	return cameraStopFactor;
+}
+
+void Renderer::updateCameraStopFactor()
+{
+	if(cameraMove())
+	{
+		cameraStopFactor = 0.0f;
+
+		bStopMoveView = false;
+		return;
+	}
+
+	if(!bStopMoveView)
+	{
+		// first frame stop move view.
+		bStopMoveView = true;
+
+		m_cameraStopMoveFrameCount = m_frameCount;
+	}
+
+	CHECK(m_frameCount >= m_cameraStopMoveFrameCount);
+
+	float groundCount = 20.0f;
+	float differCount = float(std::min(81u ,m_frameCount - m_cameraStopMoveFrameCount));
+
+	cameraStopFactor = glm::clamp(differCount / groundCount, 0.0f, 1.0f);
 }

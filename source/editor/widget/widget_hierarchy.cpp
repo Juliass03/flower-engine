@@ -13,7 +13,7 @@ using namespace engine::asset_system;
 WidgetHierarchy::WidgetHierarchy(engine::Ref<engine::Engine> engine)
 	: Widget(engine)
 {
-	m_title = u8"场景大纲";
+	m_title = u8"World";
 	m_sceneManager = engine->getRuntimeModule<SceneManager>();
 
 	m_emptyNode = std::make_shared<SceneNode>(usageNodeIndex::empty,"empty");
@@ -265,7 +265,7 @@ void WidgetHierarchy::popupMenu()
 		const auto selectedNode = EditorScene::get().getSelectNode().lock();
 		const auto onNode  = selectedNode->getId() != usageNodeIndex::empty;
 
-		if (onNode && ImGui::MenuItem(u8"复制"))
+		if (onNode && ImGui::MenuItem(u8"Copy"))
 		{
 			EditorScene::get().copiedNode = selectedNode;
 		}
@@ -275,19 +275,19 @@ void WidgetHierarchy::popupMenu()
 			// TODO: 克隆函数
 		}
 
-		if (onNode && ImGui::MenuItem(u8"重命名"))
+		if (onNode && ImGui::MenuItem(u8"Rename"))
 		{
 			EditorScene::get().bRename = true;
 		}
 
-		if (onNode && ImGui::MenuItem(u8"删除"))
+		if (onNode && ImGui::MenuItem(u8"Delete"))
 		{
 			actionNodeDelete(selectedNode);
 		}
 
 		ImGui::Separator();
 
-		if (ImGui::MenuItem(u8"创建空物体"))
+		if (ImGui::MenuItem(u8"Create Empty Actor"))
 		{
 			actionNodeCreateEmpty();
 		}

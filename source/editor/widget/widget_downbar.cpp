@@ -51,11 +51,11 @@ void WidgetDownbar::onVisibleTick(size_t)
 	std::stringstream ss;
 	ss <<std::setw(4) << std::left
 		<< std::setfill(' ')<< std::fixed << std::setprecision(0) << fps;
-	std::string text = u8"渲染速度：" + ss.str() + "FPS";
+	std::string text = u8"Rendering: " + ss.str() + "FPS";
 
 	float vramUsage = VulkanRHI::get()->getVramUsage();
 	std::stringstream ssv;
-	ssv << u8"显存已用：";
+	ssv << u8"Vram: ";
 	ssv <<std::setw(4) << std::left
 		<< std::setfill(' ') << std::fixed << std::setprecision(2) << vramUsage * 100.0f;
 	ssv << "%";

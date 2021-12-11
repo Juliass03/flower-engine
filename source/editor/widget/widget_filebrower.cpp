@@ -15,7 +15,7 @@ ImGui::FileBrowser g_fileDialogInstance = ImGui::FileBrowser(f_folderBrowerFlags
 WidgetFileBrowser::WidgetFileBrowser(engine::Ref<engine::Engine> engine)
 	: Widget(engine)
 {
-	m_title = u8"ÎÄ¼þä¯ÀÀÆ÷";
+	m_title = u8"FileBrowser";
 	g_fileDialogInstance.SetTypeFilters({".flower"});
 
 	m_sceneManager = engine->getRuntimeModule<SceneManager>();

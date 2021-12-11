@@ -2,6 +2,15 @@
 
 #define TAA_MODE 0
 
+struct TAAPushConstant
+{
+    float cameraStopFactor;
+};
+
+layout(push_constant) uniform constants{   
+   TAAPushConstant pushConstants;
+};
+
 #include "../../glsl/common.glsl"
 #include "../../glsl/common_framedata.glsl"
 
@@ -10,6 +19,7 @@ layout (set = 1, binding = 1) uniform sampler2D inDepth;
 layout (set = 1, binding = 2) uniform sampler2D inHistory; 
 layout (set = 1, binding = 3) uniform sampler2D inVelocity;
 layout (set = 1, binding = 4) uniform sampler2D inHdrColor;
+layout (set = 1, binding = 5) uniform sampler2D inGbufferNormal;
 
 #define GROUP_SIZE  8
 #define TILE_DIM    (2 * RADIUS + GROUP_SIZE)
@@ -23,80 +33,10 @@ const float g_taa_blend_max = 0.4f;
 shared vec3 Tile[TILE_DIM * TILE_DIM];
 layout (local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) in;
 
-void Bicubic2DCatmullRom(in vec2 UV, in vec2 Size, in vec2 InvSize, out vec2 Sample[3], out vec2 Weight[3])
+vec3 getWorldNormal(vec2 uv)
 {
-	UV *= Size;
-
-	vec2 tc = floor(UV - 0.5) + 0.5;
-	vec2 f = UV - tc;
-	vec2 f2 = f * f;
-	vec2 f3 = f2 * f;
-
-	vec2 w0 = f2 - 0.5 * (f3 + f);
-	vec2 w1 = 1.5 * f3 - 2.5 * f2 + 1;
-	vec2 w3 = 0.5 * (f3 - f2);
-	vec2 w2 = 1 - w0 - w1 - w3;
-
-	Weight[0] = w0;
-	Weight[1] = w1 + w2;
-	Weight[2] = w3;
-
-	Sample[0] = tc - 1;
-	Sample[1] = tc + w2 / Weight[1];
-	Sample[2] = tc + 2;
-
-	Sample[0] *= InvSize;
-	Sample[1] *= InvSize;
-	Sample[2] *= InvSize;
-}
-
-#define BICUBIC_CATMULL_ROM_SAMPLES 5
-struct CatmullRomSamples
-{
-	uint Count;
-	ivec2 UVDir[BICUBIC_CATMULL_ROM_SAMPLES];
-	vec2 UV[BICUBIC_CATMULL_ROM_SAMPLES];
-	float Weight[BICUBIC_CATMULL_ROM_SAMPLES];
-	float FinalMultiplier;
-};
-
-CatmullRomSamples GetBicubic2DCatmullRomSamples(vec2 UV, vec2 Size, in vec2 InvSize)
-{
-	CatmullRomSamples Samples;
-	Samples.Count = BICUBIC_CATMULL_ROM_SAMPLES;
-
-	vec2 Weight[3];
-	vec2 Sample[3];
-
-	Bicubic2DCatmullRom(UV, Size, InvSize, Sample, Weight);
-
-	Samples.UV[0] = vec2(Sample[1].x, Sample[0].y);
-	Samples.UV[1] = vec2(Sample[0].x, Sample[1].y);
-	Samples.UV[2] = vec2(Sample[1].x, Sample[1].y);
-	Samples.UV[3] = vec2(Sample[2].x, Sample[1].y);
-	Samples.UV[4] = vec2(Sample[1].x, Sample[2].y);
-
-	Samples.Weight[0] = Weight[1].x * Weight[0].y;
-	Samples.Weight[1] = Weight[0].x * Weight[1].y;
-	Samples.Weight[2] = Weight[1].x * Weight[1].y;
-	Samples.Weight[3] = Weight[2].x * Weight[1].y;
-	Samples.Weight[4] = Weight[1].x * Weight[2].y;
-
-	Samples.UVDir[0] = ivec2(0, -1);
-	Samples.UVDir[1] = ivec2(-1, 0);
-	Samples.UVDir[2] = ivec2(0, 0);
-	Samples.UVDir[3] = ivec2(1, 0);
-	Samples.UVDir[4] = ivec2(0, 1);
-
-	float CornerWeights;
-	CornerWeights  = Samples.Weight[0];
-	CornerWeights += Samples.Weight[1];
-	CornerWeights += Samples.Weight[2];
-	CornerWeights += Samples.Weight[3];
-	CornerWeights += Samples.Weight[4];
-	Samples.FinalMultiplier = 1.0f / CornerWeights;
-
-	return Samples;
+    vec4 packGbufferNormalRoughness = texture(inGbufferNormal,uv);
+    return unpackGbufferNormal(normalize(packGbufferNormalRoughness.xyz));
 }
 
 vec3 Reinhard(vec3 hdr)
@@ -112,39 +52,6 @@ vec3 ReinhardInverse(vec3 sdr)
 float luminance(vec3 color)
 {
     return max(dot(color, vec3(0.299f, 0.587f, 0.114f)), 0.0001f);
-}
-
-const float KarisToneMapAlpha = 0.5f;
-vec3 KarisToneMap(vec3 color)
-{
-	float luma = luminance(color);
-    const float alpha = KarisToneMapAlpha;
-	if (luma <= alpha)
-	{
-		return color;
-	}
-	else
-	{
-		return color * (alpha * alpha - luma) / (luma * (2 * alpha - 1 - luma));
-	}
-}
-
-vec3 KarisToneMapInverse(vec3 color)
-{
-	float luma = luminance(color);
-	if (luma <= KarisToneMapAlpha)
-	{
-		return color;
-	}
-	else
-	{
-		return color * (KarisToneMapAlpha * KarisToneMapAlpha - (2 * KarisToneMapAlpha - 1) * luma) / (luma * (1 - luma));
-	}
-}
-
-vec3 restrictTonemapper(vec3 color)
-{
-    return color / (1 + color.r);
 }
 
 vec3 sampleHistoryCatmullRom(in vec2 uv, in vec2 texelSize)
@@ -194,6 +101,11 @@ float getLinearDepth(vec2 uv)
     return 2.0f * far * near / (near + far - z_n * (near - far));
 }
 
+float getLinearDepthHistory(vec2 uv)
+{
+    return texture(inHistory,uv).w;
+}
+
 vec2 getClosestVelocity(in vec2 uv, in vec2 texelSize, out bool isSkyPixel)
 {
     vec2 velocity;
@@ -213,68 +125,6 @@ vec2 getClosestVelocity(in vec2 uv, in vec2 texelSize, out bool isSkyPixel)
     }
     isSkyPixel = (closestDepth <= 1e-6f);
     return velocity;
-}
-
-vec3 clipAABB(vec3 aabb_min, vec3 aabb_max, vec3 p, vec3 q)
-{
-#if USE_OPTIMIZATIONS
-    // note: only clips towards aabb center (but fast!)
-    vec3 p_clip = 0.5f * (aabb_max + aabb_min);
-    vec3 e_clip = 0.5f * (aabb_max - aabb_min) + FLT_EPS;
-    vec3 v_clip = q - p_clip;
-    vec3 v_unit = v_clip.xyz / e_clip;
-    vec3 a_unit = abs(v_unit);
-    float ma_unit = max(a_unit.x, max(a_unit.y, a_unit.z));
-    if (ma_unit > 1.0)
-    {
-        return p_clip + v_clip / ma_unit;
-    }
-    else
-    {
-        return q;// point inside aabb
-    }
-#else
-    vec3 r = q - p;
-    vec3 rmax = aabb_max - p.xyz;
-    vec3 rmin = aabb_min - p.xyz;
-
-    if (r.x > rmax.x + FLT_MIN)
-        r *= (rmax.x / r.x);
-    if (r.y > rmax.y + FLT_MIN)
-        r *= (rmax.y / r.y);
-    if (r.z > rmax.z + FLT_MIN)
-        r *= (rmax.z / r.z);
-    if (r.x < rmin.x - FLT_MIN)
-        r *= (rmin.x / r.x);
-    if (r.y < rmin.y - FLT_MIN)
-        r *= (rmin.y / r.y);
-    if (r.z < rmin.z - FLT_MIN)
-        r *= (rmin.z / r.z);
-
-    return p + r;
-#endif
-}
-
-vec3 clipHistory(uvec2 thread_id, uint group_index, uvec3 group_id, sampler2D tex, vec3 color_history, vec2 texelSize)
-{
-    uvec2 du = uvec2(1, 0);
-    uvec2 dv = uvec2(0, 1);
-
-    vec3 ctl = texture(tex, texelSize * vec2(thread_id - dv - du)).rgb;
-    vec3 ctc = texture(tex, texelSize * vec2(thread_id - dv)).rgb;
-    vec3 ctr = texture(tex, texelSize * vec2(thread_id - dv + du)).rgb;
-    vec3 cml = texture(tex, texelSize * vec2(thread_id - du)).rgb;
-    vec3 cmc = texture(tex, texelSize * vec2(thread_id)).rgb;
-    vec3 cmr = texture(tex, texelSize * vec2(thread_id + du)).rgb;
-    vec3 cbl = texture(tex, texelSize * vec2(thread_id + dv - du)).rgb;
-    vec3 cbc = texture(tex, texelSize * vec2(thread_id + dv)).rgb;
-    vec3 cbr = texture(tex, texelSize * vec2(thread_id + dv + du)).rgb;
-
-    vec3 color_min = min(ctl, min(ctc, min(ctr, min(cml, min(cmc, min(cmr, min(cbl, min(cbc, cbr))))))));
-    vec3 color_max = max(ctl, max(ctc, max(ctr, max(cml, max(cmc, max(cmr, max(cbl, max(cbc, cbr))))))));
-    vec3 color_avg = (ctl + ctc + ctr + cml + cmc + cmr + cbl + cbc + cbr) / 9.0f;
-
-    return clamp(clipAABB(color_min, color_max, clamp(color_avg, color_min, color_max), color_history), FLT_MIN, FLT_MAX_16);
 }
 
 vec3 sampleHistory(vec2 uv,vec2 inTexelSize)
@@ -301,6 +151,25 @@ vec3 YCoCgToRGB(in vec3 yCoCg)
         yCoCg.x + yCoCg.y - yCoCg.z,
         yCoCg.x + yCoCg.z,
         yCoCg.x - yCoCg.y - yCoCg.z);
+}
+
+vec2 gatherDepthMinMax(vec2 uv)
+{
+    vec4 gatherDepth = textureGather(inDepth, uv, 0);
+
+    float minD = min(min(min(gatherDepth.x,gatherDepth.y),gatherDepth.z),gatherDepth.w);
+    float maxD = max(max(max(gatherDepth.x,gatherDepth.y),gatherDepth.z),gatherDepth.w);
+
+    return vec2(minD,maxD);
+}
+
+bool edgeDepth(vec2 uv, vec2 texelSize)
+{
+    vec2 minMax0 = gatherDepthMinMax(uv);
+
+    float diff = minMax0.y - minMax0.x;
+    const float adopt = 0.0001f;
+    return diff > adopt;
 }
 
 void main() 
@@ -377,100 +246,72 @@ void main()
     bool isSkyPixel;
     const vec2 velocity = getClosestVelocity(uv, texelSize, isSkyPixel);
 
-    const float boxSize = mix(0.5f, 2.5f, isSkyPixel ? 0.0f : smoothstep(0.02f, 0.0f, length(velocity)));
-    
-    const vec3 nmin = ex - dev * boxSize;
-    const vec3 nmax = ex + dev * boxSize;
+    float boxSize = mix(0.5f, 2.0f, isSkyPixel ? 0.0f : smoothstep(0.02f, 0.0f, length(velocity)));
 
     vec3 history = RGBToYCoCg(sampleHistory(uv - velocity, texelSize));
     vec3 center = Tap(tilePos, texelSize); 
-
-#if 0
-    vec3 rayOrigin = history;
-	vec3 rayDir = center - history;
-
-	rayDir.x = abs(rayDir.x) < (1.0 / 65536.0) ? (1.0 / 65536.0) : rayDir.x;
-    rayDir.y = abs(rayDir.y) < (1.0 / 65536.0) ? (1.0 / 65536.0) : rayDir.y;
-    rayDir.z = abs(rayDir.z) < (1.0 / 65536.0) ? (1.0 / 65536.0) : rayDir.z;
-
-    vec3 invRayDir = vec3(1.0f) / rayDir;
-
-    vec3 minIntersect = (nmin - rayOrigin) * invRayDir;
-	vec3 maxIntersect = (nmax - rayOrigin) * invRayDir;
-
-	vec3 enterIntersect = min(minIntersect, maxIntersect);
-    float historyColorLerpFactor = clamp(max(max(enterIntersect.x,enterIntersect.y),enterIntersect.z),0.0f,1.0f);
-    history = mix(history, center, historyColorLerpFactor);
-#endif
-
-    const vec3 clampedHistory = clamp(history, nmin, nmax);
     
 
-    float lenVelocity = length(velocity);
+    float lenVelocity = abs(velocity.x) + abs(velocity.y);
+    float historyDepth = texture(inHistory,uv).w;
 
-    float historyDepth = texture(inHistory,uv).w; // linear z
     float centerDepth = getLinearDepth(uv);
-
-    float mixDepth = mix(historyDepth,centerDepth, 1.0f / 16.0f);
+    float mixDepth = mix(historyDepth, centerDepth, 1.0f / 16.0f);
     
-#if 1
-    const float adoptVelocityDiff = 1e-6f;
-    const float adoptDepthDiff = 0.001f; // we use reverse-z so we can set adopt bigger.
+    const float adoptVelocityDiff = 1e-5f;
+    const float adoptDepthDiff = 1e-2f;
+    float depthDiffH = abs(historyDepth - mixDepth);
 
-    // on static status we use ground true taa effect here.
-    if( (lenVelocity < adoptVelocityDiff) && 
-        (abs(historyDepth - centerDepth) < adoptDepthDiff) && 
-        (!isSkyPixel)) // 
-    {
-        vec3 result = mix(history, center, 1.0f / 16.0f * 0.5f);
-        result = YCoCgToRGB(result);
-        imageStore(outHdrColor, ivec2(gl_GlobalInvocationID.xy), vec4(result,mixDepth));
-        return;
-    }
-#endif
+    vec3 nmin = ex - dev * boxSize;
+    vec3 nmax = ex + dev * boxSize;
+    vec3 clampedHistory = clamp(history, nmin, nmax);
 
-    // note: use velocity * linear depth as blend factor to solve blur problem when moving.
+    const bool bStatic = lenVelocity < adoptVelocityDiff && !isSkyPixel && depthDiffH < adoptDepthDiff;
+
     float blendFactor = 1.0f;
     {   
+        // move
         const float threshold   = 0.5f;
         const float base        = 0.5f;
         const float gather      = 0.1666f;
 
         // subpixel flicker reduce
-        float depth             = centerDepth;
+        float depth             = getLinearDepth(uv);
         float texel_vel_mag     = length(velocity * vec2(dims.xy)) * depth;
         float subpixel_motion   = clamp(threshold / (texel_vel_mag + FLT_MIN), 0.0f, 1.0f);
         blendFactor *= texel_vel_mag * base + subpixel_motion * gather;
 
-        // 
-        vec3 color_history = clampedHistory;
+        vec3 color_history = history;
         vec3 color_current = center;
         float luminance_history     = luminance(color_history);
         float luminance_current     = luminance(color_current);
         float unbiased_difference   = abs(luminance_current - luminance_history) / ((max(luminance_current, luminance_history) + 0.3));
         blendFactor *= 1.0 - unbiased_difference;
-
-        // blendFactor *= lenVelocity * 1.0f;
-
         // Clamp
         blendFactor = clamp(blendFactor, g_taa_blend_min, g_taa_blend_max);
     }
 
+    if(bStatic)
+    {
+        float cameraStop = pushConstants.cameraStopFactor;
+        cameraStop = smoothstep(0.0f,1.0f,cameraStop);
+        float MinBlendFactor = max(1.0f / 16.0f * 0.15f, blendFactor * 0.15f);
+        blendFactor = mix(blendFactor, MinBlendFactor, cameraStop);
+    }
+    
     vec3 result = mix(clampedHistory, center, blendFactor);
     result = YCoCgToRGB(result);
 
-#if 1
     const float MaxHalfFloat = 65504.0f;
     vec4 FinalOutput = min(MaxHalfFloat.xxxx, vec4(result,mixDepth));
 
-    int frameIndexMod8 = int(frameData.frameIndex.x)  % 8;
     int frameIndexMod16 = int(frameData.frameIndex.x) % 16;
 
     uvec2 Random = Rand3DPCG16(ivec3(ivec2(gl_GlobalInvocationID.xy), frameIndexMod16)).xy;
 	vec2 E = Hammersley16(0, 1, Random);
     vec3 OutputQuantizationError = vec3(0.00098, 0.00098, 0.00098);
-    FinalOutput.rgb -= FinalOutput.rgb * (E.x * OutputQuantizationError);
+    FinalOutput.rgb += FinalOutput.rgb * (E.x * OutputQuantizationError);
+    FinalOutput.a = mixDepth;
     
     imageStore(outHdrColor, ivec2(gl_GlobalInvocationID.xy), FinalOutput);
-#endif
 }

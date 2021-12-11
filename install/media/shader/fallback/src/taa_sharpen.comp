@@ -13,39 +13,6 @@ float luminance(vec3 color)
     return max(dot(color, vec3(0.299f, 0.587f, 0.114f)), 0.0001f);
 }
 
-vec3 restrictTonemapperInverse(vec3 color)
-{
-	return color / (1 - color.r);
-}
-
-const float KarisToneMapAlpha = 0.5f;
-vec3 KarisToneMap(vec3 color)
-{
-	float luma = luminance(color);
-    const float alpha = KarisToneMapAlpha;
-	if (luma <= alpha)
-	{
-		return color;
-	}
-	else
-	{
-		return color * (alpha * alpha - luma) / (luma * (2 * alpha - 1 - luma));
-	}
-}
-
-vec3 KarisToneMapInverse(vec3 color)
-{
-	float luma = luminance(color);
-	if (luma <= KarisToneMapAlpha)
-	{
-		return color;
-	}
-	else
-	{
-		return color * (KarisToneMapAlpha * KarisToneMapAlpha - (2 * KarisToneMapAlpha - 1) * luma) / (luma * (1 - luma));
-	}
-}
-
 vec3 RGBToYCoCg(in vec3 rgb)
 {
     return vec3(
@@ -92,6 +59,8 @@ void main()
     const vec3 right  = imageLoad(inTAAImage,ivec2(gl_GlobalInvocationID.xy + uvec2(-1,  0))).xyz;
     const vec3 bottom = imageLoad(inTAAImage,ivec2(gl_GlobalInvocationID.xy + uvec2( 0, -1))).xyz;
     const vec3 color = ApplySharpening(center, top, left, right, bottom);
+
+    //const vec3 color = center;
     imageStore(hdrImage, ivec2(gl_GlobalInvocationID.xy), vec4(ReinhardInverse(color),1.0f));
     // imageStore(hdrImage, ivec2(gl_GlobalInvocationID.xy), vec4(restrictTonemapperInverse(color),1.0f));
     // imageStore(hdrImage, ivec2(gl_GlobalInvocationID.xy), vec4(KarisToneMapInverse(color),1.0f));

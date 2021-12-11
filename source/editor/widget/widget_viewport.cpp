@@ -12,7 +12,7 @@ using namespace engine::asset_system;
 WidgetViewport::WidgetViewport(engine::Ref<engine::Engine> engine)
 	: Widget(engine)
 {
-	m_title = u8"≥°æ∞ ”Õº";
+	m_title = u8"Viewport";
 }
 
 void WidgetViewport::onVisibleTick(size_t i)

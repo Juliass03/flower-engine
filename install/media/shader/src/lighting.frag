@@ -120,10 +120,10 @@ vec3 biasNormalOffset(vec3 vertexNormal, float NoLSafe, float bias, float texelS
 
 float autoBias(float safeNoL,float biasMul, float bias)
 {
-    float fixedFactor = 0.0001f;
+    float fixedFactor = 0.0005f;
     float slopeFactor = 1.0f - safeNoL;
 
-    return fixedFactor * slopeFactor * bias * biasMul;
+    return fixedFactor + slopeFactor * bias * biasMul * 0.0001f;
 }
 
 float evaluateDirectShadow(
@@ -234,6 +234,9 @@ void main()
 {
     GbufferData gData = loadGbufferData();
 
+    ivec2 texDim = textureSize(inGbufferBaseColorMetal,0).xy;
+	vec2 texelSize = 1.0f / vec2(texDim);
+
     vec3 l = normalize(-frameData.sunLightDir.xyz);
     vec3 n = gData.worldNormal;
     vec3 v = normalize(frameData.camWorldPos.xyz - gData.worldPos);
@@ -255,7 +258,7 @@ void main()
         n,
         cascadeIndex,
         l,
-        gData.worldNormalVertex
+        gData.worldNormal
     );  
     vec3 debugColor = getCascadeDebugColor(cascadeIndex);
     directShadow = max(0.0,directShadow);
@@ -291,12 +294,11 @@ void main()
 
 		ambientLighting = (diffuseIBL + specularIBL);
     }
-    ambientLighting *= lightRadiance;
+    // ambientLighting *= lightRadiance;
 
     outHdrSceneColor.rgb = directLighting + ambientLighting + gData.emissiveColor * 3.14f;
     float rr = texture(inShadowDepthBilinearTexture,vec3(inUV0,0)).r;
     outHdrSceneColor.a = 1.0f;
-
 
     outHdrSceneColor.rgb = max(vec3(0.0f), outHdrSceneColor.rgb);
 }

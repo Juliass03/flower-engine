@@ -46,7 +46,7 @@ namespace componentProperty
 WidgetDetail::WidgetDetail(engine::Ref<engine::Engine> engine)
 	: Widget(engine)
 {
-	m_title = u8"细节面板";
+	m_title = u8"Detail";
 	m_sceneManager = engine->getRuntimeModule<SceneManager>();
 }
 
@@ -117,7 +117,7 @@ static void drawComponent(const std::string& name, std::shared_ptr<engine::Scene
 		bool removeComponent = false;
 		if (ImGui::BeginPopup("ComponentSettings"))
 		{
-			if (ImGui::MenuItem(u8"移除组件"))
+			if (ImGui::MenuItem(u8"Remove Component"))
 				removeComponent = removable;
 
 			ImGui::EndPopup();
@@ -146,14 +146,14 @@ void WidgetDetail::drawTransform(std::shared_ptr<SceneNode> n)
 		glm::vec3 scale = transform->getScale();
 		glm::vec3 rotate_degree = glm::degrees(glm::eulerAngles(rotation));
 
-		drawComponent<Transform>(u8"空间变换", n,activeScene, [&](auto& component)
+		drawComponent<Transform>(u8"Transform", n,activeScene, [&](auto& component)
 		{
 			ImGui::Separator();
-			Drawer::vector3(u8"坐标", translation,0.0f);
+			Drawer::vector3(u8"Location", translation,0.0f);
 			ImGui::Separator();
-			Drawer::vector3(u8"旋转", rotate_degree,0.0f);
+			Drawer::vector3(u8"Rotation", rotate_degree,0.0f);
 			ImGui::Separator();
-			Drawer::vector3(u8"缩放", scale, 1.0f);
+			Drawer::vector3(u8"Scale", scale, 1.0f);
 			ImGui::Separator();
 		},false);
 
@@ -204,13 +204,13 @@ void WidgetDetail::drawStaticMesh(std::shared_ptr<engine::SceneNode> node)
 
 	if(const auto component = node->getComponent<StaticMeshComponent>())
 	{
-		drawComponent<StaticMeshComponent>(u8"静态网格", node,activeScene, [&](auto& in_component)
+		drawComponent<StaticMeshComponent>(u8"StaticMesh", node,activeScene, [&](auto& in_component)
 		{
 			ImGui::Separator();
 
 			// Mesh Select
 			{
-				std::string idName = u8"网格";
+				std::string idName = u8"Mesh";
 				ImGuiIO& io = ImGui::GetIO();
 				auto boldFont = io.Fonts->Fonts[0];
 				ImGui::PushID(idName.c_str());
@@ -281,7 +281,7 @@ void WidgetDetail::drawStaticMesh(std::shared_ptr<engine::SceneNode> node)
 					{
 						if(component->m_selectMesh < cacheName.size())
 						{
-							ImGui::Combo(u8"网格选择",&component->m_selectMesh,cacheName.data(),int(cacheName.size()),-1);
+							ImGui::Combo(u8"Select Mesh",&component->m_selectMesh,cacheName.data(),int(cacheName.size()),-1);
 
 							if(lastTimeSize != int(cacheName.size()) && component->m_customMeshName != cacheName[component->m_selectMesh])
 							{
@@ -331,7 +331,7 @@ void WidgetDetail::drawDirectionalLight(std::shared_ptr<engine::SceneNode> node)
 
 	if(const auto component = node->getComponent<DirectionalLight>())
 	{
-		drawComponent<DirectionalLight>(u8"太阳灯光", node,activeScene, [&](auto& in_component)
+		drawComponent<DirectionalLight>(u8"Sun Light", node,activeScene, [&](auto& in_component)
 		{
 			ImGui::Separator();
 
@@ -339,7 +339,7 @@ void WidgetDetail::drawDirectionalLight(std::shared_ptr<engine::SceneNode> node)
 				glm::vec4 oldColor = in_component->getColor();
 				static ImVec4 color;
 				color = ImVec4(oldColor.x, oldColor.y, oldColor.z, 1.0f);
-				ImGui::ColorPicker4(u8"颜色",(float*)&color,ImGuiColorEditFlags_HDR|ImGuiColorEditFlags_NoBorder);
+				ImGui::ColorPicker4(u8"Color",(float*)&color,ImGuiColorEditFlags_HDR|ImGuiColorEditFlags_NoBorder);
 				glm::vec4 newColor = glm::vec4(color.x,color.y,color.z,1.0f);
 				
 				if(newColor!=oldColor)
@@ -358,7 +358,7 @@ void WidgetDetail::drawAddCommand(std::shared_ptr<engine::SceneNode> node)
 	auto& activeScene = m_sceneManager->getActiveScene();
 
 	ImGui::SetCursorPosX(ImGui::GetWindowWidth() * 0.5f);
-	if (ImGui::Button(u8"添加组件"))
+	if (ImGui::Button(u8"Add Component"))
 	{
 		ImGui::OpenPopup("##ComponentContextMenu_Add");
 	}
@@ -366,7 +366,7 @@ void WidgetDetail::drawAddCommand(std::shared_ptr<engine::SceneNode> node)
     if (ImGui::BeginPopup("##ComponentContextMenu_Add"))
     {
 		// Static Mesh
-		if (ImGui::MenuItem(u8"静态网格") && !node->hasComponent(EComponentType::StaticMeshComponent))
+		if (ImGui::MenuItem(u8"StaticMesh") && !node->hasComponent(EComponentType::StaticMeshComponent))
 		{
 			activeScene.addComponent(std::make_shared<StaticMeshComponent>(),node);
 			activeScene.setDirty(true);
@@ -374,7 +374,7 @@ void WidgetDetail::drawAddCommand(std::shared_ptr<engine::SceneNode> node)
 		}
 
 		// Directional Light
-		if (ImGui::MenuItem(u8"太阳灯光") && !node->hasComponent(EComponentType::DirectionalLight))
+		if (ImGui::MenuItem(u8"Sun Light") && !node->hasComponent(EComponentType::DirectionalLight))
 		{
 			activeScene.addComponent(std::make_shared<DirectionalLight>(),node);
 			activeScene.setDirty(true);

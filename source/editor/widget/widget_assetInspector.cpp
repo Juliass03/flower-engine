@@ -15,7 +15,7 @@ using namespace engine::asset_system;
 WidgetAssetInspector::WidgetAssetInspector(engine::Ref<engine::Engine> engine)
 	: Widget(engine)
 {
-	m_title = u8"×ÊÔ´ÉèÖÃ";
+	m_title = u8"Inspector";
 	m_sceneManager = engine->getRuntimeModule<SceneManager>();
 	m_assetSystem = engine->getRuntimeModule<asset_system::AssetSystem>();
 	m_renderer = engine->getRuntimeModule<Renderer>();
