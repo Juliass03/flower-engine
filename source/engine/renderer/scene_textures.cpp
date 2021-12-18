@@ -92,18 +92,6 @@ void SceneTextures::allocate(uint32 width,uint32 height,bool forceAllocate)
         getToneMapperFormat() 
     );
 
-#ifdef FXAA_EFFECT
-    m_fxaaColorTexture = RenderTexture::create(
-        VulkanRHI::get()->getVulkanDevice(),
-        width,
-        height,
-        getFXAAFormat(),
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_STORAGE_BIT
-    );
-#endif
-
-    
-
     m_gbufferBaseColorRoughness = RenderTexture::create(
         VulkanRHI::get()->getVulkanDevice(),
         width,
@@ -190,17 +178,6 @@ void SceneTextures::allocate(uint32 width,uint32 height,bool forceAllocate)
 			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_STORAGE_BIT,
             true
         );
-
-#if 0
-        m_envTextureCube = RenderTextureCube::create(
-            VulkanRHI::get()->getVulkanDevice(),
-            getEnvCubeDim(),
-            getEnvCubeDim(),
-            1,
-            getEnvCubeFormat(),
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
-        );
-#endif
     }
 
 	static int32* singleShadowMapSizePtr = CVarSystem::get()->getInt32CVar("r.Shadow.ShadowMapSize");
@@ -239,10 +216,6 @@ void SceneTextures::release(bool bAll)
         delete m_brdflutTexture;
         delete m_irradiancePrefilterTextureCube;
         delete m_specularPrefilterTextureCube;
-#if 0
-        CHECK(m_envTextureCube);
-        delete m_envTextureCube;
-#endif
     }
 
     if(!m_init)
@@ -253,10 +226,6 @@ void SceneTextures::release(bool bAll)
     delete m_depthStencilTexture;
     delete m_sceneColorTexture;
     delete m_tonemapper;
-
-#ifdef FXAA_EFFECT
-    delete m_fxaaColorTexture;
-#endif
 
     delete m_gbufferBaseColorRoughness;
     delete m_gbufferEmissiveAo;

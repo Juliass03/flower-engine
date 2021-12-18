@@ -43,6 +43,9 @@ struct GPUFrameData
 	glm::mat4 camViewProj;
     glm::mat4 camInvertViewProj;
 
+    glm::mat4 camViewProjJitter;
+    glm::mat4 camInvertViewProjJitter;
+
     glm::mat4 camViewProjLast;
     glm::vec4 jitterData;
 

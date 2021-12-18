@@ -75,7 +75,7 @@ GbufferData loadGbufferData()
     gData.deviceDepth = clamp(sampleDeviceDepth,0.0f,1.0f);
     gData.linearDepth = linearizeDepth(gData.deviceDepth,frameData.camInfo.z,frameData.camInfo.w);
     gData.linearZ = gData.linearDepth / abs(frameData.camInfo.z - frameData.camInfo.w);
-    gData.worldPos = getWorldPosition(gData.deviceDepth,inUV0,frameData.camInvertViewProjection);
+    gData.worldPos = getWorldPosition(gData.deviceDepth,inUV0,frameData.camInvertViewProjectionJitter);
 
     vec3 ddxWorldPos = normalize(dFdxFine(gData.worldPos));
     vec3 ddyWorldPos = normalize(dFdyFine(gData.worldPos));

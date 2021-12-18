@@ -15,10 +15,6 @@ private:
 	VulkanImage* m_gbufferEmissiveAo;         // R8G8B8A8 rgb存自发光颜色，a通道存模型AO
 	VulkanImage* m_tonemapper;                // LDR SceneColor Texture. R8G8B8A8 
 
-#ifdef FXAA_EFFECT
-	VulkanImage* m_fxaaColorTexture;          // LDR SceneColor Texture. R8G8B8A8
-#endif
-
 	// full screen r16g16b16a16
 	VulkanImage* m_sceneColorTexture;        // HDR SceneColor Texture. R16G16B16A16 SFLOAT
 	VulkanImage* m_gbufferNormalMetal;        // r16g16b16a16 rgb存世界空间法线，a通道存金属度
@@ -39,10 +35,6 @@ private:
 	
 	// full screen r16g16
 	VulkanImage* m_velocityTexture; //  R16G16
-
-#if 0
-	VulkanImage* m_envTextureCube; // R16G16B16A16
-#endif
 
 	// Cascade shadow texture array.
 	DepthOnlyTextureArray* m_cascadeShadowDepthMapArray;
@@ -97,20 +89,9 @@ public:
 	Ref<VulkanImage> getSpecularPrefilterCube() { return m_specularPrefilterTextureCube; }
 	Ref<VulkanImage> getDownSampleChain() { return m_downsampleChainTexture; }
 
-#ifdef FXAA_EFFECT
-	static VkFormat getFXAAFormat() { return VK_FORMAT_R8G8B8A8_UNORM; }
-	Ref<VulkanImage> getFXAA() { return m_fxaaColorTexture; }
-#endif
-
 	Ref<VulkanImage> getHistory();
 	Ref<VulkanImage> getVelocity() { return m_velocityTexture; }
 	Ref<VulkanImage> getTAA();
-
-#if 0
-	Ref<VulkanImage> getEnvCube() { return m_envTextureCube; }
-	static uint32 getEnvCubeDim() { return 1024; }
-	static VkFormat getEnvCubeFormat() { return VK_FORMAT_R16G16B16A16_SFLOAT; }
-#endif
 
 	uint32 getWidth() { return m_cacheSceneWidth; };
 	uint32 getHeight() { return m_cacheSceneHeight; };

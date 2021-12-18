@@ -53,12 +53,10 @@
     <ClCompile Include="renderer\compute_passes\brdf_lut.cpp" />
     <ClCompile Include="renderer\frame_graph\frame_graph.cpp" />
     <ClCompile Include="renderer\compute_passes\irradiance_prefiltercube.cpp" />
-    <ClCompile Include="renderer\compute_passes\hdri2cubemap.cpp" />
     <ClCompile Include="renderer\compute_passes\specular_prefilter.cpp" />
     <ClCompile Include="renderer\compute_passes\taa.cpp" />
     <ClCompile Include="renderer\compute_passes\downsample.cpp" />
     <ClCompile Include="renderer\render_passes\bloom.cpp" />
-    <ClCompile Include="renderer\compute_passes\fxaa.cpp" />
     <ClCompile Include="renderer\rendertarget_pool.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -128,13 +126,11 @@
     <ClInclude Include="renderer\frame_graph\define.h" />
     <ClInclude Include="renderer\frame_graph\frame_graph.h" />
     <ClInclude Include="renderer\compute_passes\irradiance_prefiltercube.h" />
-    <ClInclude Include="renderer\compute_passes\hdri2cubemap.h" />
     <ClInclude Include="renderer\compute_passes\specular_prefilter.h" />
     <ClInclude Include="renderer\compute_passes\taa.h" />
     <ClInclude Include="renderer\compute_passes\bloom.h" />
     <ClInclude Include="renderer\compute_passes\downsample.h" />
     <ClInclude Include="renderer\render_passes\bloom.h" />
-    <ClInclude Include="renderer\compute_passes\fxaa.h" />
     <ClInclude Include="renderer\rendertarget_pool.h" />
   </ItemGroup>
 </Project>
