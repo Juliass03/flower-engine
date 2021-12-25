@@ -19,6 +19,7 @@ private:
 	void drawTransform(std::shared_ptr<engine::SceneNode>);
 	void drawStaticMesh(std::shared_ptr<engine::SceneNode>);
 	void drawDirectionalLight(std::shared_ptr<engine::SceneNode>);
+	void drawPMXMeshComponent(std::shared_ptr<engine::SceneNode>);
 	void drawAddCommand(std::shared_ptr<engine::SceneNode>);
 
 

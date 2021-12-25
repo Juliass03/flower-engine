@@ -13,6 +13,8 @@
 #include "../../engine/renderer/mesh.h"
 #include "../../engine/scene/components/staticmesh_renderer.h"
 #include "../../engine/scene/components/directionalLight.h"
+#include "../../engine/scene/components/pmx_mesh_component.h"
+#include "widget_filebrower.h"
 #include "widget_asset.h"
 #include "widget_assetInspector.h"
 
@@ -67,10 +69,9 @@ void WidgetDetail::onVisibleTick(size_t)
 		if( id >= usageNodeIndex::start)
 		{
 			drawTransform(selectNode);
-			
 			drawStaticMesh(selectNode);
-
 			drawDirectionalLight(selectNode);
+			drawPMXMeshComponent(selectNode);
 
 			ImGui::Spacing();
 			ImGui::Separator();
@@ -353,6 +354,44 @@ void WidgetDetail::drawDirectionalLight(std::shared_ptr<engine::SceneNode> node)
 	}
 }
 
+void WidgetDetail::drawPMXMeshComponent(std::shared_ptr<engine::SceneNode> node)
+{
+	auto& activeScene = m_sceneManager->getActiveScene();
+	if(!node->hasComponent<PMXMeshComponent>())
+		return;
+
+	if(const auto component = node->getComponent<PMXMeshComponent>())
+	{
+		drawComponent<PMXMeshComponent>(u8"PMX Mesh", node, activeScene, [&](auto& in_component)
+		{
+			ImGui::Separator();
+			{
+				std::string oldName = in_component->getPath();
+				if(oldName=="")
+				{
+					oldName = "PMX Mesh Select.";
+				}
+
+				if(ImGui::Button(oldName.c_str()))
+				{
+					EditorFileBrowser::g_action = EFileBrowserAction::PMXMesh_Select;
+
+					std::weak_ptr<PMXMeshComponent> componentWeakRef = in_component;
+					EditorFileBrowser::g_callbackMap[(int32_t)EFileBrowserAction::PMXMesh_Select] = [componentWeakRef](std::string path)
+					{
+						if(auto comp = componentWeakRef.lock())
+						{
+							comp->setPath(path);
+						}
+					};
+					g_fileDialogInstance.Open();
+				}
+			}
+			ImGui::Separator();
+		},true);
+	}
+}
+
 void WidgetDetail::drawAddCommand(std::shared_ptr<engine::SceneNode> node)
 {
 	auto& activeScene = m_sceneManager->getActiveScene();
@@ -379,6 +418,14 @@ void WidgetDetail::drawAddCommand(std::shared_ptr<engine::SceneNode> node)
 			activeScene.addComponent(std::make_shared<DirectionalLight>(),node);
 			activeScene.setDirty(true);
 			LOG_INFO("Node {0} has add directional light component.",node->getName());
+		}
+
+		// PMX Mesh
+		if (ImGui::MenuItem(u8"PMX Mesh") && !node->hasComponent(EComponentType::PMXMeshComponent))
+		{
+			activeScene.addComponent(std::make_shared<PMXMeshComponent>(),node);
+			activeScene.setDirty(true);
+			LOG_INFO("Node {0} has add pmx mesh component.",node->getName());
 		}
 
         ImGui::EndPopup();

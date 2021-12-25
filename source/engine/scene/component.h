@@ -18,10 +18,11 @@ namespace engine{
 
 namespace EComponentType
 {
-	constexpr int32_t Transform = 0;
+	constexpr int32_t Transform           = 0;
 	constexpr int32_t StaticMeshComponent = 1;
-	constexpr int32_t SceneViewCamera = 2;
-	constexpr int32_t DirectionalLight = 3;
+	constexpr int32_t SceneViewCamera     = 2;
+	constexpr int32_t DirectionalLight    = 3;
+	constexpr int32_t PMXMeshComponent    = 4;
 }
 
 template<typename T>

@@ -167,24 +167,7 @@ float evaluateDirectShadow(
             const float pcssDilation = 40.0f;
 
             float bias = autoBias(VertexNoLSafe,cascadeIndex + 1, biasFactor);
-            
-            // float bias = max(0.05 * (1.0 - NoLSafe), 0.005);
-            
             shadowCoord.z += bias;
-
-            /*
-            shadowFactor = shadowPcss(
-                minPcfDialtion,
-                cascadeIndex,
-                shadowCoord,
-                inShadowDepthBilinearTexture,
-                pcfDilation,
-                pcssDilation,
-                bReverseZOpen,
-                NoLSafe);
-            */
-
-            // TODO: Lerp next cascade on edge?
             shadowFactor = shadowPcf(
                 cascadeIndex,
                 inShadowDepthBilinearTexture,

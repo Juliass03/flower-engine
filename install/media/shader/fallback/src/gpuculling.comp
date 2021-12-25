@@ -52,7 +52,7 @@ void gbufferVisibileCulling(uint id)
 	{
 		if (dot(pos, frameData.camFrustumPlanes[i]) + radius < 0.0)
 		{
-			bVisibile = false;
+			// bVisibile = false;
 			break;
 		}
 	}

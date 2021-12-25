@@ -44,7 +44,6 @@
     <ClCompile Include="scene\components\sceneview_camera.cpp" />
     <ClCompile Include="renderer\render_passes\cascade_shadowdepth_pass.cpp" />
     <ClCompile Include="scene\components\directionalLight.cpp" />
-    <ClCompile Include="asset_system\asset_mmd.cpp" />
     <ClCompile Include="vk\impl\vk_fence.cpp" />
     <ClCompile Include="renderer\render_prepare.cpp" />
     <ClCompile Include="renderer\compute_passes\gpu_culling.cpp" />
@@ -58,6 +57,13 @@
     <ClCompile Include="renderer\compute_passes\downsample.cpp" />
     <ClCompile Include="renderer\render_passes\bloom.cpp" />
     <ClCompile Include="renderer\rendertarget_pool.cpp" />
+    <ClCompile Include="asset_system\asset_pmx.cpp" />
+    <ClCompile Include="asset_system\saba_mmd\sjis2unicode.cpp" />
+    <ClCompile Include="asset_system\saba_mmd\unicode.cpp" />
+    <ClCompile Include="asset_system\saba_mmd\file.cpp" />
+    <ClCompile Include="asset_system\saba_mmd\pmx_file.cpp" />
+    <ClCompile Include="renderer\pmx_mesh.cpp" />
+    <ClCompile Include="scene\components\pmx_mesh_component.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\cvar.h" />
@@ -115,7 +121,6 @@
     <ClInclude Include="scene\components\sceneview_camera.h" />
     <ClInclude Include="renderer\render_passes\cascade_shadowdepth_pass.h" />
     <ClInclude Include="scene\components\directionalLight.h" />
-    <ClInclude Include="asset_system\asset_mmd.h" />
     <ClInclude Include="vk\impl\vk_fence.h" />
     <ClInclude Include="renderer\render_prepare.h" />
     <ClInclude Include="renderer\compute_passes\gpu_culling.h" />
@@ -132,5 +137,13 @@
     <ClInclude Include="renderer\compute_passes\downsample.h" />
     <ClInclude Include="renderer\render_passes\bloom.h" />
     <ClInclude Include="renderer\rendertarget_pool.h" />
+    <ClInclude Include="asset_system\asset_pmx.h" />
+    <ClInclude Include="asset_system\saba_mmd\file.h" />
+    <ClInclude Include="asset_system\saba_mmd\sjis2unicode.h" />
+    <ClInclude Include="asset_system\saba_mmd\unicode.h" />
+    <ClInclude Include="asset_system\saba_mmd\mmd_file_string.h" />
+    <ClInclude Include="asset_system\saba_mmd\pmx_file.h" />
+    <ClInclude Include="renderer\pmx_mesh.h" />
+    <ClInclude Include="scene\components\pmx_mesh_component.h" />
   </ItemGroup>
 </Project>

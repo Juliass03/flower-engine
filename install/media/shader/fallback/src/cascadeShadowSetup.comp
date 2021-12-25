@@ -69,20 +69,6 @@ void main()
     // linearize
     minDistance = clamp((linearizeDepth(minDistance, nearClip, farClip) - nearClip) / clipRange,0.0f,1.0f);
     maxDistance = clamp((linearizeDepth(maxDistance, nearClip, farClip) - nearClip) / clipRange,0.0f,1.0f);
-    
-    /*
-    if(pushConstant.bReverseZ != 0)
-    {
-        float tempMin = minDistance;
-        minDistance = pushConstant.bFixCascade != 0 ? 1.0f : maxDistance;
-        maxDistance = pushConstant.bFixCascade != 0 ? 0.0f : tempMin;
-    }
-    else
-    {
-        minDistance = pushConstant.bFixCascade != 0 ? 0.0f : minDistance;
-        maxDistance = pushConstant.bFixCascade != 0 ? 1.0f : maxDistance;
-    }
-    */
 
     // Now always reverse z.
     float tempMin = minDistance;

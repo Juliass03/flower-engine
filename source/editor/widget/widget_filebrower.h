@@ -853,11 +853,14 @@ enum class EFileBrowserAction
     LoadScene,
     SaveScene_LoadScene,
     SaveScene_Close,
+
+    PMXMesh_Select,
 };
 
 struct EditorFileBrowser
 {
     static EFileBrowserAction g_action;
+    static std::unordered_map<int32_t,std::function<void(std::string selectName)>> g_callbackMap;
 };
 
 class WidgetFileBrowser: public Widget

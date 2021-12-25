@@ -157,8 +157,8 @@ void RenderScene::meshCollect()
 				GPUObjectData objData{};
 				objData.model = subMesh.modelMatrix;
 
-				// TODO: 
-				objData.preModel = subMesh.preModelMatrix; // 静态网格的Model矩阵不变
+				// TODO: FIXME
+				objData.preModel = subMesh.modelMatrix; // 静态网格的Model矩阵不变
 				objData.sphereBounds = glm::vec4(subMesh.renderBounds.origin,subMesh.renderBounds.radius);
 				objData.extents = glm::vec4(subMesh.renderBounds.extents,1.0f);
 				objData.firstInstance = 0;

@@ -82,7 +82,6 @@ void DockSpace::showDockSpace()
                 {
                     EditorFileBrowser::g_action = EFileBrowserAction::LoadScene;
                 }
-
                 g_fileDialogInstance.Open();
             }
 
