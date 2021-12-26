@@ -69,7 +69,7 @@ void engine::GBufferPass::dynamicRecord(uint32 backBufferIndex)
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
-    if(m_renderScene->isSceneEmpty())
+    if(m_renderScene->isSceneStaticMeshEmpty())
     {
         vkCmdBeginRenderPass(cmd,&rpInfo,VK_SUBPASS_CONTENTS_INLINE);
         vkCmdSetScissor(cmd,0,1,&scissor);

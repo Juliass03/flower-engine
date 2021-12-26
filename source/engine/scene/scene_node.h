@@ -19,12 +19,12 @@ private:
     size_t m_depth = 0;
     
     // Ref
-    std::shared_ptr<SceneNode> m_parent = nullptr;
-    std::vector<std::shared_ptr<SceneNode>> m_children;
+    std::weak_ptr<SceneNode> m_parent;
 
     // Owner
     std::shared_ptr<Transform> m_transform;
     std::unordered_map<size_t, std::shared_ptr<Component>> m_components;
+    std::vector<std::shared_ptr<SceneNode>> m_children;
 
 private:
     friend class cereal::access;
@@ -46,10 +46,13 @@ private:
 
     void updateDepth()
     {
-        m_depth = m_parent->m_depth + 1;
-        for(auto& child : m_children)
+        if(auto parent = m_parent.lock())
         {
-            child->updateDepth();
+            m_depth = parent->m_depth + 1;
+            for(auto& child : m_children)
+            {
+                child->updateDepth();
+            }
         }
     }
 
@@ -85,7 +88,7 @@ public:
     
     template <class T> std::shared_ptr<T> getComponent();
     std::shared_ptr<Transform> getTransform(){ return m_transform; }
-    std::shared_ptr<SceneNode> getParent() const{ return m_parent; }
+    std::shared_ptr<SceneNode> getParent() { return m_parent.lock(); }
     auto getDepth()
     {
         return m_depth;
@@ -93,14 +96,14 @@ public:
     // 判断节点是否为该节点的某个子节点
     bool isSon(std::shared_ptr<SceneNode> p)
     {
-        std::shared_ptr<SceneNode> pp = p->m_parent;
+        std::shared_ptr<SceneNode> pp = p->m_parent.lock();
         while(pp)
         {
             if(pp->getId() == m_id)
             {
                 return true;
             }
-            pp = pp->m_parent;
+            pp = pp->m_parent.lock();
         }
         return false;
     }
@@ -140,9 +143,9 @@ private:
             child->selfDelete();
         }
 
-        if(m_parent)
+        if(auto parent = m_parent.lock())
         {
-            m_parent->removeChild(getPtr());
+            parent->removeChild(getPtr());
         }
     }
 

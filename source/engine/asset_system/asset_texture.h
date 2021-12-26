@@ -46,4 +46,5 @@ extern void unpackTexture(TextureInfo* info,const char* srcBuffer,size_t srcSize
 extern AssetFile packTexture(TextureInfo* info,void* pixelData);
 extern bool bakeTexture(const char* pathIn,const char* pathOut,bool srgb,bool compress,uint32 req_comp,bool bGenerateMipmap,bool bGpuCompress,EBlockType blockType);
 
+extern Texture2DImage* loadFromFile(const std::string& path,VkFormat format,uint32 req,bool flip,bool bGenMipmaps = true);
 }}

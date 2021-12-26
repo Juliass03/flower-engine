@@ -5,6 +5,8 @@
 #include "../texture.h"
 #include "../renderer.h"
 #include "../compute_passes/gpu_culling.h"
+#include "../pmx_mesh.h"
+#include "../../scene/components/pmx_mesh_component.h"
 
 using namespace engine;
 
@@ -226,6 +228,11 @@ void engine::ShadowDepthPass::dynamicRecord(uint32 backBufferIndex)
 		cascadeRecord(cmd,backBufferIndex,ECullIndex(i + 1));
 	}
 
+	for(size_t i = 0; i < CASCADE_MAX_COUNT; i++)
+	{
+		pmxCascadeRecord(cmd,backBufferIndex,ECullIndex(i + 1));
+	}
+
 	commandBufEnd(backBufferIndex);
 }
 
@@ -261,7 +268,7 @@ void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer& cmd,uint32 backBuff
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
-	if(m_renderScene->isSceneEmpty())
+	if(m_renderScene->isSceneStaticMeshEmpty())
 	{
 		vkCmdBeginRenderPass(cmd,&rpInfo,VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdSetScissor(cmd,0,1,&scissor);
@@ -318,6 +325,77 @@ void engine::ShadowDepthPass::cascadeRecord(VkCommandBuffer& cmd,uint32 backBuff
 	vkCmdEndRenderPass(cmd);
 }
 
+void engine::ShadowDepthPass::pmxCascadeRecord(VkCommandBuffer& cmd,uint32 backBufferIndex,ECullIndex cullIndexType)
+{
+	uint32 cascadeIndex = cullingIndexToCasacdeIndex(cullIndexType);
+	CHECK(cascadeIndex < 4);
+
+	auto shadowTextureExtent = m_renderScene->getSceneTextures().getCascadeShadowDepthMapArray()->getExtent();
+	VkExtent2D shadowTextureExtent2D{};
+	shadowTextureExtent2D.width = shadowTextureExtent.width;
+	shadowTextureExtent2D.height = shadowTextureExtent.height;
+
+	VkRenderPassBeginInfo rpInfo = vkRenderpassBeginInfo(
+		m_pmxRenderpass,
+		shadowTextureExtent2D,
+		m_cascadeFramebuffers[backBufferIndex][cascadeIndex]
+	);
+
+	VkClearValue clearValue{};
+	clearValue.depthStencil = { getEngineClearZFar(), 1 };
+	rpInfo.clearValueCount = 1;
+	rpInfo.pClearValues = &clearValue;
+
+	VkRect2D scissor{};
+	scissor.extent = shadowTextureExtent2D;
+	scissor.offset = {0,0};
+	VkViewport viewport{};
+	viewport.x = 0.0f;
+	viewport.y = (float)shadowTextureExtent2D.height; // flip y on mesh raster
+	viewport.width = (float)shadowTextureExtent2D.width;
+	viewport.height = -(float)shadowTextureExtent2D.height; // flip y on mesh raster
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	vkCmdBeginRenderPass(cmd,&rpInfo,VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdSetScissor(cmd,0,1,&scissor);
+	vkCmdSetViewport(cmd,0,1,&viewport);
+	const float depthBiasSlope = reverseZOpen() ? -cVarShadowDepthHardwareSlope.get() : cVarShadowDepthHardwareSlope.get();
+	const float depthBiasFactor = reverseZOpen() ? -cVarShadowDepthBias.get() : cVarShadowDepthBias.get();
+	vkCmdSetDepthBias(cmd,depthBiasFactor,0,depthBiasSlope);
+
+	std::vector<VkDescriptorSet> meshPassSets = {
+		m_renderer->getFrameData().m_frameDataDescriptorSets[backBufferIndex].set
+		, TextureLibrary::get()->getBindlessTextureDescriptorSet()
+		, m_renderer->getRenderScene().m_meshObjectSSBO->descriptorSets.set
+		, m_renderer->getRenderScene().m_meshMaterialSSBO->descriptorSets.set
+		, m_renderer->getRenderScene().m_drawIndirectSSBOShadowDepths[cascadeIndex].descriptorSets.set
+		, m_renderer->getRenderScene().m_cascadeSetupBuffer.descriptorSets.set
+	};
+
+	vkCmdBindDescriptorSets(
+		cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
+		m_pmxPipelineLayouts[backBufferIndex],
+		0,
+		(uint32)meshPassSets.size(),
+		meshPassSets.data(),
+		0,
+		nullptr
+	);
+
+	vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,m_pmxPipelines[backBufferIndex]);
+
+	for(auto pmxWeakPtr : m_renderScene->m_cachePMXMeshComponents)
+	{
+		if(auto pmxComp = pmxWeakPtr.lock())
+		{
+			pmxComp->OnShadowRenderCollect(cmd, m_pmxPipelineLayouts[backBufferIndex], cascadeIndex);
+		}
+	}
+	vkCmdEndRenderPass(cmd);
+}
+
 void engine::ShadowDepthPass::createRenderpass()
 {
     VkAttachmentDescription attachmentDesc{};
@@ -370,11 +448,20 @@ void engine::ShadowDepthPass::createRenderpass()
     renderPassInfo.pDependencies = dependencies.data();
 
     m_renderpass = VulkanRHI::get()->createRenderpass(renderPassInfo);
+
+
+	attachmentDesc.format = m_renderScene->getSceneTextures().getCascadeShadowDepthMapArray()->getFormat();
+	attachmentDesc.loadOp  = VK_ATTACHMENT_LOAD_OP_LOAD; 
+	attachmentDesc.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; 
+	renderPassInfo.pAttachments = &attachmentDesc;
+	m_pmxRenderpass = VulkanRHI::get()->createRenderpass(renderPassInfo);
 }
 
 void engine::ShadowDepthPass::destroyRenderpass()
 {
     VulkanRHI::get()->destroyRenderpass(m_renderpass);
+
+	VulkanRHI::get()->destroyRenderpass(m_pmxRenderpass);
 }
 
 void engine::ShadowDepthPass::createFramebuffers()
@@ -417,6 +504,11 @@ void engine::ShadowDepthPass::createPipeline()
 
 	m_pipelines.resize(backBufferCount);
 	m_pipelineLayouts.resize(backBufferCount);
+
+	m_pmxPipelineLayouts.resize(backBufferCount);
+	m_pmxPipelines.resize(backBufferCount);
+	
+	// static object.
 	for(uint32 index = 0; index < backBufferCount; index++)
 	{
 		VkPipelineLayoutCreateInfo plci = vkPipelineLayoutCreateInfo();
@@ -474,6 +566,8 @@ void engine::ShadowDepthPass::createPipeline()
 
 		gpf.viewport.x = 0.0f;
 		gpf.viewport.y = (float)shadowExtent2D.height;
+
+		// revert viewport.
 		gpf.viewport.width =  (float)shadowExtent2D.width;
 		gpf.viewport.height = -(float)shadowExtent2D.height;
 		gpf.viewport.minDepth = 0.0f;
@@ -482,6 +576,75 @@ void engine::ShadowDepthPass::createPipeline()
 		gpf.scissor.extent = shadowExtent2D;
 
 		m_pipelines[index] = gpf.buildMeshDrawPipeline(VulkanRHI::get()->getDevice(),m_renderpass);
+	}
+
+	// pmx pipeline create.
+	for(uint32 index = 0; index < backBufferCount; index++)
+	{
+		VkPipelineLayoutCreateInfo plci = vkPipelineLayoutCreateInfo();
+
+		VkPushConstantRange push_constant{};
+		push_constant.offset = 0;
+		push_constant.size = sizeof(PMXCascadePushConstants);
+		push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		plci.pPushConstantRanges = &push_constant;
+		plci.pushConstantRangeCount = 1; 
+
+		std::vector<VkDescriptorSetLayout> setLayouts = {
+			m_renderer->getFrameData().m_frameDataDescriptorSetLayouts[index].layout
+			, TextureLibrary::get()->getBindlessTextureDescriptorSetLayout()
+			, m_renderer->getRenderScene().m_meshObjectSSBO->descriptorSetLayout.layout
+			, m_renderer->getRenderScene().m_meshMaterialSSBO->descriptorSetLayout.layout
+			, m_renderer->getRenderScene().m_drawIndirectSSBOGbuffer.descriptorSetLayout.layout
+			, m_renderer->getRenderScene().m_cascadeSetupBuffer.descriptorSetLayout.layout
+		};
+
+		plci.setLayoutCount = (uint32)setLayouts.size();
+		plci.pSetLayouts = setLayouts.data();
+		m_pmxPipelineLayouts[index] = VulkanRHI::get()->createPipelineLayout(plci);
+
+		VulkanGraphicsPipelineFactory gpf = {};
+		gpf.shaderStages.clear();
+
+		auto* vertShader = VulkanRHI::get()->getShader("media/shader/fallback/bin/pmx_depth.vert.spv");
+		auto* fragShader = VulkanRHI::get()->getShader("media/shader/fallback/bin/pmx_depth.frag.spv");
+
+		gpf.shaderStages.push_back(vkPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT,   *vertShader));
+		gpf.shaderStages.push_back(vkPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, *fragShader));
+
+		VulkanVertexInputDescription vvid = {};
+		vvid.bindings   =  { VulkanVertexBuffer::getInputBinding(getPMXMeshAttributes()) }; // pmx vertex layout.
+		vvid.attributes = VulkanVertexBuffer::getInputAttribute(getPMXMeshAttributes());
+
+		gpf.vertexInputDescription = vvid;
+		gpf.inputAssembly = vkInputAssemblyCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+		gpf.rasterizer = vkRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL);
+		gpf.rasterizer.cullMode = VK_CULL_MODE_NONE; 
+
+		gpf.rasterizer.depthBiasEnable = VK_TRUE;
+		gpf.rasterizer.depthClampEnable = cVarShadowEnableDepthClamp.get() == 1 ? VK_TRUE : VK_FALSE;
+		gpf.multisampling = vkMultisamplingStateCreateInfo();
+		gpf.depthStencil = vkDepthStencilCreateInfo(true,true,getEngineZTestFunc());
+		gpf.pipelineLayout =  m_pmxPipelineLayouts[index];
+
+		auto shadowExtent = m_renderScene->getSceneTextures().getCascadeShadowDepthMapArray()->getExtent();
+		VkExtent2D shadowExtent2D{};
+
+		shadowExtent2D.width = shadowExtent.width;
+		shadowExtent2D.height = shadowExtent.height;
+
+		gpf.viewport.x = 0.0f;
+		gpf.viewport.y = (float)shadowExtent2D.height;
+
+		// revert viewport.
+		gpf.viewport.width =  (float)shadowExtent2D.width;
+		gpf.viewport.height = -(float)shadowExtent2D.height;
+		gpf.viewport.minDepth = 0.0f;
+		gpf.viewport.maxDepth = 1.0f;
+		gpf.scissor.offset = { 0, 0 };
+		gpf.scissor.extent = shadowExtent2D;
+
+		m_pmxPipelines[index] = gpf.buildMeshDrawPipeline(VulkanRHI::get()->getDevice(),m_renderpass);
 	}
 
 	bInitPipeline = true;
@@ -495,9 +658,15 @@ void engine::ShadowDepthPass::destroyPipeline()
 	{
 		vkDestroyPipeline(VulkanRHI::get()->getDevice(),m_pipelines[index],nullptr);
 		vkDestroyPipelineLayout(VulkanRHI::get()->getDevice(),m_pipelineLayouts[index],nullptr);
+
+		vkDestroyPipeline(VulkanRHI::get()->getDevice(),m_pmxPipelines[index],nullptr);
+		vkDestroyPipelineLayout(VulkanRHI::get()->getDevice(),m_pmxPipelineLayouts[index],nullptr);
 	}
 	m_pipelines.resize(0);
 	m_pipelineLayouts.resize(0);
+
+	m_pmxPipelines.resize(0);
+	m_pmxPipelineLayouts.resize(0);
 
 	bInitPipeline = false;
 }

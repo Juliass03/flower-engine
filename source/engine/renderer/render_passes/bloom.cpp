@@ -300,10 +300,11 @@ void BloomPass::createRenderpass()
 	colorAttachment.format = SceneTextures::getHDRSceneColorFormat();
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	VkAttachmentReference colorAttachmentRef = {};
@@ -654,6 +655,12 @@ void engine::BloomPass::createFramebuffers()
 				height,
 				SceneTextures::getHDRSceneColorFormat()
 			);
+
+			m_horizontalBlur[index]->transitionLayoutImmediately(
+				VulkanRHI::get()->getGraphicsCommandPool(),
+				VulkanRHI::get()->getGraphicsQueue(),
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			);
 		}
 	}
 
@@ -684,6 +691,12 @@ void engine::BloomPass::createFramebuffers()
 				width,
 				height,
 				SceneTextures::getHDRSceneColorFormat()
+			);
+
+			m_verticalBlur[index]->transitionLayoutImmediately(
+				VulkanRHI::get()->getGraphicsCommandPool(),
+				VulkanRHI::get()->getGraphicsQueue(),
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 			);
 		}
 	}

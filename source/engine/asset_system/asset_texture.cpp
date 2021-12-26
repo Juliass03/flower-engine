@@ -891,8 +891,7 @@ bool asset_system::AssetSystem::loadTexture2DImage(CombineTexture& inout,const s
     return false;
 }
 
-
-Texture2DImage* loadFromFile(const std::string& path,VkFormat format,uint32 req,bool flip,bool bGenMipmaps = true)
+Texture2DImage* asset_system::loadFromFile(const std::string& path,VkFormat format,uint32 req,bool flip,bool bGenMipmaps)
 {
     int32 texWidth, texHeight, texChannels;
     stbi_set_flip_vertically_on_load(flip);  

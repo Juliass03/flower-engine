@@ -12,3 +12,8 @@ glslc.exe src/blur.frag -o bin/blur.frag.spv
 glslc.exe src/blend.frag -o bin/blend.frag.spv
 ::glslc.exe src/fxaa.comp -o bin/fxaa.comp.spv
 glslc.exe src/fullscreen.vert -o bin/fullscreen.vert.spv
+glslc.exe src/pmx_pass.vert -o bin/pmx_pass.vert.spv
+glslc.exe src/pmx_pass.frag -o bin/pmx_pass.frag.spv
+
+glslc.exe src/pmx_depth.vert -o bin/pmx_depth.vert.spv
+glslc.exe src/pmx_depth.frag -o bin/pmx_depth.frag.spv

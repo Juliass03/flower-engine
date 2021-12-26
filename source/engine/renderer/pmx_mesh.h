@@ -1,20 +1,29 @@
 #pragma once
 #include "../core/core.h"
+#include <glm/glm.hpp>
+#include "../vk/vk_rhi.h"
 
 // NOTE: pmx 模型单独渲染
 // 因为会有很多定制的风格化shadingModel.并且需要在cpu端解算IK和物理
 
 namespace engine{
 
-struct PMXMaterial
+class PMXManager;
+class PMXMeshComponent;
+
+class PMXMaterial
 {
-	glm::vec3 diffuse;
-	glm::vec3 specular;
+	friend PMXManager;
+public:
+	std::string baseColorTextureName;
+	uint32_t baseColorTextureId;
 
-	float     alpha;
-	float     specularPower;
+	std::string toonTextureName;
+	uint32_t toonTextureId;
 
-	glm::vec3 ambient;
+	std::string sphereTextureName;
+	uint32_t sphereTextureId;
+
 };
 
 struct PMXSubMesh
@@ -24,27 +33,54 @@ struct PMXSubMesh
 	int32_t materialId;
 };
 
+inline std::vector<EVertexAttribute> getPMXMeshAttributes()
+{
+	return std::vector<EVertexAttribute>{
+		EVertexAttribute::pos,
+		EVertexAttribute::normal,
+		EVertexAttribute::uv0
+	};
+}
+
+// pmx mesh don't store vertexbuffer.
 class PMXMesh
 {
+	friend PMXManager;
+	friend PMXMeshComponent;
 private:
 	// vertex buffers.
-	std::vector<glm::vec3> m_positions;
-	std::vector<glm::vec3> m_normals;
-	std::vector<glm::vec2> m_uvs;
+	std::vector<float> m_positions; // vec3
+	std::vector<float> m_normals;   // vec3
+	std::vector<float> m_uvs;       // vec2
+
+	
 
 private:
 	// index buffers.
-	std::vector<uint8_t> m_indices;
-	size_t				 m_indexCount;
-	size_t				 m_indexElementSize;
+	std::vector<uint32_t> m_indices;
 
 private:
 	std::vector<PMXMaterial> m_materials;
 	std::vector<PMXSubMesh>  m_subMeshes;
 
+private:
+	VulkanIndexBuffer*  m_indexBuffer = nullptr;
+
 public:
-	
+	~PMXMesh();
+	VkDeviceSize getTotalVertexSize() const;
 };
 
+class PMXManager
+{
+private:
+	std::unordered_map<std::string, PMXMesh*> m_cache;
+
+public:
+	static PMXManager* get();
+	PMXMesh* getPMX(const std::string& name);
+
+	void release();
+};
 
 }

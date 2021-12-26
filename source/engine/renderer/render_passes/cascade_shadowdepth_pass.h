@@ -28,6 +28,12 @@ struct GPUCascadePushConstants
 	uint32 cascadeIndex;
 };
 
+struct PMXCascadePushConstants 
+{
+	glm::mat4 modelMatrix;
+	uint32 cascadeIndex;
+};
+
 class ShadowDepthPass : public GraphicsPass
 {
 public:
@@ -47,10 +53,18 @@ private:
 	std::vector<std::vector<VkFramebuffer>> m_cascadeFramebuffers = {};
 	void cascadeRecord(VkCommandBuffer& cmd,uint32 backBufferIndex, ECullIndex);
 
+	void pmxCascadeRecord(VkCommandBuffer& cmd,uint32 backBufferIndex, ECullIndex);
+
 private:
 	bool bInitPipeline = false;
 	std::vector<VkPipeline> m_pipelines = {};
 	std::vector<VkPipelineLayout> m_pipelineLayouts = {};
+
+	// additional pipeline for pmx mesh.
+	std::vector<VkPipeline> m_pmxPipelines = {};
+	std::vector<VkPipelineLayout> m_pmxPipelineLayouts = {};
+
+	VkRenderPass m_pmxRenderpass;
 
 	void createRenderpass();
 	void destroyRenderpass();

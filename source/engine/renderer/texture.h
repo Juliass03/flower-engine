@@ -10,6 +10,8 @@ namespace asset_system
 	class AssetSystem;
 }
 
+class PMXManager;
+
 struct CombineTexture
 {
 	Texture2DImage* texture = nullptr;
@@ -30,6 +32,8 @@ class TextureLibrary
 {
 	using TextureContainer = std::unordered_map<std::string,CombineTexture>;
 	friend asset_system::AssetSystem;
+	friend PMXManager;
+
 private:
 	Ref<asset_system::AssetSystem> m_assetSystem = nullptr;
 	static TextureLibrary* s_textureLibrary;

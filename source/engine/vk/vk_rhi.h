@@ -48,7 +48,11 @@ private:
 
 private: // rhi vulkan commandbuffer
     std::vector<VulkanCommandBuffer*> m_staticGraphicCommandBuffer;    // NOTE: 静态的CommandBuffer仅在帧前或静态物体发生变化时记录
+    
+    // use for renderer.
     std::vector<VulkanCommandBuffer*> m_dynamicGraphicsCommandBuffer;  // NOTE: 动态的CommandBuffer在每帧更新时都重新记录一遍
+    
+    
     std::vector<VkSemaphore> m_dynamicGraphicsCommandExecuteSemaphores;
     std::vector<VkSemaphore> m_staticGraphicsCommandExecuteSemaphores;
 

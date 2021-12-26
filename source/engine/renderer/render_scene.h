@@ -19,11 +19,13 @@ struct GPUFrameData;
 struct GPUObjectData;
 struct GPUMaterialData;
 
+class PMXMeshComponent;
+
 class RenderScene
 {
 public:
 	void initFrame(uint32 width,uint32 height,bool forceAllocateTextures = false);
-	void renderPrepare(const GPUFrameData& view);
+	void renderPrepare(const GPUFrameData& view, VkCommandBuffer cmd);
 
 	void init(class Renderer* renderer);
 	void release();
@@ -34,7 +36,7 @@ public:
 	SceneTextures& getSceneTextures() { return *m_sceneTextures; }
 
 	void uploadMeshSSBO();
-	bool isSceneEmpty();
+	bool isSceneStaticMeshEmpty();
 
 	RenderMeshPack m_cacheStaticMeshRenderMesh;
 
@@ -43,6 +45,8 @@ public:
 
 	SceneUploadSSBO<GPUMaterialData>* m_meshMaterialSSBO;
 	std::vector<GPUMaterialData> m_cacheMeshMaterialSSBOData {};
+
+	std::vector<std::weak_ptr<PMXMeshComponent>> m_cachePMXMeshComponents {};
 
 	struct DrawIndirectBuffer
 	{
@@ -96,6 +100,7 @@ public:
 private:
 	void allocateSceneTextures(uint32 width,uint32 height,bool forceAllocate = false);
 	void meshCollect();
+	void pmxCollect(VkCommandBuffer cmd);
 
 private:
 	SceneTextures* m_sceneTextures;

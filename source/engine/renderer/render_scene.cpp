@@ -1,6 +1,7 @@
 #include "render_scene.h"
 #include "mesh.h"
 #include "../scene/components/staticmesh_renderer.h"
+#include "../scene/components/pmx_mesh_component.h"
 #include "render_passes/cascade_shadowdepth_pass.h"	
 #include "frame_data.h"
 #include "render_prepare.h"
@@ -38,8 +39,11 @@ void RenderScene::initFrame(uint32 width,uint32 height,bool forceAllocateTexture
 	allocateSceneTextures(width,height,forceAllocateTextures);
 }
 
-void RenderScene::renderPrepare(const GPUFrameData& view)
+void RenderScene::renderPrepare(const GPUFrameData& view, VkCommandBuffer cmd)
 {
+	// 0. 收集场景中的pmx网格
+	pmxCollect(cmd);
+
 	// 1. 收集场景中的网格
 	meshCollect();
 
@@ -76,7 +80,7 @@ void RenderScene::uploadMeshSSBO()
 	}
 }
 
-bool RenderScene::isSceneEmpty()
+bool RenderScene::isSceneStaticMeshEmpty()
 {
 	return m_cacheMeshObjectSSBOData.size() == 0;
 }
@@ -176,6 +180,28 @@ void RenderScene::meshCollect()
 
 				m_cacheStaticMeshRenderMesh.submesh.push_back(subMesh);
 			}
+		}
+	}
+}
+
+void RenderScene::pmxCollect(VkCommandBuffer cmd)
+{
+	m_cachePMXMeshComponents.clear();
+	m_cachePMXMeshComponents.resize(0);
+
+	auto& activeScene = m_sceneManager->getActiveScene();
+
+	// only collect pmx component here.
+	// we call pmx skin update on pmx pass.
+	m_cachePMXMeshComponents = activeScene.getComponents<PMXMeshComponent>();
+
+	// todo: pmx cascade record.
+	for(auto& pmxWeakPtr : m_cachePMXMeshComponents)
+	{
+		if(auto pmxComp = pmxWeakPtr.lock())
+		{
+			// todo: move tick to renderer begining.
+			pmxComp->OnRenderTick(cmd);
 		}
 	}
 }

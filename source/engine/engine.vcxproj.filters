@@ -58,12 +58,10 @@
     <ClCompile Include="renderer\render_passes\bloom.cpp" />
     <ClCompile Include="renderer\rendertarget_pool.cpp" />
     <ClCompile Include="asset_system\asset_pmx.cpp" />
-    <ClCompile Include="asset_system\saba_mmd\sjis2unicode.cpp" />
-    <ClCompile Include="asset_system\saba_mmd\unicode.cpp" />
-    <ClCompile Include="asset_system\saba_mmd\file.cpp" />
-    <ClCompile Include="asset_system\saba_mmd\pmx_file.cpp" />
     <ClCompile Include="renderer\pmx_mesh.cpp" />
     <ClCompile Include="scene\components\pmx_mesh_component.cpp" />
+    <ClCompile Include="asset_system\unicode.cpp" />
+    <ClCompile Include="renderer\render_passes\pmx_pass.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\cvar.h" />
@@ -138,12 +136,9 @@
     <ClInclude Include="renderer\render_passes\bloom.h" />
     <ClInclude Include="renderer\rendertarget_pool.h" />
     <ClInclude Include="asset_system\asset_pmx.h" />
-    <ClInclude Include="asset_system\saba_mmd\file.h" />
-    <ClInclude Include="asset_system\saba_mmd\sjis2unicode.h" />
-    <ClInclude Include="asset_system\saba_mmd\unicode.h" />
-    <ClInclude Include="asset_system\saba_mmd\mmd_file_string.h" />
-    <ClInclude Include="asset_system\saba_mmd\pmx_file.h" />
     <ClInclude Include="renderer\pmx_mesh.h" />
     <ClInclude Include="scene\components\pmx_mesh_component.h" />
+    <ClInclude Include="asset_system\unicode.h" />
+    <ClInclude Include="renderer\render_passes\pmx_pass.h" />
   </ItemGroup>
 </Project>

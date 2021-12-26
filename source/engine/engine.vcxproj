@@ -99,10 +99,7 @@
     <ClCompile Include="asset_system\asset_pmx.cpp" />
     <ClCompile Include="asset_system\asset_system.cpp" />
     <ClCompile Include="asset_system\asset_texture.cpp" />
-    <ClCompile Include="asset_system\saba_mmd\file.cpp" />
-    <ClCompile Include="asset_system\saba_mmd\pmx_file.cpp" />
-    <ClCompile Include="asset_system\saba_mmd\sjis2unicode.cpp" />
-    <ClCompile Include="asset_system\saba_mmd\unicode.cpp" />
+    <ClCompile Include="asset_system\unicode.cpp" />
     <ClCompile Include="core\crc.cpp" />
     <ClCompile Include="core\input.cpp" />
     <ClCompile Include="core\job_system.cpp" />
@@ -131,6 +128,7 @@
     <ClCompile Include="renderer\render_passes\lighting_pass.cpp" />
     <ClCompile Include="renderer\pass_interface.cpp" />
     <ClCompile Include="renderer\render_passes\cascade_shadowdepth_pass.cpp" />
+    <ClCompile Include="renderer\render_passes\pmx_pass.cpp" />
     <ClCompile Include="renderer\render_passes\tonemapper_pass.cpp" />
     <ClCompile Include="renderer\imgui_pass.cpp" />
     <ClCompile Include="renderer\renderer.cpp" />
@@ -164,11 +162,7 @@
     <ClInclude Include="asset_system\asset_pmx.h" />
     <ClInclude Include="asset_system\asset_system.h" />
     <ClInclude Include="asset_system\asset_texture.h" />
-    <ClInclude Include="asset_system\saba_mmd\file.h" />
-    <ClInclude Include="asset_system\saba_mmd\mmd_file_string.h" />
-    <ClInclude Include="asset_system\saba_mmd\pmx_file.h" />
-    <ClInclude Include="asset_system\saba_mmd\sjis2unicode.h" />
-    <ClInclude Include="asset_system\saba_mmd\unicode.h" />
+    <ClInclude Include="asset_system\unicode.h" />
     <ClInclude Include="async\book_cpp_concurrency_action.h" />
     <ClInclude Include="core\crc.h" />
     <ClInclude Include="core\deletion_queue.h" />
@@ -209,6 +203,7 @@
     <ClInclude Include="renderer\render_passes\lighting_pass.h" />
     <ClInclude Include="renderer\pass_interface.h" />
     <ClInclude Include="renderer\render_passes\cascade_shadowdepth_pass.h" />
+    <ClInclude Include="renderer\render_passes\pmx_pass.h" />
     <ClInclude Include="renderer\render_passes\tonemapper_pass.h" />
     <ClInclude Include="renderer\render_scene.h" />
     <ClInclude Include="renderer\render_prepare.h" />

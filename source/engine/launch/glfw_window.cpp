@@ -9,6 +9,7 @@
 #include <stb/stb_image.h>
 #include "../core/file_system.h"
 #include "../renderer/mesh.h"
+#include "../renderer/pmx_mesh.h"
 #include "../renderer/texture.h"
 
 namespace engine{
@@ -306,7 +307,7 @@ void EngineLoop::release()
 {
     m_engine.release();
 
-    
+    PMXManager::get()->release();
     MeshLibrary::get()->release();
     asset_system::EngineAsset::get()->release();
     TextureLibrary::get()->release();

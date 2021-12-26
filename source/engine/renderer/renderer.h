@@ -101,6 +101,7 @@ public:
 	ShadowDepthPass* m_shadowdepthPasses;
 
 	GraphicsPass*   m_lightingPass;
+	GraphicsPass* m_pmxPass;
 	DownSamplePass* m_downsamplePass;
 	BloomPass* m_bloomPass;
 

@@ -8,6 +8,7 @@
 #include "../core/windowData.h"
 #include "../core/file_system.h"
 #include "components/sceneview_camera.h"
+#include "components/pmx_mesh_component.h"
 
 namespace engine{
 
@@ -180,6 +181,16 @@ void SceneManager::tick(float dt)
 
 	// NOTE: 先刷新所有脏节点的Transform，便于后面的多线程收集。
 	m_activeScene->flushSceneNodeTransform();
+
+	// tick all pmx component.
+	auto cachePMXMeshComponents = m_activeScene->getComponents<PMXMeshComponent>();
+	for(auto& weakPmxComp:cachePMXMeshComponents)
+	{
+		if(auto pmxComp = weakPmxComp.lock())
+		{
+			pmxComp->OnSceneTick();
+		}
+	}
 }
 
 void SceneManager::release()

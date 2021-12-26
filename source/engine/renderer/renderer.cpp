@@ -22,6 +22,7 @@
 #include "compute_passes/taa.h"
 #include "compute_passes/downsample.h"
 #include "render_passes/bloom.h"
+#include "render_passes/pmx_pass.h"
 
 using namespace engine;
 
@@ -191,6 +192,8 @@ bool Renderer::init()
 	m_cascadeSetupPass = new GpuCascadeSetupPass(this,m_renderScene,shader_compiler, "CascadeSetup");
 
 	m_lightingPass = new LightingPass(this,m_renderScene,shader_compiler,"Lighting");
+	m_pmxPass = new PMXPass(this,m_renderScene,shader_compiler,"PMXPass");
+
 	m_downsamplePass = new DownSamplePass(this,m_renderScene,shader_compiler,"Downsample");
 	m_bloomPass = new BloomPass(this,m_renderScene,shader_compiler,"Bloom");
 	m_taaPass = new TAAPass(this,m_renderScene,shader_compiler,"TAA");
@@ -210,6 +213,8 @@ bool Renderer::init()
 	m_shadowdepthPasses->init();
 
 	m_lightingPass->init();
+	m_pmxPass->init();
+
 	m_downsamplePass->init();
 	m_bloomPass->init();
 
@@ -254,8 +259,18 @@ void Renderer::tick(float dt)
 	updateGPUData(dt);
 
 	m_frameData.updateFrameData(m_gpuFrameData);
-	m_renderScene->renderPrepare(m_gpuFrameData);
-	m_renderScene->getSceneTextures().frameBegin();
+
+
+	// gpu update.
+	VkCommandBuffer dynamicBuf = *VulkanRHI::get()->getDynamicGraphicsCmdBuf(backBufferIndex);
+	vkCheck(vkResetCommandBuffer(dynamicBuf,0));
+	VkCommandBufferBeginInfo cmdBeginInfo = vkCommandbufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	vkCheck(vkBeginCommandBuffer(dynamicBuf,&cmdBeginInfo));
+	{
+		m_renderScene->renderPrepare(m_gpuFrameData, dynamicBuf);
+		m_renderScene->getSceneTextures().frameBegin();
+	}
+	vkCheck(vkEndCommandBuffer(dynamicBuf));
 	
 	m_gbufferCullingPass->gbuffer_record(backBufferIndex); // gbuffer culling
 	m_gbufferPass->dynamicRecord(backBufferIndex); // gbuffer rendering
@@ -268,6 +283,7 @@ void Renderer::tick(float dt)
 	m_shadowdepthPasses->dynamicRecord(backBufferIndex); // shadow rendering
 
 	m_lightingPass->dynamicRecord(backBufferIndex); // lighting pass
+	m_pmxPass->dynamicRecord(backBufferIndex); // pmx pass
 
 	m_downsamplePass->record(backBufferIndex);
 	m_bloomPass->dynamicRecord(backBufferIndex);
@@ -283,13 +299,19 @@ void Renderer::tick(float dt)
 	auto frameStartSemaphore = VulkanRHI::get()->getCurrentFrameWaitSemaphoreRef();
 	auto frameEndSemaphore = VulkanRHI::get()->getCurrentFrameFinishSemaphore();
 
-	const bool bSceneEmpty = m_renderScene->isSceneEmpty();
-
 	std::vector<VkPipelineStageFlags> graphicsWaitFlags = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 	std::vector<VkPipelineStageFlags> computeWaitFlags = { VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT};
 
 	std::vector<VkSemaphore> waitSemaphores = {frameStartSemaphore};
 
+	// 0. prepare commandbuffer.
+	VulkanSubmitInfo dynamicBufSubmitInfo{};
+	auto dynamicCmdBufSemaphore = VulkanRHI::get()->getDynamicGraphicsCmdBufSemaphore(backBufferIndex);
+	dynamicBufSubmitInfo.setWaitStage(graphicsWaitFlags)
+		.setWaitSemaphore(waitSemaphores.data(),(uint32)waitSemaphores.size())// 等待上一帧完成
+		.setSignalSemaphore(&dynamicCmdBufSemaphore,1)
+		.setCommandBuffer(&dynamicBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&dynamicBufSubmitInfo.get(),nullptr));
 
 
 	// 1. gbuffer culling
@@ -297,7 +319,7 @@ void Renderer::tick(float dt)
 	auto gbufferCullingSemaphore = m_gbufferCullingPass->getSemaphore(backBufferIndex);
 	VkCommandBuffer gbufferCullingBuf = m_gbufferCullingPass->getCommandBuf(backBufferIndex)->getInstance();
 	gbufferCullingSubmitInfo.setWaitStage(graphicsWaitFlags)
-		.setWaitSemaphore(waitSemaphores.data(),(uint32)waitSemaphores.size()) // 等待上一帧完成
+		.setWaitSemaphore(&dynamicCmdBufSemaphore,1) 
 		.setSignalSemaphore(&gbufferCullingSemaphore,1)
 		.setCommandBuffer(&gbufferCullingBuf,1);
 	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&gbufferCullingSubmitInfo.get(),nullptr));
@@ -362,12 +384,22 @@ void Renderer::tick(float dt)
 		.setCommandBuffer(&lightingBuf,1);
 	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&lightingSubmitInfo.get(),nullptr));
 
+	// 7.1 pmx pass
+	VulkanSubmitInfo pmxSubmitInfo{};
+	auto pmxSemaphore = m_pmxPass->getSemaphore(backBufferIndex);
+	VkCommandBuffer pmxBuf = m_pmxPass->getCommandBuf(backBufferIndex)->getInstance();
+	pmxSubmitInfo.setWaitStage(graphicsWaitFlags)
+		.setWaitSemaphore(&lightingSemaphore,1)
+		.setSignalSemaphore(&pmxSemaphore,1) 
+		.setCommandBuffer(&pmxBuf,1);
+	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&pmxSubmitInfo.get(),nullptr));
+
 	// 8. downsample
 	VulkanSubmitInfo downsampleSubmitInfo{};
 	auto downsampleSemaphore = m_downsamplePass->getSemaphore(backBufferIndex);
 	VkCommandBuffer downsampleBuf = m_downsamplePass->getCommandBuf(backBufferIndex)->getInstance();
 	downsampleSubmitInfo.setWaitStage(graphicsWaitFlags)
-		.setWaitSemaphore(&lightingSemaphore,1)
+		.setWaitSemaphore(&pmxSemaphore,1)
 		.setSignalSemaphore(&downsampleSemaphore,1)
 		.setCommandBuffer(&downsampleBuf,1);
 	vkCheck(vkQueueSubmit(VulkanRHI::get()->getGraphicsQueue(),1,&downsampleSubmitInfo.get(),nullptr));
@@ -430,6 +462,7 @@ void Renderer::release()
 	m_cascadeSetupPass->release(); delete m_cascadeSetupPass;
 
 	m_lightingPass->release(); delete m_lightingPass;
+	m_pmxPass->release(); delete m_pmxPass;
 
 	m_downsamplePass->release(); delete m_downsamplePass;
 	m_bloomPass->release(); delete m_bloomPass;
